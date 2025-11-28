@@ -19,7 +19,13 @@ module.exports = {
       cmd: 'electron',
       args: ['.', '--env=local'],
       watch: false,
-    }
+    },
+    python: {
+      directory: './python',
+      cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
+      args: ['./main.py', '--port=7074'],
+      stdio: "inherit", // ignore
+    },
   },
 
   /**
@@ -79,7 +85,7 @@ module.exports = {
     },
     python: {
       directory: './python',
-      cmd: 'python',
+      cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
       args: ['./setup.py', 'build'],
     },
   },
@@ -191,7 +197,7 @@ module.exports = {
     },     
     python: {
       directory: './python',
-      cmd: 'python',
+      cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
       args: ['./main.py', '--port=7074'],
       stdio: "inherit", // ignore
     },
