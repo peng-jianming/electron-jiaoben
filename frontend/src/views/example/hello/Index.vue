@@ -19,7 +19,6 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-input type="textarea" v-model="textarea" show-word-limit> </el-input>
     </div>
   </div>
 </template>
@@ -34,7 +33,6 @@ const client = {
   socket: null,
 };
 const list = ref([]);
-const textarea = ref("");
 const handleGetDeviceList = async () => {
   const result = await ipc.invoke(ipcApiRoute.获取设备列表);
   list.value = result;
@@ -45,7 +43,9 @@ const handleGetDeviceList = async () => {
 
     // 添加新的监听器
     client.socket.on(`${item.deviceId}`, (response) => {
-      item.logs = response.split("\n");
+      console.log(response, "55555555")
+     const index = list.value.findIndex(_item => _item.deviceId == item.deviceId)
+     list.value[index] = response
     });
   });
 };
@@ -61,14 +61,12 @@ const handleStop = async (deviceList) => {
     deviceList: JSON.stringify(deviceList),
   });
 };
-function init() {
-  client.socket = io("ws://localhost:7070");
+
+onMounted(() => {
+ client.socket = io("ws://localhost:7070");
   client.socket.on("connect", () => {
     console.log("connect!!!!!!!!");
   });
-}
-onMounted(() => {
-  init();
 });
 </script>
 

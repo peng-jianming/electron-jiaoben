@@ -2,26 +2,11 @@
 const WebSocket = require('ws');
 const { logger } = require('ee-core/log');
 const path = require('path')
-const { getExtraResourcesDir, getLogDir } = require('ee-core/ps');
-
-
+const { getSocketServer } = require('ee-core/socket');
+const { getBaseDir } = require('ee-core/ps');
+const fs = require('fs');
 const tkill = require('tree-kill');
-
 const crossSpawn = require('cross-spawn');
-
-// 封装为 Promise，方便上层统一 await
-const kill = (id) => {
-  return new Promise((resolve) => {
-    tkill(id, 'SIGINT', (err) => {
-      if (err) {
-        // 如果 SIGINT 失败，再尝试 SIGKILL，最终无论如何都认为结束
-        tkill(id, 'SIGKILL', () => resolve());
-      } else {
-        resolve();
-      }
-    });
-  });
-};
 
 /**
  * 示例服务
@@ -30,8 +15,31 @@ const kill = (id) => {
 class ExampleService {
 
   constructor() {
-    // 记录每个设备对应的 Python 任务进程 PID 列表：{ [deviceId]: number[] }
-    this.deviceProcesses = new Map();
+    // this.deviceProcesses = new Map();
+    const deviceMap = new Map();
+    this.deviceProcesses = new Proxy(deviceMap, {
+      get(target, prop, receiver) {
+        if (prop === 'set') {
+          return (key, value) => {
+            const result = target.set(key, value);
+            try {
+              const SocketServer = getSocketServer();
+              if (SocketServer && SocketServer.io) {
+                SocketServer.io.emit(`${key}`, value);
+              }
+            } catch (err) {
+              logger.error('Socket emit error:', err);
+            }
+            return result;
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'function') {
+          return value.bind(target);
+        }
+        return value;
+      }
+    });
   }
 
   async 获取设备列表() {
@@ -40,12 +48,23 @@ class ExampleService {
     };
     const res = await this.sendRequest(data);
     if (res && res.result) {
-      return JSON.parse(res.result);
+
+      const list = JSON.parse(res.result);
+
+      list.forEach(item => {
+        this.deviceProcesses.set(item.deviceId, {
+          ...item,
+          isRunning: false,
+          logs: ''
+        });
+      })
+      return [...this.deviceProcesses.values()];
     }
     return [];
   }
 
   sendRequest(payload) {
+
     return new Promise((resolve, reject) => {
       const ws = new WebSocket('ws://127.0.0.1:33332');
 
@@ -78,25 +97,23 @@ class ExampleService {
     });
   }
 
-
   async createPythonServer(name, port) {
     return new Promise((resolve, reject) => {
-      const coreProcess = crossSpawn('C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe', [`./${name}.py`, `--id=${port}`], {
+      const coreProcess = crossSpawn('python', [`./${name}.py`, `--id=${port}`], {
         stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
         detached: false,
-        cwd: 'D:/pjm/vvvvvvvvvvvvv/electron-egg/python',
+        cwd: path.join(getBaseDir(), 'python'),
         maxBuffer: 1024 * 1024 * 1024
       });
 
       // 开启进程,记录进程id
       const current = this.deviceProcesses.get(port);
-      console.log('current', current);
-      
+
       current.pid = coreProcess.pid;
       this.deviceProcesses.set(port, current);
 
       coreProcess.on('exit', (code, signal) => {
-        console.log('Python 任务退出：', name, port, 'code=', code, 'signal=', signal);
+        console.log('Python exit：', name, port, 'code=', code, 'signal=', signal);
 
         // 结束进程,删除进程id
         const current = this.deviceProcesses.get(port);
@@ -117,24 +134,26 @@ class ExampleService {
     });
   }
 
-  async stopPythonServer(deviceId) {
+  stopPythonServer(deviceId) {
     const current = this.deviceProcesses.get(deviceId)
     if (!current || !current.pid) return;
-
-    console.log(current.pid, "--------------");
-    
-    await kill(current.pid);
+    tkill(current.pid, 'SIGINT', (err) => {
+      if (err) {
+        // 如果 SIGINT 失败，再尝试 SIGKILL，最终无论如何都认为结束
+        tkill(current.pid, 'SIGKILL', () => { });
+      }
+    });
   }
 
   async 开始任务(deviceList, taskList) {
-
-
     const devicePromises = deviceList.map(async (item) => {
 
       // 任务开始,记录当前任务执行状态
-      this.deviceProcesses.set(item.deviceId, {
-        isRunning: true,
-      });
+      let res = this.deviceProcesses.get(item.deviceId)
+      res.isRunning = true;
+      this.deviceProcesses.set(item.deviceId, res)
+
+      this.监听文件(item.deviceId)
 
       for (const taskName of taskList) {
         try {
@@ -161,14 +180,37 @@ class ExampleService {
   }
 
   async 结束任务(deviceList) {
-    console.log('1111111111');
-    
     await Promise.all(deviceList.map((item) => {
       const current = this.deviceProcesses.get(item.deviceId)
       current.isRunning = false;
       this.deviceProcesses.set(item.deviceId, current);
       this.stopPythonServer(item.deviceId)
     }));
+  }
+
+  async 监听文件(deviceId) {
+    const logPath = path.join(getBaseDir(), `taskLogs/${deviceId}.log`);
+    // 若文件不存在则创建，存在则清空内容
+    fs.writeFileSync(logPath, '', 'utf8');
+
+    // 移除之前的监听器，防止重复监听
+    fs.unwatchFile(logPath);
+
+    // 添加新的监听器
+    fs.watchFile(logPath, { interval: 1000 }, (curr, prev) => {
+      if (curr.mtime !== prev.mtime) {
+        fs.readFile(logPath, 'utf8', (err, data) => {
+          if (!err) {
+            const arr = data.split('\r\n')
+            
+            let res = this.deviceProcesses.get(deviceId)
+            res.logs = arr[arr.length - 2];
+            this.deviceProcesses.set(deviceId, res)
+            // SocketServer.io.emit(`${deviceId}`, data);
+          }
+        });
+      }
+    });
   }
 }
 ExampleService.toString = () => '[class ExampleService]';

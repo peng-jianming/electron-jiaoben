@@ -1,7 +1,7 @@
 import argparse
 import time
 parser = argparse.ArgumentParser(description="Python Server")
-parser.add_argument("--id", type=int, default=7074, help="The id number.")
+parser.add_argument("--id", type=str, default='', help="The id number.")
 args = parser.parse_args()
 
 def log_info(id, info):
