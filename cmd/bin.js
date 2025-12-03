@@ -20,12 +20,17 @@ module.exports = {
       args: ['.', '--env=local'],
       watch: false,
     },
-    python: {
-      directory: './python',
-      cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
-      args: ['./main.py', '--port=7074'],
-      stdio: "inherit", // ignore
-    },
+    // python: {
+    //   directory: './python',
+    //   cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
+    //   args: ['./main.py', '--port=7074'],
+    //   stdio: "inherit", // ignore
+    // },
+    // node: {
+    //   directory: './js-mhxy',
+    //   cmd: 'nvm use 18.18.2 32',
+    //   // args: ['./index.js'],
+    // },
   },
 
   /**

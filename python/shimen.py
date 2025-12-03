@@ -13,4 +13,4 @@ if __name__ == "__main__":
     # 循环在运行 5 秒后自动退出
     while time.time() - start < 5:
         time.sleep(1)
-        log_info(args.id, f'{time.strftime("%Y-%m-%d %H:%M:%S")} main')
+        log_info(args.id, f'{time.strftime("%Y-%m-%d %H:%M:%S")} 师门')
