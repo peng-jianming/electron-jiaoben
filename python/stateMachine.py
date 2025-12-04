@@ -7,6 +7,13 @@ class StateMachine:
         self._current_state: Optional[str] = None
         self._result: Any = None
         self._is_running: bool = False
+
+    def state(self, name):
+        """装饰器：直接注册状态处理函数"""
+        def decorator(func):
+            self._states[name] = func
+            return func
+        return decorator
         
     def on(self, state: str, handler: Callable) -> 'StateMachine':
         """注册状态处理函数"""

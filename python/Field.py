@@ -9,7 +9,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
-deviceIds = "94295493"
+
+
+deviceIds = "9a8de478"
 
 
 def 裁剪图片(url, x, y, w, h):
@@ -234,8 +236,23 @@ def 随机ADB点击(x, y, w, h):
         ADB点击(random_x, random_y)
 
 
+def 获取图片宽高(path):
+    try:
+        if not os.path.exists(path):
+            print(f"错误：文件 {path} 不存在")
+            return None
+        
+        img = Image.open(path)
+        width, height = img.size
+        return {"w": width, "h": height}
+    except Exception as e:
+        print(f"获取图片宽高时出错：{str(e)}")
+        return None
+
+
 class Field:
     def __init__(self, config: dict):
+        print(config)
         self.标识 = config.get("标识")
         self.方式 = config.get("方式")
         self.图片路径 = config.get("图片路径")
@@ -244,10 +261,11 @@ class Field:
         self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
         self.x = 0
         self.y = 0
+        self.w = 0
+        self.h = 0
 
     def 查找(self):
         url = 截图()
-        url = "./94295493.png"
         if self.查找区域['x'] and self.查找区域['y'] and self.查找区域['w'] and self.查找区域['h']:
             裁剪图片(
                 url, self.查找区域['x'], self.查找区域['y'], self.查找区域['w'], self.查找区域['h']
@@ -255,9 +273,16 @@ class Field:
 
         if self.方式 == "opencv找图":
             result = opencv找图(url, self.图片路径, 30, self.相似度)
-            if result:
+            result2 = 获取图片宽高(self.图片路径)
+            if result and result2:
                 self.x = self.查找区域['x'] + result["x"]
                 self.y = self.查找区域['y'] + result["y"]
+                self.w = result2['w']
+                self.h = result2['h']
+
+        if self.方式 == "yolo":
+            
+            return '1221'
         return self
 
     def 点击(self, x=None, y=None, w=None, h=None):
@@ -266,7 +291,7 @@ class Field:
         elif x and y:
             ADB点击(x, y)
         elif self.x and self.y:
-            ADB点击(self.x, self.y)
+            ADB点击(self.x, self.y, self.w, self.h)
         return self
 
     def 偏移点击(self, x=None, y=None, w=None, h=None):
