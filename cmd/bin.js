@@ -90,7 +90,8 @@ module.exports = {
     },
     python: {
       directory: './python',
-      cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe',
+      // cmd: 'C:/Users/管理员/AppData/Local/Programs/Python/Python312/python.exe',
+      cmd: 'C:/ProgramData/anaconda3/python.exe',
       args: ['./setup.py', 'build'],
     },
   },
