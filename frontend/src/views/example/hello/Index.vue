@@ -1,19 +1,22 @@
 <template>
   <div id="hero">
     <div>
-      <el-button @click="handleGetDeviceList">获取设备列表</el-button>
+      <el-button type="primary" @click="handleGetDeviceList">重置所有</el-button>
+      <el-button type="primary" @click="handleStart(list)">全部开始</el-button>
+      <el-button type="primary" @click="handleStop(list)">全部结束</el-button>
       <el-table :data="list" border>
         <el-table-column prop="deviceId" label="句柄" width="180"> </el-table-column>
         <el-table-column prop="name" label="窗口名" width="180"> </el-table-column>
-        <el-table-column prop="status" label="当前任务" width="180"> </el-table-column>
-        <el-table-column prop="action" label="当前动作" width="180"> </el-table-column>
+        <el-table-column prop="isRunning" label="是否运行" width="180"> </el-table-column>
+        <el-table-column prop="currentTask" label="当前任务" width="180">
+        </el-table-column>
         <el-table-column prop="logs" label="日志" width="180"> </el-table-column>
         <el-table-column label="操作">
           <template #default="scope">
-            <el-button @click="handleStart([scope.row])" type="text" size="small"
+            <el-button type="primary" @click="handleStart([scope.row])" size="small"
               >开始</el-button
             >
-            <el-button @click="handleStop([scope.row])" type="text" size="small"
+            <el-button type="primary" @click="handleStop([scope.row])" size="small"
               >结束</el-button
             >
           </template>
@@ -34,6 +37,8 @@ const client = {
 };
 const list = ref([]);
 const handleGetDeviceList = async () => {
+  await handleStop(list.value);
+
   const result = await ipc.invoke(ipcApiRoute.获取设备列表);
   list.value = result;
 
@@ -43,9 +48,8 @@ const handleGetDeviceList = async () => {
 
     // 添加新的监听器
     client.socket.on(`${item.deviceId}`, (response) => {
-      console.log(response, "55555555")
-     const index = list.value.findIndex(_item => _item.deviceId == item.deviceId)
-     list.value[index] = response
+      const index = list.value.findIndex((_item) => _item.deviceId == item.deviceId);
+      list.value[index] = response;
     });
   });
 };
@@ -63,10 +67,12 @@ const handleStop = async (deviceList) => {
 };
 
 onMounted(() => {
- client.socket = io("ws://localhost:7070");
+  client.socket = io("ws://localhost:7070");
   client.socket.on("connect", () => {
     console.log("connect!!!!!!!!");
   });
+
+  handleGetDeviceList();
 });
 </script>
 

@@ -14,6 +14,6 @@ app.register("before-close", life.beforeClose);
 
 // register preload
 app.register("preload", preload);
-
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 // run
 app.run();

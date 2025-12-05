@@ -8,17 +8,13 @@ const fs = require('fs');
 const tkill = require('tree-kill');
 const crossSpawn = require('cross-spawn');
 
-/**
- * 示例服务
- * @class
- */
 class ExampleService {
 
   constructor() {
-    // this.deviceProcesses = new Map();
     const deviceMap = new Map();
     this.deviceProcesses = new Proxy(deviceMap, {
       get(target, prop, receiver) {
+        
         if (prop === 'set') {
           return (key, value) => {
             const result = target.set(key, value);
@@ -49,7 +45,96 @@ class ExampleService {
     const res = await this.sendRequest(data);
     if (res && res.result) {
 
-      const list = JSON.parse(res.result);
+      // const list = JSON.parse(res.result);
+      const list = [
+          {
+            deviceId: '1',
+          },
+          {
+            deviceId: '2',
+          },
+          {
+            deviceId: '3',
+          },
+          {
+            deviceId: '4',
+          },
+          {
+            deviceId: '5',
+          },
+          {
+            deviceId: '6',
+          },
+          {
+            deviceId: '7',
+          },
+          {
+            deviceId: '8',
+          },
+          {
+            deviceId: '9',
+          },
+          {
+            deviceId: '10',
+          },
+          {
+            deviceId: '11',
+          },
+          {
+            deviceId: '12',
+          },
+          {
+            deviceId: '13',
+          },
+          {
+            deviceId: '14',
+          },
+          {
+            deviceId: '15',
+          },
+          {
+            deviceId: '16',
+          },
+          {
+            deviceId: '17',
+          },
+          {
+            deviceId: '18',
+          },
+          {
+            deviceId: '19',
+          },
+          {
+            deviceId: '20',
+          },
+          {
+            deviceId: '21',
+          },
+          {
+            deviceId: '22',
+          },
+          {
+            deviceId: '23',
+          },
+          {
+            deviceId: '24',
+          },
+          {
+            deviceId: '25',
+          },
+          {
+            deviceId: '26',
+          },
+          {
+            deviceId: '27',
+          },
+          {
+            deviceId: '28',
+          },
+          {
+            deviceId: '29',
+          },
+      ]
 
       list.forEach(item => {
         this.deviceProcesses.set(item.deviceId, {
@@ -97,9 +182,15 @@ class ExampleService {
     });
   }
 
+  changeDeviceProcesses(id, key, value) {
+    const current = this.deviceProcesses.get(id);
+    current[key] = value;
+    this.deviceProcesses.set(id, current);
+  }
+
   async createPythonServer(name, port) {
     return new Promise((resolve, reject) => {
-      const coreProcess = crossSpawn('python', [`./${name}.py`, `--id=${port}`], {
+      const coreProcess = crossSpawn('C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe', [`./${name}.py`, `--id=${port}`], {
         stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
         detached: false,
         cwd: path.join(getBaseDir(), 'python'),
@@ -107,18 +198,13 @@ class ExampleService {
       });
 
       // 开启进程,记录进程id
-      const current = this.deviceProcesses.get(port);
-
-      current.pid = coreProcess.pid;
-      this.deviceProcesses.set(port, current);
+      this.changeDeviceProcesses(port, 'pid', coreProcess.pid)
 
       coreProcess.on('exit', (code, signal) => {
         console.log('Python exit：', name, port, 'code=', code, 'signal=', signal);
 
         // 结束进程,删除进程id
-        const current = this.deviceProcesses.get(port);
-        current.pid = null;
-        this.deviceProcesses.set(port, current);
+        this.changeDeviceProcesses(port, 'pid', null)
 
         // 无论是否成功退出，都算本次任务结束，交由上层决定是否继续后续任务
         resolve({ code, signal });
@@ -126,9 +212,7 @@ class ExampleService {
 
       coreProcess.on('error', (err) => {
         // 结束进程,删除进程id
-        const current = this.deviceProcesses.get(port);
-        current.pid = null;
-        this.deviceProcesses.set(port, current);
+        this.changeDeviceProcesses(port, 'pid', null)
         reject(err);
       });
     });
@@ -149,9 +233,7 @@ class ExampleService {
     const devicePromises = deviceList.map(async (item) => {
 
       // 任务开始,记录当前任务执行状态
-      let res = this.deviceProcesses.get(item.deviceId)
-      res.isRunning = true;
-      this.deviceProcesses.set(item.deviceId, res)
+      this.changeDeviceProcesses(item.deviceId, 'isRunning', true)
 
       this.监听文件(item.deviceId)
 
@@ -160,7 +242,9 @@ class ExampleService {
           // 运行状态被关了,就不继续执行了
           const current = this.deviceProcesses.get(item.deviceId);
           if (current.isRunning) {
+            this.changeDeviceProcesses(item.deviceId, 'currentTask', taskName)
             await this.createPythonServer(taskName, item.deviceId);
+            this.changeDeviceProcesses(item.deviceId, 'currentTask', '')
           }
         } catch (err) {
           this.deviceProcesses.delete(item.deviceId);
@@ -170,9 +254,7 @@ class ExampleService {
       }
 
       // 任务全部做完, 运行状态结束
-      this.deviceProcesses.set(item.deviceId, {
-        isRunning: false,
-      });
+      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
     });
     // 如果希望等所有设备的任务都执行完毕后再返回，可以 await
     await Promise.all(devicePromises);
@@ -181,15 +263,14 @@ class ExampleService {
 
   async 结束任务(deviceList) {
     await Promise.all(deviceList.map((item) => {
-      const current = this.deviceProcesses.get(item.deviceId)
-      current.isRunning = false;
-      this.deviceProcesses.set(item.deviceId, current);
+      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
       this.stopPythonServer(item.deviceId)
     }));
   }
 
   async 监听文件(deviceId) {
     const logPath = path.join(getBaseDir(), `taskLogs/${deviceId}.log`);
+    
     // 若文件不存在则创建，存在则清空内容
     fs.writeFileSync(logPath, '', 'utf8');
 
@@ -202,11 +283,7 @@ class ExampleService {
         fs.readFile(logPath, 'utf8', (err, data) => {
           if (!err) {
             const arr = data.split('\r\n')
-            
-            let res = this.deviceProcesses.get(deviceId)
-            res.logs = arr[arr.length - 2];
-            this.deviceProcesses.set(deviceId, res)
-            // SocketServer.io.emit(`${deviceId}`, data);
+            this.changeDeviceProcesses(deviceId, 'logs', arr[arr.length - 2])
           }
         });
       }
