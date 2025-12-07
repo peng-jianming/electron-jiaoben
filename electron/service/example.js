@@ -3,7 +3,7 @@ const WebSocket = require('ws');
 const { logger } = require('ee-core/log');
 const path = require('path')
 const { getSocketServer } = require('ee-core/socket');
-const { getBaseDir } = require('ee-core/ps');
+const { getBaseDir, getExtraResourcesDir } = require('ee-core/ps');
 const fs = require('fs');
 const tkill = require('tree-kill');
 const crossSpawn = require('cross-spawn');
@@ -45,97 +45,7 @@ class ExampleService {
     const res = await this.sendRequest(data);
     if (res && res.result) {
 
-      // const list = JSON.parse(res.result);
-      const list = [
-          {
-            deviceId: '1',
-          },
-          {
-            deviceId: '2',
-          },
-          {
-            deviceId: '3',
-          },
-          {
-            deviceId: '4',
-          },
-          {
-            deviceId: '5',
-          },
-          {
-            deviceId: '6',
-          },
-          {
-            deviceId: '7',
-          },
-          {
-            deviceId: '8',
-          },
-          {
-            deviceId: '9',
-          },
-          {
-            deviceId: '10',
-          },
-          {
-            deviceId: '11',
-          },
-          {
-            deviceId: '12',
-          },
-          {
-            deviceId: '13',
-          },
-          {
-            deviceId: '14',
-          },
-          {
-            deviceId: '15',
-          },
-          {
-            deviceId: '16',
-          },
-          {
-            deviceId: '17',
-          },
-          {
-            deviceId: '18',
-          },
-          {
-            deviceId: '19',
-          },
-          {
-            deviceId: '20',
-          },
-          {
-            deviceId: '21',
-          },
-          {
-            deviceId: '22',
-          },
-          {
-            deviceId: '23',
-          },
-          {
-            deviceId: '24',
-          },
-          {
-            deviceId: '25',
-          },
-          {
-            deviceId: '26',
-          },
-          {
-            deviceId: '27',
-          },
-          {
-            deviceId: '28',
-          },
-          {
-            deviceId: '29',
-          },
-      ]
-
+      const list = JSON.parse(res.result);
       list.forEach(item => {
         this.deviceProcesses.set(item.deviceId, {
           ...item,
@@ -184,24 +94,26 @@ class ExampleService {
 
   changeDeviceProcesses(id, key, value) {
     const current = this.deviceProcesses.get(id);
+
     current[key] = value;
     this.deviceProcesses.set(id, current);
   }
 
-  async createPythonServer(name, port) {
+  async createPythonServer(runPath, port) {
     return new Promise((resolve, reject) => {
-      const coreProcess = crossSpawn('C:/Users/管理员/AppData/Local/Programs/Python/Python312-32/python.exe', [`./${name}.py`, `--id=${port}`], {
-        stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
-        detached: false,
-        cwd: path.join(getBaseDir(), 'python'),
-        maxBuffer: 1024 * 1024 * 1024
-      });
-
+    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `${runPath}/index.py`, `--id=${port}`], {
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+      detached: false,
+      cwd: runPath,
+      maxBuffer: 1024 * 1024 * 1024,
+      windowsHide: true
+    });
+    
       // 开启进程,记录进程id
       this.changeDeviceProcesses(port, 'pid', coreProcess.pid)
 
       coreProcess.on('exit', (code, signal) => {
-        console.log('Python exit：', name, port, 'code=', code, 'signal=', signal);
+        console.log('Python exit：', path, port, 'code=', code, 'signal=', signal);
 
         // 结束进程,删除进程id
         this.changeDeviceProcesses(port, 'pid', null)
@@ -235,7 +147,7 @@ class ExampleService {
       // 任务开始,记录当前任务执行状态
       this.changeDeviceProcesses(item.deviceId, 'isRunning', true)
 
-      this.监听文件(item.deviceId)
+    
 
       for (const taskName of taskList) {
         try {
@@ -243,7 +155,10 @@ class ExampleService {
           const current = this.deviceProcesses.get(item.deviceId);
           if (current.isRunning) {
             this.changeDeviceProcesses(item.deviceId, 'currentTask', taskName)
-            await this.createPythonServer(taskName, item.deviceId);
+            const runPath = path.join(getExtraResourcesDir(), `python`, taskName)
+            const logPath = path.join(runPath, `logs/${item.deviceId}.log`);
+            this.监听文件(item.deviceId, logPath)
+            await this.createPythonServer(runPath, item.deviceId);
             this.changeDeviceProcesses(item.deviceId, 'currentTask', '')
           }
         } catch (err) {
@@ -258,7 +173,6 @@ class ExampleService {
     });
     // 如果希望等所有设备的任务都执行完毕后再返回，可以 await
     await Promise.all(devicePromises);
-    this.isRunning = false;
   }
 
   async 结束任务(deviceList) {
@@ -268,8 +182,13 @@ class ExampleService {
     }));
   }
 
-  async 监听文件(deviceId) {
-    const logPath = path.join(getBaseDir(), `taskLogs/${deviceId}.log`);
+  async 监听文件(deviceId, logPath) {
+    
+    // 确保目录存在
+    const dir = path.dirname(logPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     
     // 若文件不存在则创建，存在则清空内容
     fs.writeFileSync(logPath, '', 'utf8');

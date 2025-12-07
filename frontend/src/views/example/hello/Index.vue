@@ -55,10 +55,12 @@ const handleGetDeviceList = async () => {
 };
 
 const handleStart = async (deviceList) => {
-  await ipc.invoke(ipcApiRoute.开始任务, {
+  const aaa = await ipc.invoke(ipcApiRoute.开始任务, {
     deviceList: JSON.stringify(deviceList),
-    taskList: ["shimen", "main"],
+    taskList: ["shimen"],
   });
+  console.log(aaa, "9999999");
+  
 };
 const handleStop = async (deviceList) => {
   await ipc.invoke(ipcApiRoute.结束任务, {

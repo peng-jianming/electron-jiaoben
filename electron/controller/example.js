@@ -21,7 +21,9 @@ class ExampleController {
 
   async 开始任务(args, event) {
     const params = args || {};
-    await exampleService.开始任务(JSON.parse(params.deviceList || '[]'), params.taskList);
+    const aaa =  await exampleService.开始任务(JSON.parse(params.deviceList || '[]'), params.taskList);
+    return aaa;
+    
   }
 
   async 结束任务(args, event) {
