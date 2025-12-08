@@ -90,14 +90,14 @@ class InterfaceStateMachine:
             return func
         return decorator
         
-    def start(self, initial_interface: Optional[str] = None) -> Any:
+    def start(self) -> Any:
         """启动状态机"""
         self._is_running = True
         
         while self._is_running:
             try:
                 # 识别当前界面
-                detected_interface = self._recognize_interface()
+                detected_interface = self._interface_recognizer()
                 
                 # 如果检测到界面变化
                 if detected_interface != self._current_interface:
@@ -121,55 +121,14 @@ class InterfaceStateMachine:
                         print(f"界面 {self._current_interface} 处理失败")
                 
                 # 短暂延迟，避免CPU占用过高
-                time.sleep(1)
+                # time.sleep(1)
                 
             except Exception as e:
                 print(f"状态机运行异常: {e}")
-                # 可以添加异常恢复逻辑
-                if self._handle_exception(e):
-                    continue
-                else:
-                    self.stop()
-                    break
-        
-    def _recognize_interface(self) -> str:
-        """识别当前界面"""
-        if self._interface_recognizer:
-            return self._interface_recognizer()
-        else:
-            # 默认实现：直接返回当前界面或使用简单识别
-            return self._current_interface or "unknown"
+                self.stop()
             
-    def _handle_exception(self, exception: Exception) -> bool:
-        """处理异常，返回True表示继续运行，False表示停止"""
-        # 这里可以添加异常处理逻辑
-        # 比如：遇到特定异常时，重置到安全界面
-        print(f"处理异常: {exception}")
-        
-        # 示例：遇到多次相同异常，尝试恢复
-        if "timeout" in str(exception).lower():
-            # 超时异常，尝试返回主界面
-            self._current_interface = "main_interface"
-            return True
-            
-        return True  # 默认继续运行
-        
     def stop(self):
         """停止状态机"""
         self._is_running = False
         
-    def get_context(self) -> Dict[str, Any]:
-        """获取当前上下文"""
-        return self._context.copy()
         
-    def update_context(self, **kwargs):
-        """更新上下文"""
-        self._context.update(kwargs)
-        
-    def get_current_interface(self) -> Optional[str]:
-        """获取当前界面"""
-        return self._current_interface
-        
-    def get_previous_interface(self) -> Optional[str]:
-        """获取上一个界面"""
-        return self._previous_interface

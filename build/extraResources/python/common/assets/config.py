@@ -81,3 +81,10 @@ import os
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'baitangoumai.png')
 }
+
+
+通用_队伍弹框界面 = {
+    '标识': '通用_队伍弹框界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'duiwutankuangjiemian.png')
+}
