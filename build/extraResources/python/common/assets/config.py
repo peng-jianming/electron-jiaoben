@@ -88,3 +88,9 @@ import os
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'duiwutankuangjiemian.png')
 }
+
+弹框_关闭 = {
+    '标识': '弹框_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'tankuangguanbi.png')
+}

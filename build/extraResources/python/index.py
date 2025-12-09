@@ -1,3 +1,40 @@
+import argparse
+import time
+import os
+
+parser = argparse.ArgumentParser(description="Python Server")
+parser.add_argument("--id", type=str, default='', help="The id number.")
+args = parser.parse_args()
+
+def 写入日志(info):
+    # 使用主运行模块所在目录，而不是当前文件所在目录
+    import sys
+    main_module = sys.modules['__main__']
+    main_dir = os.path.dirname(os.path.abspath(main_module.__file__))
+    log_dir = os.path.join(main_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f'{deviceIds}.log')
+
+    # 读取已有日志内容
+    logs = []
+    if os.path.exists(log_path):
+        with open(log_path, 'r', encoding='utf-8') as f:
+            logs = f.readlines()
+
+    # 保证最多一百行
+    logs = [line.rstrip('\n') for line in logs]
+    logs.append(info)
+    if len(logs) > 100:
+        logs = logs[-100:]
+    with open(log_path, 'w', encoding='utf-8') as f:
+        for line in logs:
+            f.write(f'{line}\n')
+
+
+
+
+
+
 import json
 import random
 import websockets
@@ -12,7 +49,8 @@ from PIL import Image
 from ultralytics import YOLO
 import math
 
-deviceIds = "9a8de478"
+# deviceIds = "9a8de478"
+deviceIds = args.id
 
 
 def 裁剪图片(url, x, y, w, h):
@@ -75,7 +113,6 @@ def opencv找图(large_image_path, small_image_path, tolerance=0, similarity=0.9
     try:
         # 1. 检查文件是否存在
         if not os.path.exists(large_image_path) or not os.path.exists(small_image_path):
-            print("Image files not found.")
             return None
 
         # 2. 加载图片
@@ -181,7 +218,7 @@ async def send_to_gc(payload):
             # print(f"GC Response: {response}")
             return json.loads(response)
     except Exception as e:
-        # print(f"GC Error: {e}")
+        print(f"GC Error: {e}")
         return None
 
 
@@ -214,6 +251,7 @@ def 随机延时(startMs, endMs):
 
 
 def ADB点击(x, y):
+    写入日志(f"点击坐标: {x}, {y}")
     if x and y:
         调用ADB(f"input motionevent DOWN {x} {y}")
         随机延时(0, 0.3)
@@ -342,9 +380,10 @@ class Field:
 
         if self.方式 == "opencv找图":
             result = opencv找图(url, self.图片路径, 30, self.相似度)
+            print(result, "===")
             result2 = 获取图片宽高(self.图片路径)
             if result and result2:
-                print(f"找到{self.标识}: '{result}'")
+                写入日志(f"找到{self.标识}: '{result}'")
                 self.x = self.查找区域["x"] + result["x"]
                 self.y = self.查找区域["y"] + result["y"]
                 self.w = result2["w"]
@@ -355,7 +394,7 @@ class Field:
             if len(result):
                 for r in result:
                     if r["class_name"] == self.分类名:
-                        print(f"找到{self.标识}: '{result}'")
+                        写入日志(f"找到{self.标识}: '{result}'")
                         self.x = self.查找区域["x"] + math.ceil(r["x"])
                         self.y = self.查找区域["y"] + math.ceil(r["y"])
                         self.w = math.floor(r["w"])
@@ -394,10 +433,153 @@ class Field:
         return bool(self.x and self.y)
 
 
+
+
+
+
+
+
+
+
+
+
+
+from typing import Dict, Callable, Optional, Any
+
+class StateMachine:
+    def __init__(self):
+        self._states: Dict[str, Callable] = {}
+        self._current_state: Optional[str] = None
+        self._result: Any = None
+        self._is_running: bool = False
+
+    def state(self, name):
+        """装饰器：直接注册状态处理函数"""
+        def decorator(func):
+            self._states[name] = func
+            return func
+        return decorator
+        
+    def on(self, state: str, handler: Callable) -> 'StateMachine':
+        """注册状态处理函数"""
+        self._states[state] = handler
+        return self
+        
+    def start(self, initial_state: str) -> Any:
+        """启动状态机"""
+        self._current_state = initial_state
+        self._is_running = True
+        
+        while self._is_running and self._current_state is not None:
+            # 如果当前状态已注册
+            if self._current_state in self._states:
+                # 执行状态处理函数
+                handler = self._states[self._current_state]
+                next_state = handler()
+                
+                # 如果返回了下一个状态
+                if next_state is not None:
+                    self._current_state = str(next_state)
+                else:
+                    self._result = self._current_state
+                    self._is_running = False
+            else:
+                # 状态未注册，结束状态机
+                self._result = self._current_state
+                self._is_running = False
+                
+        return self._result
+        
+    def stop(self):
+        """停止状态机"""
+        self._is_running = False
+        
+    def get_current_state(self) -> Optional[str]:
+        """获取当前状态"""
+        return self._current_state
+
+
+
+
+class InterfaceStateMachine:
+    def __init__(self):
+        self._states: Dict[str, Callable] = {}
+        self._current_interface: Optional[str] = None
+        self._previous_interface: Optional[str] = None
+        self._is_running: bool = False
+        self._context: Dict[str, Any] = {}  # 上下文信息
+        
+        # 界面识别函数（需要用户实现）
+        self._interface_recognizer: Optional[Callable] = None
+        
+    def set_recognizer(self, recognizer: Callable) -> 'InterfaceStateMachine':
+        """设置界面识别函数"""
+        self._interface_recognizer = recognizer
+        return self
+        
+    def on(self, interface: str, handler: Callable) -> 'InterfaceStateMachine':
+        """注册界面处理函数"""
+        self._states[interface] = handler
+        return self
+        
+    def state(self, name):
+        """装饰器：直接注册界面处理函数"""
+        def decorator(func):
+            self._states[name] = func
+            return func
+        return decorator
+        
+    def start(self) -> Any:
+        """启动状态机"""
+        self._is_running = True
+        
+        while self._is_running:
+            try:
+                # 识别当前界面
+                detected_interface = self._interface_recognizer()
+                
+                # 如果检测到界面变化
+                if detected_interface != self._current_interface:
+                    self._previous_interface = self._current_interface
+                    self._current_interface = detected_interface
+                    
+                
+                # 如果当前界面有注册处理函数
+                if self._current_interface in self._states:
+                    handler = self._states[self._current_interface]
+                    
+                    # 执行界面处理函数，传入当前上下文
+                    result = handler(self._context)
+                    
+                    # 处理函数可以返回False表示需要保持当前界面状态
+                    # 或者返回新的上下文数据
+                    if isinstance(result, dict):
+                        self._context.update(result)
+                    elif result is False:
+                        # 处理函数返回False，表示操作失败或需要重试
+                        print(f"界面 {self._current_interface} 处理失败")
+                
+                # 短暂延迟，避免CPU占用过高
+                # time.sleep(1)
+                
+            except Exception as e:
+                print(f"状态机运行异常: {e}")
+                self.stop()
+            
+    def stop(self):
+        """停止状态机"""
+        self._is_running = False
+        
+    def update_context(self, **kwargs):
+        """更新上下文"""
+        self._context.update(kwargs)
+        
+
+
+
 if __name__ == "__main__":
-    # 获取脚本所在目录
-    # script_dir = os.path.dirname(os.path.abspath(__file__))
-    # model_path = os.path.join(script_dir, "best.pt")
-    
-    # aaa = Field({"方式": "yolo", "分类名": "对话框", "相似度": 0.8, "模型路径": model_path}).查找()
-    # print(aaa.x, aaa.y, aaa.w, aaa.h)
+    start = time.time()
+    # 循环在运行 5 秒后自动退出
+    while time.time() - start < 5:
+        time.sleep(1)
+        写入日志(args.id, f'{time.strftime("%Y-%m-%d %H:%M:%S")} main')
