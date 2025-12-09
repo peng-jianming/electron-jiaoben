@@ -4,46 +4,20 @@ import os
 # 将父目录添加到 Python 路径，以便能找到 common 模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from index import InterfaceStateMachine, Field
+from index import Field
 from common.assets import config as common_assets
+from common.index import StateMachine
 from zhuagui.assets import config as zhuagui_assets
 
-sm = InterfaceStateMachine()
+sm = StateMachine()
 
-
-def 识别屏幕():
-    if (
-        Field(zhuagui_assets.便捷组队弹框_自动匹配)
-        .设置查找区域({"x": 1234, "y": 922, "w": 332, "h": 122})
-        .查找()
-        .是否找到()
-    ):
-        return "便捷组队弹框界面"
-    if Field(common_assets.通用_活动界面).查找().是否找到():
-        return "活动弹框界面"
-    if Field(common_assets.通用_队伍弹框界面).查找().是否找到():
-        return "队伍弹框界面"
-
-
-    # 需要判断的已经判断完了,最后肯定是主界面,即使不是主界面,那么就直接退回主界面
-    # 返回主界面() // 进行返回主界面
-    if (
-        Field(common_assets.通用_主界面活动按钮)
-        .设置查找区域({"x": 553, "y": 0, "w": 122, "h": 126})
-        .查找()
-        .是否找到()
-    ):
-        return "主界面"
-
-
-sm.set_recognizer(识别屏幕)
 sm.update_context(action="接取任务")
-
 
 @sm.state("主界面")
 def _(context):
     if context["action"] == "接取任务":
         Field(common_assets.通用_主界面活动按钮).查找().点击().随机延时(1, 2)
+        
     
 
 @sm.state("活动弹框界面")
@@ -55,22 +29,20 @@ def _(context):
                 {"x": field.x, "y": field.y, "w": 448, "h": 137}
             ).查找().点击().随机延时(1, 2)
 
-    if context["action"] == "任务进行中":
-        Field(zhuagui_assets.弹框_关闭).查找().点击().随机延时(1, 2)
         
-
 
 @sm.state("便捷组队弹框界面")
 def _(context):
     if context["action"] == "接取任务":
-        Field(zhuagui_assets.便捷组队弹框_自动匹配).查找().点击().随机延时(1, 2)
+        Field(common_assets.通用_创建队伍).查找().点击().随机延时(1, 2)
 
 
-@sm.state("队伍弹框界面")
+@sm.state("组队弹框界面")
 def _(context):
     if context["action"] == "接取任务":
-        Field(zhuagui_assets.弹框_关闭).查找().点击().随机延时(1, 2)
-        context["action"] = "任务进行中"
+        Field(common_assets.通用_创建队伍).查找().点击().随机延时(1, 2)
+
+
 
 @sm.state("战斗界面")
 def _():
@@ -79,9 +51,7 @@ def _():
 
 
 if __name__ == "__main__":
-    print("接取任务")
     result = sm.start()
-    print(f"状态机执行完成，返回结果: '{result}'")
 
 
 # 返回主界面

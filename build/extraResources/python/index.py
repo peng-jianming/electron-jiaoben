@@ -380,7 +380,6 @@ class Field:
 
         if self.方式 == "opencv找图":
             result = opencv找图(url, self.图片路径, 30, self.相似度)
-            print(result, "===")
             result2 = 获取图片宽高(self.图片路径)
             if result and result2:
                 写入日志(f"找到{self.标识}: '{result}'")

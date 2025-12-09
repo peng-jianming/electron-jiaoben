@@ -1,5 +1,63 @@
 import os
 
+弹框_关闭 = {
+    '标识': '弹框_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tankuangguanbi.png')
+}
+
+通用_活动界面 = {
+    '标识': '通用_活动界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/huodongjiemian.png')
+}
+
+通用_队伍弹框界面 = {
+    '标识': '通用_队伍弹框界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/duiwutankuangjiemian.png')
+}
+
+通用_便捷组队弹框界面 = {
+    '标识': '通用_便捷组队弹框界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/bianjiezuduijiemian.png')
+}
+
+通用_福利弹框界面 = {
+    '标识': '通用_福利弹框界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/fulijiemian.png')
+}
+
+通用_福利弹框界面_关闭 = {
+    '标识': '通用_福利弹框界面_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/fulijiemian-guanbi.png')
+}
+
+通用_调整组队等级界面 = {
+    '标识': '通用_调整组队等级界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian.png')
+}
+
+通用_调整组队等级界面_关闭 = {
+    '标识': '通用_调整组队等级界面_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian-guanbi.png')
+}
+
+
+
+
+
+
+
+
+
+
+
 通用_跳过 = {
     '标识': '通用_跳过',
     '方式': 'opencv找图',
@@ -24,11 +82,6 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'huodong.png')
 }
 
-通用_活动界面 = {
-    '标识': '通用_活动界面',
-    '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'huodongjiemian.png')
-}
 
 通用_创建队伍 = {
     '标识': '通用_创建队伍',
@@ -36,11 +89,6 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'chuangjianduiwu.png')
 }
 
-关闭1 = {
-    '标识': '通用_关闭1',
-    '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'guanbi-1.png')
-}
 
 关闭师门弹框 = {
     '标识': '通用_关闭师门弹框',
@@ -83,14 +131,5 @@ import os
 }
 
 
-通用_队伍弹框界面 = {
-    '标识': '通用_队伍弹框界面',
-    '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'duiwutankuangjiemian.png')
-}
 
-弹框_关闭 = {
-    '标识': '弹框_关闭',
-    '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'tankuangguanbi.png')
-}
+
