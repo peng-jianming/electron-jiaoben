@@ -6,44 +6,44 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tankuangguanbi.png')
 }
 
-通用_活动界面 = {
-    '标识': '通用_活动界面',
+活动界面 = {
+    '标识': '活动界面',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/huodongjiemian.png')
 }
 
-通用_队伍弹框界面 = {
-    '标识': '通用_队伍弹框界面',
+队伍弹框界面 = {
+    '标识': '队伍弹框界面',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/duiwutankuangjiemian.png')
 }
 
-通用_便捷组队弹框界面 = {
-    '标识': '通用_便捷组队弹框界面',
+便捷组队弹框界面 = {
+    '标识': '便捷组队弹框界面',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/bianjiezuduijiemian.png')
 }
 
-通用_福利弹框界面 = {
-    '标识': '通用_福利弹框界面',
+福利弹框界面 = {
+    '标识': '福利弹框界面',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/fulijiemian.png')
 }
 
-通用_福利弹框界面_关闭 = {
-    '标识': '通用_福利弹框界面_关闭',
+福利弹框界面_关闭 = {
+    '标识': '福利弹框界面_关闭',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/fulijiemian-guanbi.png')
 }
 
-通用_调整组队等级界面 = {
-    '标识': '通用_调整组队等级界面',
+调整组队等级界面 = {
+    '标识': '调整组队等级界面',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian.png')
 }
 
-通用_调整组队等级界面_关闭 = {
-    '标识': '通用_调整组队等级界面_关闭',
+调整组队等级界面_关闭 = {
+    '标识': '调整组队等级界面_关闭',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian-guanbi.png')
 }

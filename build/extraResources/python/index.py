@@ -353,6 +353,7 @@ class Field:
         self.标识 = config.get("标识")
         self.方式 = config.get("方式")
         self.图片路径 = config.get("图片路径")
+        self.大图路径 = config.get("大图路径")
         self.分类名 = config.get("分类名")
         self.相似度 = config.get("相似度", 0.9)
         self.模型路径 = config.get("模型路径")
@@ -363,7 +364,7 @@ class Field:
         self.h = 0
 
     def 查找(self):
-        url = 截图()
+        url =  self.大图路径 if self.大图路径 else 截图()
         if (
             self.查找区域["x"]
             and self.查找区域["y"]
@@ -426,6 +427,10 @@ class Field:
 
     def 设置查找区域(self, 查找区域):
         self.查找区域 = 查找区域
+        return self
+
+    def 设置大图路径(self, 大图路径):
+        self.大图路径 = 大图路径
         return self
 
     def 是否找到(self):
