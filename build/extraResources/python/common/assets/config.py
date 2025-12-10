@@ -39,13 +39,13 @@ import os
 调整组队等级界面 = {
     '标识': '调整组队等级界面',
     '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian.png')
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/调整组队等级界面.png')
 }
 
 调整组队等级界面_关闭 = {
     '标识': '调整组队等级界面_关闭',
     '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/tiaozhengzuduidengjijiemian-guanbi.png')
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/调整组队等级界面_关闭.png')
 }
 
 
@@ -76,8 +76,8 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'shangjiao.png')
 }
 
-通用_主界面活动按钮 = {
-    '标识': '通用_主界面活动按钮',
+主界面活动按钮 = {
+    '标识': '主界面活动按钮',
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'huodong.png')
 }
