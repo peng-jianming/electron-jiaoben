@@ -48,6 +48,23 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/调整组队等级界面_关闭.png')
 }
 
+战斗界面 = {
+    '标识': '战斗界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/战斗界面.png')
+}
+
+加入帮派界面 = {
+    '标识': '加入帮派界面',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/加入帮派界面.png')
+}
+
+加入帮派界面_关闭 = {
+    '标识': '加入帮派界面_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/加入帮派界面_关闭.png')
+}
 
 
 
@@ -56,6 +73,12 @@ import os
 
 
 
+
+准备战斗 = {
+    '标识': '准备战斗',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), '准备战斗.png')
+}
 
 
 通用_跳过 = {

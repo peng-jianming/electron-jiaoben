@@ -24,6 +24,10 @@ class StateMachine(InterfaceStateMachine):
                return "便捷组队弹框界面" if "便捷组队弹框界面" in self._states else  Field(common_assets.弹框_关闭).查找().点击().随机延时(1, 2)
             if Field(common_assets.调整组队等级界面).设置大图路径(url).查找().是否找到():
                return "调整组队等级界面" if "调整组队等级界面" in self._states else  Field(common_assets.调整组队等级界面_关闭).查找().点击().随机延时(1, 2)
+            if Field(common_assets.加入帮派界面).设置大图路径(url).查找().是否找到():
+               return "加入帮派界面" if "加入帮派界面" in self._states else  Field(common_assets.加入帮派界面_关闭).查找().点击().随机延时(1, 2)
+            if Field(common_assets.战斗界面).设置大图路径(url).查找().是否找到():
+               return "战斗界面"
 
             if (
                 Field(common_assets.主界面活动按钮)
