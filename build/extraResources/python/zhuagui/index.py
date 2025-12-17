@@ -74,10 +74,6 @@ def _(context):
             随机延时(2, 3)
         
             
-        
-
-        
-
 
 @sm.state("调整组队等级界面")
 def _(context):
