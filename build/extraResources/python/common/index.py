@@ -26,12 +26,16 @@ class StateMachine(InterfaceStateMachine):
                return "调整组队等级界面" if "调整组队等级界面" in self._states else  Field(common_assets.调整组队等级界面_关闭).查找().点击().随机延时(1, 2)
             if Field(common_assets.加入帮派界面).设置大图路径(url).查找().是否找到():
                return "加入帮派界面" if "加入帮派界面" in self._states else  Field(common_assets.加入帮派界面_关闭).查找().点击().随机延时(1, 2)
+            if Field(common_assets.继续抓鬼提示).设置大图路径(url).查找().是否找到():
+               return "继续抓鬼提示" if "继续抓鬼提示" in self._states else  Field(common_assets.提示_关闭).查找().点击().随机延时(1, 2)
+            if Field(common_assets.缺人自动匹配提示).设置大图路径(url).查找().是否找到():
+               return "缺人自动匹配提示" if "缺人自动匹配提示" in self._states else  Field(common_assets.提示_关闭).查找().点击().随机延时(1, 2)
             if Field(common_assets.战斗界面).设置大图路径(url).查找().是否找到():
+               Field(common_assets.准备战斗).设置大图路径(url).查找().点击(2210, 935, 79, 76)
                return "战斗界面"
 
             if (
                 Field(common_assets.主界面活动按钮)
-                .设置查找区域({"x": 553, "y": 0, "w": 122, "h": 126})
                 .设置大图路径(url)
                 .查找()
                 .是否找到()

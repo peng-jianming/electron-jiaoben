@@ -21,7 +21,7 @@ import os
 便捷组队弹框界面 = {
     '标识': '便捷组队弹框界面',
     '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/bianjiezuduijiemian.png')
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/便捷组队弹框界面.png')
 }
 
 福利弹框界面 = {
@@ -66,9 +66,23 @@ import os
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/加入帮派界面_关闭.png')
 }
 
+继续抓鬼提示 = {
+    '标识': '继续抓鬼提示',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/继续抓鬼提示.png')
+}
 
+缺人自动匹配提示 = {
+    '标识': '缺人自动匹配提示',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/缺人自动匹配提示.png')
+}
 
-
+提示_关闭 = {
+    '标识': '提示_关闭',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/提示_关闭.png')
+}
 
 
 
@@ -79,6 +93,33 @@ import os
     '方式': 'opencv找图',
     '图片路径': os.path.join(os.path.dirname(__file__), '准备战斗.png')
 }
+
+一键喊话 = {
+    '标识': '一键喊话',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), '一键喊话.png')
+}
+
+
+队伍没满 = {
+    '标识': '队伍没满',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), '队伍没满.png')
+}
+
+
+
+主界面_选中任务 = {
+    '标识': '主界面_选中任务',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), '主界面_选中任务.png')
+}
+主界面_未选中任务 = {
+    '标识': '主界面_未选中任务',
+    '方式': 'opencv找图',
+    '图片路径': os.path.join(os.path.dirname(__file__), '主界面_未选中任务.png')
+}
+
 
 
 通用_跳过 = {
@@ -109,7 +150,7 @@ import os
 通用_创建队伍 = {
     '标识': '通用_创建队伍',
     '方式': 'opencv找图',
-    '图片路径': os.path.join(os.path.dirname(__file__), 'chuangjianduiwu.png')
+    '图片路径': os.path.join(os.path.dirname(__file__), '创建队伍.png')
 }
 
 

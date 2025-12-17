@@ -4,7 +4,7 @@ import os
 # 将父目录添加到 Python 路径，以便能找到 common 模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from index import Field
+from index import Field, 随机ADB点击, ADB点击, 随机延时
 from common.assets import config as common_assets
 from common.index import StateMachine
 from zhuagui.assets import config as zhuagui_assets
@@ -15,12 +15,25 @@ sm.update_context(action="接取任务")
 
 @sm.state("主界面")
 def _(context):
+    
     if context["action"] == "接取任务":
-        Field(common_assets.通用_主界面活动按钮).查找().点击().随机延时(1, 2)
+        # 钟馗对话
+        if(Field(zhuagui_assets.钟馗对话).查找().是否找到()):
+            # 点击抓鬼任务
+            随机ADB点击(1829, 361, 403, 66)
+            context["action"] = "任务中"
+            随机延时(2, 3)
+
+        Field(common_assets.主界面活动按钮).查找().点击().随机延时(1, 2)
+
+    if context["action"] == "任务中":
+        Field(common_assets.主界面_未选中任务).查找().点击().随机延时(1,2)
+        Field(zhuagui_assets.主界面_抓鬼文字).查找().偏移点击(0,0,350, 114).随机延时(1,2)
+
         
     
 
-@sm.state("活动弹框界面")
+@sm.state("活动界面")
 def _(context):
     if context["action"] == "接取任务":
         field = Field(zhuagui_assets.活动弹框_抓鬼任务).查找()
@@ -34,20 +47,59 @@ def _(context):
 @sm.state("便捷组队弹框界面")
 def _(context):
     if context["action"] == "接取任务":
+        print("便捷组队弹框界面")
         Field(common_assets.通用_创建队伍).查找().点击().随机延时(1, 2)
 
 
-@sm.state("组队弹框界面")
+是否已选择完队伍等级 = False
+@sm.state("队伍弹框界面")
 def _(context):
     if context["action"] == "接取任务":
-        Field(common_assets.通用_创建队伍).查找().点击().随机延时(1, 2)
+        if not 是否已选择完队伍等级:
+            # 选择等级按钮
+            随机ADB点击(1491, 146, 58, 53)
+            随机延时(2, 3)
+
+        elif Field(common_assets.队伍没满).查找().是否找到():
+            # 一键喊话
+            随机ADB点击(1628, 953, 261, 72)
+            随机延时(2, 3)
+
+            # 选择世界频道
+            随机ADB点击(1641, 693, 232, 96)
+            随机延时(2, 3)
+        else:
+            #关掉
+            随机ADB点击(1866, 35, 61, 62)
+            随机延时(2, 3)
+        
+            
+        
+
+        
 
 
+@sm.state("调整组队等级界面")
+def _(context):
+    global 是否已选择完队伍等级
+    if context["action"] == "接取任务":
 
-@sm.state("战斗界面")
-def _():
-    print("战斗中。。。")
-    #切换自动战斗
+        # 70-89
+        随机ADB点击(1516, 467, 112, 54)
+        随机延时(2, 3)
+        # 1-69    
+        随机ADB点击(1383, 467, 114, 53)
+        随机延时(2, 3)
+
+        # 90-115
+        # 随机ADB点击(1646, 466, 116, 52)
+        # 随机延时(2, 3)
+
+        # 确定按钮
+        随机ADB点击(1086, 948, 230, 67)
+        是否已选择完队伍等级 = True
+        随机延时(2, 3)
+        
 
 
 if __name__ == "__main__":

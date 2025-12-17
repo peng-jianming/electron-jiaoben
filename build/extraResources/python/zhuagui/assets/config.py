@@ -23,3 +23,15 @@ import os
     "方式": "opencv找图",
     "图片路径": os.path.join(os.path.dirname(__file__), "tankuangguanbi.png"),
 }
+
+钟馗对话 = {
+    "标识": "钟馗对话",
+    "方式": "opencv找图",
+    "图片路径": os.path.join(os.path.dirname(__file__), "钟馗.png"),
+}
+
+主界面_抓鬼文字 = {
+    "标识": "主界面_抓鬼文字",
+    "方式": "opencv找图",
+    "图片路径": os.path.join(os.path.dirname(__file__), "主界面_抓鬼文字.png"),
+}

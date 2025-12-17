@@ -186,7 +186,7 @@ def process_all_images(tolerance=0):
 if __name__ == "__main__":
     # 每秒执行一次
     print(f'开始监控文件夹 {IMAGE_DIR} 的图片变化...')
-    tolerance_val = 5  # 设置容差值
+    tolerance_val = 25  # 设置容差值
 
     try:
         while True:

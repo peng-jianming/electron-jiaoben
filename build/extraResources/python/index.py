@@ -355,7 +355,7 @@ class Field:
         self.图片路径 = config.get("图片路径")
         self.大图路径 = config.get("大图路径")
         self.分类名 = config.get("分类名")
-        self.相似度 = config.get("相似度", 0.9)
+        self.相似度 = config.get("相似度", 0.8)
         self.模型路径 = config.get("模型路径")
         self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
         self.x = 0
