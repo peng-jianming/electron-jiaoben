@@ -30,7 +30,9 @@ class ExampleController {
     const params = args || {};
     await exampleService.结束任务(JSON.parse(params.deviceList || '[]'));
   }
-
+  changeProp(args, event){
+    exampleService.changeDeviceProcesses(args.deviceId, args.prop, args.message)
+  }
 }
 ExampleController.toString = () => '[class ExampleController]';
 

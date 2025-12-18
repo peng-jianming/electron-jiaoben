@@ -156,8 +156,8 @@ class ExampleService {
           if (current.isRunning) {
             this.changeDeviceProcesses(item.deviceId, 'currentTask', taskName)
             const runPath = path.join(getExtraResourcesDir(), `python`, taskName)
-            const logPath = path.join(runPath, `logs/${item.deviceId}.log`);
-            this.监听文件(item.deviceId, logPath)
+            // const logPath = path.join(runPath, `logs/${item.deviceId}.log`);
+            // this.监听文件(item.deviceId, logPath)
             await this.createPythonServer(runPath, item.deviceId);
             this.changeDeviceProcesses(item.deviceId, 'currentTask', '')
           }
@@ -182,32 +182,32 @@ class ExampleService {
     }));
   }
 
-  async 监听文件(deviceId, logPath) {
+  // async 监听文件(deviceId, logPath) {
     
-    // 确保目录存在
-    const dir = path.dirname(logPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+  //   // 确保目录存在
+  //   const dir = path.dirname(logPath);
+  //   if (!fs.existsSync(dir)) {
+  //     fs.mkdirSync(dir, { recursive: true });
+  //   }
     
-    // 若文件不存在则创建，存在则清空内容
-    fs.writeFileSync(logPath, '', 'utf8');
+  //   // 若文件不存在则创建，存在则清空内容
+  //   fs.writeFileSync(logPath, '', 'utf8');
 
-    // 移除之前的监听器，防止重复监听
-    fs.unwatchFile(logPath);
+  //   // 移除之前的监听器，防止重复监听
+  //   fs.unwatchFile(logPath);
 
-    // 添加新的监听器
-    fs.watchFile(logPath, { interval: 1000 }, (curr, prev) => {
-      if (curr.mtime !== prev.mtime) {
-        fs.readFile(logPath, 'utf8', (err, data) => {
-          if (!err) {
-            const arr = data.split('\r\n')
-            this.changeDeviceProcesses(deviceId, 'logs', arr[arr.length - 2])
-          }
-        });
-      }
-    });
-  }
+  //   // 添加新的监听器
+  //   fs.watchFile(logPath, { interval: 1000 }, (curr, prev) => {
+  //     if (curr.mtime !== prev.mtime) {
+  //       fs.readFile(logPath, 'utf8', (err, data) => {
+  //         if (!err) {
+  //           const arr = data.split('\r\n')
+  //           this.changeDeviceProcesses(deviceId, 'logs', arr[arr.length - 2])
+  //         }
+  //       });
+  //     }
+  //   });
+  // }
 }
 ExampleService.toString = () => '[class ExampleService]';
 

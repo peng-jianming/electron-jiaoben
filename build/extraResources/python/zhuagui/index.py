@@ -11,7 +11,16 @@ from zhuagui.assets import config as zhuagui_assets
 
 sm = StateMachine()
 
+def 识别屏幕(url):
+  if Field(common_assets.继续抓鬼提示).设置大图路径(url).查找().是否找到():
+    return Field(common_assets.提示_关闭).查找().点击().随机延时(1, 2)
+  if Field(common_assets.缺人自动匹配提示).设置大图路径(url).查找().是否找到():
+    return Field(common_assets.提示_关闭).查找().点击().随机延时(1, 2)
+
+sm.设置屏幕识别函数(识别屏幕)
+
 sm.update_context(action="接取任务")
+
 
 @sm.state("主界面")
 def _(context):
