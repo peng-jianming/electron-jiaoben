@@ -35,3 +35,9 @@ import os
     "方式": "opencv找图",
     "图片路径": os.path.join(os.path.dirname(__file__), "主界面_抓鬼文字.png"),
 }
+
+队伍缺辅助 = {
+    "标识": "队伍缺辅助",
+    "方式": "opencv找图",
+    "图片路径": os.path.join(os.path.dirname(__file__), "队伍缺辅助.png"),
+}

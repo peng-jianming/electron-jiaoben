@@ -9,28 +9,29 @@ args = parser.parse_args()
 
 
 def 写入日志(info):
-    # 使用主运行模块所在目录，而不是当前文件所在目录
-    import sys
-    main_module = sys.modules['__main__']
-    main_dir = os.path.dirname(os.path.abspath(main_module.__file__))
-    log_dir = os.path.join(main_dir, 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f'{deviceIds}.log')
-
-    # 读取已有日志内容
-    logs = []
-    if os.path.exists(log_path):
-        with open(log_path, 'r', encoding='utf-8') as f:
-            logs = f.readlines()
-
-    # 保证最多一百行
-    logs = [line.rstrip('\n') for line in logs]
-    logs.append(info)
-    if len(logs) > 100:
-        logs = logs[-100:]
-    with open(log_path, 'w', encoding='utf-8') as f:
-        for line in logs:
-            f.write(f'{line}\n')
+    print(f'{info}')
+    # # 使用主运行模块所在目录，而不是当前文件所在目录
+    # import sys
+    # main_module = sys.modules['__main__']
+    # main_dir = os.path.dirname(os.path.abspath(main_module.__file__))
+    # log_dir = os.path.join(main_dir, 'logs')
+    # os.makedirs(log_dir, exist_ok=True)
+    # log_path = os.path.join(log_dir, f'{deviceIds}.log')
+    #
+    # # 读取已有日志内容
+    # logs = []
+    # if os.path.exists(log_path):
+    #     with open(log_path, 'r', encoding='utf-8') as f:
+    #         logs = f.readlines()
+    #
+    # # 保证最多一百行
+    # logs = [line.rstrip('\n') for line in logs]
+    # logs.append(info)
+    # if len(logs) > 100:
+    #     logs = logs[-100:]
+    # with open(log_path, 'w', encoding='utf-8') as f:
+    #     for line in logs:
+    #         f.write(f'{line}\n')
 
 
 
@@ -103,112 +104,258 @@ def 裁剪图片(url, x, y, w, h):
         return False
 
 
-def opencv找图(large_image_path, small_image_path, tolerance=0, similarity=0.9):
+from typing import Optional, Tuple
+
+
+
+
+def aaaopencv找图(large_image_path, small_image_path, similarity=0.9):
     """
     在大图中查找小图
     :param large_image_path: 大图路径
     :param small_image_path: 小图路径
-    :param tolerance: 容差，允许的颜色差异范围
     :param similarity: 相似度阈值，0-1之间
-    :return: 找到的位置 (x, y) 或 None
+    :return: 找到的位置 {"x": x, "y": y} 或 None
+    """
+    # 读取图像
+    large_image = cv2.imread(large_image_path)
+    small_image = cv2.imread(small_image_path)
+
+    if large_image is None or small_image is None:
+        return None
+
+    # 获取小图尺寸
+    h, w = small_image.shape[:2]
+
+    # 使用模板匹配
+    result = cv2.matchTemplate(large_image, small_image, cv2.TM_CCOEFF_NORMED)
+
+    # 找到最匹配的位置
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    # 检查是否达到相似度阈值
+    if max_val >= similarity:
+        # 返回左上角坐标
+        return {"x": max_loc[0], "y": max_loc[1]}
+
+    return None
+
+
+
+def opencv找图(large_img_path, small_img_path, tolerance=0, similarity=0.95):
+    """
+    在大图中查找透明小图的位置
+    
+    参数:
+        large_img_path: 大图路径或PIL Image对象
+        small_img_path: 小图路径或PIL Image对象
+        tolerance: 像素颜色容差 (0-255)
+        similarity: 相似度要求 (0.0-1.0)
+    
+    返回:
+        如果找到: (x, y, width, height, similarity_score)
+        如果没找到: None
     """
     try:
-        # 1. 检查文件是否存在
-        if not os.path.exists(large_image_path) or not os.path.exists(small_image_path):
-            return None
-
-        # 2. 加载图片
-        # 使用PIL加载，保持RGBA格式
-        large_pil = Image.open(large_image_path).convert("RGBA")
-        small_pil = Image.open(small_image_path).convert("RGBA")
-
-        # 3. 转换为OpenCV格式 (RGBA)
-        large_cv = cv2.cvtColor(np.array(large_pil), cv2.COLOR_RGBA2BGRA)
-        small_cv = cv2.cvtColor(np.array(small_pil), cv2.COLOR_RGBA2BGRA)
-
-        # 4. 提取小图的Alpha通道作为掩码
-        # 分割通道
-        b, g, r, alpha = cv2.split(small_cv)
-        # 创建二值掩码：Alpha > 0 的部分为 255，否则为 0
-        _, mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)
-
-        # 5. 转换为BGR用于匹配
-        large_bgr = cv2.cvtColor(large_cv, cv2.COLOR_BGRA2BGR)
-        small_bgr = cv2.cvtColor(small_cv, cv2.COLOR_BGRA2BGR)
-
-        # 6. 模板匹配
-        # 使用TM_CCORR_NORMED配合掩码
-        result = cv2.matchTemplate(large_bgr, small_bgr, cv2.TM_CCORR_NORMED, mask=mask)
-
-        # 7. 获取最佳匹配位置
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-        # 释放内存（Python有自动垃圾回收，但显式删除大对象可以立即释放内存）
-        del result
-
-        # 8. 二次校验：根据容差逐像素比对
-        start_x, start_y = max_loc
-
-        # 获取图像数据
-        large_data = np.array(large_pil)
-        small_data = np.array(small_pil)
-
-        total_pixels = 0
-        matched_pixels = 0
-
-        small_h, small_w = small_data.shape[:2]
-        large_h, large_w = large_data.shape[:2]
-
-        # 遍历小图的每一个像素
-        for y in range(small_h):
-            for x in range(small_w):
-                # 获取小图当前像素的RGBA值
-                s_r, s_g, s_b, s_a = small_data[y, x]
-
-                # 如果小图该像素是透明的，忽略比对
-                if s_a == 0:
-                    continue
-
-                total_pixels += 1
-
-                # 计算大图中的对应位置
-                lx = start_x + x
-                ly = start_y + y
-
-                # 检查边界
-                if lx >= large_w or ly >= large_h:
-                    continue
-
-                # 获取大图对应位置像素
-                l_r, l_g, l_b, l_a = large_data[ly, lx]
-
-                # 计算差异
-                r_diff = abs(int(s_r) - int(l_r))
-                g_diff = abs(int(s_g) - int(l_g))
-                b_diff = abs(int(s_b) - int(l_b))
-
-                # 如果所有通道差异都在容差范围内，则认为该像素匹配
-                if r_diff <= tolerance and g_diff <= tolerance and b_diff <= tolerance:
-                    matched_pixels += 1
-
-        # 计算匹配率
-        match_rate = matched_pixels / total_pixels if total_pixels > 0 else 0
-
-        # 释放内存
-        del large_data, small_data, large_cv, small_cv, mask
-
-        # 9. 判断是否达到相似度要求
-        if match_rate >= similarity:
-            return {"x": start_x, "y": start_y}
+        # 加载图片
+        if isinstance(large_img_path, Image.Image):
+            large_img = large_img_path.convert("RGBA")
         else:
-            # print(
-            #     f"Found candidate at {start_x},{start_y} but similarity {match_rate:.4f} < {similarity}"
-            # )
+            large_img = Image.open(large_img_path).convert("RGBA")
+            
+        if isinstance(small_img_path, Image.Image):
+            small_img = small_img_path.convert("RGBA")
+        else:
+            small_img = Image.open(small_img_path).convert("RGBA")
+        
+        # 获取图片尺寸
+        large_width, large_height = large_img.size
+        small_width, small_height = small_img.size
+        
+        # 确保小图不大于大图
+        if small_width > large_width or small_height > large_height:
+            print("小图尺寸大于大图")
             return None
-
+        
+        # 获取小图的非透明像素点
+        small_pixels = []
+        small_alpha = []
+        small_data = small_img.load()
+        
+        for y in range(small_height):
+            for x in range(small_width):
+                r, g, b, a = small_data[x, y]
+                if a > 0:  # 只处理非透明像素
+                    small_pixels.append((x, y, (r, g, b, a)))
+                    small_alpha.append((x, y, a))
+        
+        # 如果没有非透明像素
+        if not small_pixels:
+            print("小图完全透明，无法匹配")
+            return None
+        
+        # 将大图转为像素数据以便快速访问
+        large_data = large_img.load()
+        
+        # 在大图中搜索
+        best_match = None
+        best_similarity = 0
+        
+        # 遍历大图的每个可能位置
+        for large_y in range(large_height - small_height + 1):
+            for large_x in range(large_width - small_width + 1):
+                matched_count = 0
+                total_count = len(small_pixels)
+                
+                # 检查这个位置是否匹配
+                skip = False
+                for sx, sy, (sr, sg, sb, sa) in small_pixels:
+                    # 计算大图中的对应位置
+                    lx = large_x + sx
+                    ly = large_y + sy
+                    
+                    # 获取大图像素
+                    lr, lg, lb, la = large_data[lx, ly]
+                    
+                    # 计算颜色差异
+                    r_diff = abs(lr - sr)
+                    g_diff = abs(lg - sg)
+                    b_diff = abs(lb - sb)
+                    a_diff = abs(la - sa)
+                    
+                    # 检查是否在容差范围内
+                    if r_diff <= tolerance and g_diff <= tolerance and b_diff <= tolerance and a_diff <= tolerance:
+                        matched_count += 1
+                    else:
+                        # 如果太多像素不匹配，提前退出
+                        if matched_count / total_count < similarity:
+                            skip = True
+                            break
+                
+                if not skip:
+                    current_similarity = matched_count / total_count
+                    
+                    # 如果达到相似度要求并且比之前的匹配更好
+                    if current_similarity >= similarity and current_similarity > best_similarity:
+                        best_similarity = current_similarity
+                        best_match = {"x": large_x, "y": large_y}
+                        
+                        # 如果达到完美匹配（或接近完美），可以直接返回
+                        if current_similarity >= 0.99:
+                            return best_match
+        
+        return best_match
+        
     except Exception as e:
-        print(f"find_image error: {e}")
+        print(f"找图出错: {e}")
         return None
+
+# def opencv找图(large_image_path, small_image_path, tolerance=0, similarity=0.9):
+#     """
+#     在大图中查找小图
+#     :param large_image_path: 大图路径
+#     :param small_image_path: 小图路径
+#     :param tolerance: 容差，允许的颜色差异范围
+#     :param similarity: 相似度阈值，0-1之间
+#     :return: 找到的位置 (x, y) 或 None
+#     """
+#     try:
+#         # 1. 检查文件是否存在
+#         if not os.path.exists(large_image_path) or not os.path.exists(small_image_path):
+#             return None
+#
+#         # 2. 加载图片
+#         # 使用PIL加载，保持RGBA格式
+#         large_pil = Image.open(large_image_path).convert("RGBA")
+#         small_pil = Image.open(small_image_path).convert("RGBA")
+#
+#         # 3. 转换为OpenCV格式 (RGBA)
+#         large_cv = cv2.cvtColor(np.array(large_pil), cv2.COLOR_RGBA2BGRA)
+#         small_cv = cv2.cvtColor(np.array(small_pil), cv2.COLOR_RGBA2BGRA)
+#
+#         # 4. 提取小图的Alpha通道作为掩码
+#         # 分割通道
+#         b, g, r, alpha = cv2.split(small_cv)
+#         # 创建二值掩码：Alpha > 0 的部分为 255，否则为 0
+#         _, mask = cv2.threshold(alpha, 0, 255, cv2.THRESH_BINARY)
+#
+#         # 5. 转换为BGR用于匹配
+#         large_bgr = cv2.cvtColor(large_cv, cv2.COLOR_BGRA2BGR)
+#         small_bgr = cv2.cvtColor(small_cv, cv2.COLOR_BGRA2BGR)
+#
+#         # 6. 模板匹配
+#         # 使用TM_CCORR_NORMED配合掩码
+#         result = cv2.matchTemplate(large_bgr, small_bgr, cv2.TM_CCORR_NORMED, mask=mask)
+#
+#         # 7. 获取最佳匹配位置
+#         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+#
+#         # 释放内存（Python有自动垃圾回收，但显式删除大对象可以立即释放内存）
+#         del result
+#
+#         # 8. 二次校验：根据容差逐像素比对
+#         start_x, start_y = max_loc
+#
+#         # 获取图像数据
+#         large_data = np.array(large_pil)
+#         small_data = np.array(small_pil)
+#
+#         total_pixels = 0
+#         matched_pixels = 0
+#
+#         small_h, small_w = small_data.shape[:2]
+#         large_h, large_w = large_data.shape[:2]
+#
+#         # 遍历小图的每一个像素
+#         for y in range(small_h):
+#             for x in range(small_w):
+#                 # 获取小图当前像素的RGBA值
+#                 s_r, s_g, s_b, s_a = small_data[y, x]
+#
+#                 # 如果小图该像素是透明的，忽略比对
+#                 if s_a == 0:
+#                     continue
+#
+#                 total_pixels += 1
+#
+#                 # 计算大图中的对应位置
+#                 lx = start_x + x
+#                 ly = start_y + y
+#
+#                 # 检查边界
+#                 if lx >= large_w or ly >= large_h:
+#                     continue
+#
+#                 # 获取大图对应位置像素
+#                 l_r, l_g, l_b, l_a = large_data[ly, lx]
+#
+#                 # 计算差异
+#                 r_diff = abs(int(s_r) - int(l_r))
+#                 g_diff = abs(int(s_g) - int(l_g))
+#                 b_diff = abs(int(s_b) - int(l_b))
+#
+#                 # 如果所有通道差异都在容差范围内，则认为该像素匹配
+#                 if r_diff <= tolerance and g_diff <= tolerance and b_diff <= tolerance:
+#                     matched_pixels += 1
+#
+#         # 计算匹配率
+#         match_rate = matched_pixels / total_pixels if total_pixels > 0 else 0
+#
+#         # 释放内存
+#         del large_data, small_data, large_cv, small_cv, mask
+#
+#         # 9. 判断是否达到相似度要求
+#         if match_rate >= similarity:
+#             return {"x": start_x, "y": start_y}
+#         else:
+#             # print(
+#             #     f"Found candidate at {start_x},{start_y} but similarity {match_rate:.4f} < {similarity}"
+#             # )
+#             return None
+#
+#     except Exception as e:
+#         print(f"find_image error: {e}")
+#         return None
 
 
 async def send_to_gc(payload):
@@ -234,11 +381,13 @@ def 截图():
         "action": "screen",
         "comm": {"deviceIds": deviceIds, "savePath": save_path, "onlyDeviceName": 1},
     }
-    asyncio.run(send_to_gc(payload))
-    # 不论返回值，返回预期的图片路径
-    safe_device_id = deviceIds.replace(".", "_").replace(":", "_")
-    file_path = os.path.join(save_path, f"{safe_device_id}.png")
-    return file_path
+    response = asyncio.run(send_to_gc(payload))
+    # 检查返回值是否成功
+    if response and response.get("StatusCode") == 200 and response.get("result") == "OK" and response.get("data"):
+        safe_device_id = deviceIds.replace(".", "_").replace(":", "_")
+        file_path = os.path.join(save_path, f"{safe_device_id}.png")
+        return file_path
+    return None
 
 
 def 调用ADB(command):

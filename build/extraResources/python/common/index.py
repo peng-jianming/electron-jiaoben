@@ -16,9 +16,8 @@ class StateMachine(InterfaceStateMachine):
 
         def 识别屏幕():
             url = 截图()
-
             if self.当前任务屏幕识别函数:
-               status = self.当前任务屏幕识别函数(url, self._states)
+               status = self.当前任务屏幕识别函数(url)
                if status:
                   return status
 
@@ -38,12 +37,7 @@ class StateMachine(InterfaceStateMachine):
                Field(common_assets.准备战斗).设置大图路径(url).查找().点击(2210, 935, 79, 76)
                return "战斗界面"
 
-            if (
-                Field(common_assets.主界面活动按钮)
-                .设置大图路径(url)
-                .查找()
-                .是否找到()
-            ):
+            if Field(common_assets.主界面活动按钮).设置大图路径(url).查找().是否找到():
                 return "主界面"
 
         self.set_recognizer(识别屏幕)
