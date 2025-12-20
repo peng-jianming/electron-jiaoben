@@ -514,6 +514,7 @@ class Field:
         self.分类名 = config.get("分类名")
         self.相似度 = config.get("相似度", 0.8)
         self.模型路径 = config.get("模型路径")
+        self.关闭区域 = config.get("关闭区域")
         self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
         self.x = 0
         self.y = 0
@@ -524,7 +525,7 @@ class Field:
         url =  self.大图路径 if self.大图路径 else 截图()
         if url:
             if self.方式 == "opencv找图":
-                result = opencv找图(url, self.图片路径, self.相似度)
+                result = opencv找图(url, self.图片路径, self.相似度,(self.查找区域["x"], self.查找区域["y"],self.查找区域["w"],self.查找区域["h"]))
                 if result:
                     写入日志(f"找到{self.标识}: '{result}'")
                     self.x = result["x"]
@@ -533,7 +534,7 @@ class Field:
                     self.h = result["h"]
 
             if self.方式 == "opencv找透明图":
-                result = opencv找透明图(url, self.图片路径, 30, self.相似度)
+                result = opencv找透明图(url, self.图片路径, 30, self.相似度, (self.查找区域["x"], self.查找区域["y"],self.查找区域["w"],self.查找区域["h"]))
                 if result:
                     写入日志(f"找到{self.标识}: '{result}'")
                     self.x = result["x"]
@@ -571,6 +572,12 @@ class Field:
                 ADB点击(self.x + x, self.y + y)
             if w and h:
                 随机ADB点击(self.x + x, self.y + y, w, h)
+        return self
+
+    def 关闭(self):
+        if self.是否找到() and self.关闭区域:
+            self.点击(self.关闭区域["x"],self.关闭区域["y"],self.关闭区域["w"],self.关闭区域["h"])
+
         return self
 
     def 随机延时(self, startMs, endMs):
@@ -755,11 +762,11 @@ class TaskLineMachine:
                 if url:
                     for state in self._states.values():
                         handler = state['handler']
-                        Field = state['Field']
-                        if Field.设置大图路径(url).查找().是否找到():
-                            self._previous_interface = self._current_interface
-                            self._current_interface = Field['标识']
-                            result = handler(self._context, self._previous_interface)
+                        config = state['Field']
+                        if Field(config).设置大图路径(url).查找().是否找到():
+                            self.update_context(上一状态=self._current_interface)
+                            self._current_interface = config['标识']
+                            result = handler(self._context)
                             if isinstance(result, dict):
                                 self._context.update(result)
                             elif result is False:

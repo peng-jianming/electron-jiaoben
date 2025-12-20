@@ -15,6 +15,7 @@ import os
 队伍弹框界面 = {
     '标识': '队伍弹框界面',
     '方式': 'opencv找图',
+    '关闭区域': {"x": 1866, "y": 35, "w": 61, "h": 62},
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/duiwutankuangjiemian.png')
 }
 
@@ -50,7 +51,7 @@ import os
 
 战斗界面 = {
     '标识': '战斗界面',
-    '方式': 'opencv找图',
+    '方式': 'opencv找透明图',
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/战斗界面.png')
 }
 
@@ -69,6 +70,7 @@ import os
 继续抓鬼提示 = {
     '标识': '继续抓鬼提示',
     '方式': 'opencv找图',
+    '关闭区域': {"x": 936, "y": 593, "w": 205, "h": 65},
     '图片路径': os.path.join(os.path.dirname(__file__), 'jiemian/继续抓鬼提示.png')
 }
 
@@ -90,7 +92,7 @@ import os
 
 准备战斗 = {
     '标识': '准备战斗',
-    '方式': 'opencv找图',
+    '方式': 'opencv找透明图',
     '图片路径': os.path.join(os.path.dirname(__file__), '准备战斗.png')
 }
 
@@ -116,7 +118,7 @@ import os
 }
 主界面_未选中任务 = {
     '标识': '主界面_未选中任务',
-    '方式': 'opencv找图',
+    '方式': 'opencv找透明图',
     '图片路径': os.path.join(os.path.dirname(__file__), '主界面_未选中任务.png')
 }
 
