@@ -290,7 +290,7 @@ def opencv找透明图(large_img_path, small_img_path, tolerance=0, similarity=0
             if weighted_val > best_val:
                 best_val = weighted_val
                 best_match = current_loc
-        
+
         # 9. 如果匹配度不足，直接返回
         if best_val < similarity:
             # print(f"模板匹配度不足: {best_val:.4f} < {similarity}")
@@ -299,10 +299,10 @@ def opencv找透明图(large_img_path, small_img_path, tolerance=0, similarity=0
         # 将区域内的坐标转换为大图坐标
         start_x = region_x + best_match[0]
         start_y = region_y + best_match[1]
-        
+
         # 10. 根据容差进行二次像素级验证
         final_similarity = best_val
-        
+
         if tolerance > 0:
             # 准备像素数据
             total_pixels = 0
@@ -315,12 +315,24 @@ def opencv找透明图(large_img_path, small_img_path, tolerance=0, similarity=0
             end_x = start_x + small_w
             end_y = start_y + small_h
             
-            # 确保不超出大图边界
-            if end_x > large_w or end_y > large_h:
+            # 确保不超出大图边界（包括起始坐标为负数的情况）
+            if start_x < 0 or start_y < 0 or end_x > large_w or end_y > large_h:
                 return None
             
             # 提取匹配区域
             match_area = large_img[start_y:end_y, start_x:end_x]
+            
+            # 检查匹配区域是否为空
+            if match_area.size == 0:
+                return None
+            
+            # 确保匹配区域有4个通道（BGRA）
+            if len(match_area.shape) < 3 or match_area.shape[2] != 4:
+                # 如果只有3个通道，添加Alpha通道
+                if len(match_area.shape) == 3 and match_area.shape[2] == 3:
+                    match_area = cv2.cvtColor(match_area, cv2.COLOR_BGR2BGRA)
+                else:
+                    return None
             
             # 分离匹配区域的通道
             m_b, m_g, m_r, m_a = cv2.split(match_area)
@@ -353,7 +365,7 @@ def opencv找透明图(large_img_path, small_img_path, tolerance=0, similarity=0
             
             # 计算像素级匹配率
             pixel_match_rate = matched_pixels / total_pixels if total_pixels > 0 else 0
-            
+       
             # 如果像素级匹配度不足，返回None
             if pixel_match_rate < similarity:
                 return None
@@ -421,7 +433,6 @@ def 随机延时(startMs, endMs):
 
 
 def ADB点击(x, y):
-    写入日志(f"点击坐标: {x}, {y}")
     if x and y:
         调用ADB(f"input motionevent DOWN {x} {y}")
         随机延时(0, 0.3)
@@ -511,15 +522,15 @@ class Field:
         self.方式 = config.get("方式")
         self.图片路径 = config.get("图片路径")
         self.大图路径 = config.get("大图路径")
-        self.分类名 = config.get("分类名")
         self.相似度 = config.get("相似度", 0.8)
+        self.分类名 = config.get("分类名")
         self.模型路径 = config.get("模型路径")
-        self.关闭区域 = config.get("关闭区域")
         self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
         self.x = 0
         self.y = 0
         self.w = 0
         self.h = 0
+        self.是否判断状态 = False
 
     def 查找(self):
         url =  self.大图路径 if self.大图路径 else 截图()
@@ -527,16 +538,14 @@ class Field:
             if self.方式 == "opencv找图":
                 result = opencv找图(url, self.图片路径, self.相似度,(self.查找区域["x"], self.查找区域["y"],self.查找区域["w"],self.查找区域["h"]))
                 if result:
-                    写入日志(f"找到{self.标识}: '{result}'")
                     self.x = result["x"]
                     self.y = result["y"]
                     self.w = result["w"]
                     self.h = result["h"]
 
             if self.方式 == "opencv找透明图":
-                result = opencv找透明图(url, self.图片路径, 30, self.相似度, (self.查找区域["x"], self.查找区域["y"],self.查找区域["w"],self.查找区域["h"]))
+                result = opencv找透明图(url, self.图片路径, 50, self.相似度, (self.查找区域["x"], self.查找区域["y"],self.查找区域["w"],self.查找区域["h"]))
                 if result:
-                    写入日志(f"找到{self.标识}: '{result}'")
                     self.x = result["x"]
                     self.y = result["y"]
                     self.w = result["w"]
@@ -547,13 +556,13 @@ class Field:
                 if len(result):
                     for r in result:
                         if r["class_name"] == self.分类名:
-                            写入日志(f"找到{self.标识}: '{result}'")
                             self.x = self.查找区域["x"] + math.ceil(r["x"])
                             self.y = self.查找区域["y"] + math.ceil(r["y"])
                             self.w = math.floor(r["w"])
                             self.h = math.floor(r["h"])
                             break
-        
+        if self.是否判断状态:
+            写入日志(f"{self.标识}: {'是' if self.是否找到() else '否'}")
         return self
 
     def 点击(self, x=None, y=None, w=None, h=None):
@@ -564,6 +573,9 @@ class Field:
                 ADB点击(x, y)
             elif self.x and self.y:
                 随机ADB点击(self.x, self.y, self.w, self.h)
+
+            if self.标识:
+                写入日志(f"{self.标识}")
         return self
 
     def 偏移点击(self, x=None, y=None, w=None, h=None):
@@ -572,12 +584,9 @@ class Field:
                 ADB点击(self.x + x, self.y + y)
             if w and h:
                 随机ADB点击(self.x + x, self.y + y, w, h)
-        return self
 
-    def 关闭(self):
-        if self.是否找到() and self.关闭区域:
-            self.点击(self.关闭区域["x"],self.关闭区域["y"],self.关闭区域["w"],self.关闭区域["h"])
-
+            if self.标识:
+                写入日志(f"{self.标识}")
         return self
 
     def 随机延时(self, startMs, endMs):
@@ -591,6 +600,11 @@ class Field:
 
     def 设置大图路径(self, 大图路径):
         self.大图路径 = 大图路径
+        return self
+
+    def 设置标识(self, 标识, 是否判断状态=False):
+        self.标识 = 标识
+        self.是否判断状态 = 是否判断状态
         return self
 
     def 是否找到(self):
@@ -760,10 +774,13 @@ class TaskLineMachine:
             try:
                 url = 截图()
                 if url:
+                    是否找到 = False
                     for state in self._states.values():
                         handler = state['handler']
                         config = state['Field']
                         if Field(config).设置大图路径(url).查找().是否找到():
+                            是否找到 = True
+                            print(f"目前位于: {config['标识']}")
                             self.update_context(上一状态=self._current_interface)
                             self._current_interface = config['标识']
                             result = handler(self._context)
@@ -773,7 +790,10 @@ class TaskLineMachine:
                                 # 处理函数返回False，表示操作失败或需要重试
                                 print(f"界面 {self._current_interface} 处理失败")
                             break
-                    
+
+                    if not 是否找到:
+                        # 可以在这里设置时长,如果长时间处于未知界面,那么就报警,或者调用关闭函数关闭所有界面等
+                        print("目前处于: 未知界面")     
                     # 短暂延迟，避免CPU占用过高
                     # time.sleep(1)
                 
