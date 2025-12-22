@@ -2,7 +2,7 @@
 # IMAGE_DIR 需要处理的源图片文件夹
 # resultPath 处理后的图片, 如果文件不存在,则创建文件,如果存在,就作为上次的结果继续处理
 # CROP_CONFIG 源图片裁剪配置,
-# tolerance 处理时的容差值
+# tolerance 处理时的容差值, 容差多少自己调试与找图无关,调试到把可能会变动的位置全部变为透明即可,,防止在找图的时候干扰到
 
 import os
 import time

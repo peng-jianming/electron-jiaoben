@@ -1,3 +1,4 @@
+import argparse
 from index import Field, TaskLineMachine
 from resource.assets import config as 配置
 
@@ -31,8 +32,12 @@ def _(context):
         Field(配置.主界面).设置标识('点击活动按钮').查找().点击(*配置.主界面["按钮"]["活动"]).随机延时(1, 3)
 
 
-
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Python Server")
+    parser.add_argument("--id", type=str, default='', help="The id number.")
+    args = parser.parse_args()
+
     result = sm.start()
     print("宝图任务结束")
 
