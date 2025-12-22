@@ -15,7 +15,7 @@ import os
     "按钮": {
         "活动": [574, 24, 73, 73],
     },
-    "图片路径": os.path.join(os.path.dirname(__file__), "aaaa.png"),
+    "图片路径": os.path.join(os.path.dirname(__file__), "bbbb.png"),
 }
 
 
@@ -115,6 +115,12 @@ import os
     "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖弹框界面.png"),
 }
 
+战斗失败界面 = {
+    "标识": "战斗失败界面",
+    "方式": "opencv找图",
+    "按钮": {"关闭": [1538, 381, 696, 512]},
+    "图片路径": os.path.join(os.path.dirname(__file__), "战斗失败.png"),
+}
 
 
 
@@ -190,6 +196,16 @@ import os
 }
 
 主界面_离开秘境降妖按钮 = {
+    "方式": "opencv找透明图",
+    "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/离开秘境降妖按钮.png"),
+}
+
+主界面_进入战斗按钮 = {
+    "方式": "opencv找图",
+    "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/对话框_进入战斗按钮.png"),
+}
+
+主界面_离开按钮 = {
     "方式": "opencv找透明图",
     "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/离开秘境降妖按钮.png"),
 }
