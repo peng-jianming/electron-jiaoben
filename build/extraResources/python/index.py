@@ -631,7 +631,6 @@ def yolo(image_path, model_path, conf_threshold=0.6):
 
     # 进行推理
     results = model(image_path, conf=conf_threshold, verbose=False)
-
     detections = []
 
     for result in results:
@@ -718,6 +717,7 @@ class Field:
                 if len(result):
                     for r in result:
                         if r["class_name"] == self.分类名:
+                            print(r)
                             self.x = self.查找区域["x"] + math.ceil(r["x"])
                             self.y = self.查找区域["y"] + math.ceil(r["y"])
                             self.w = math.floor(r["w"])
