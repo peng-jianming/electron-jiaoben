@@ -7,101 +7,112 @@ const { getBaseDir, getExtraResourcesDir } = require('ee-core/ps');
 const fs = require('fs');
 const tkill = require('tree-kill');
 const crossSpawn = require('cross-spawn');
+const { BrowserWindow } = require('electron');
 
 class ExampleService {
-
   constructor() {
-    const deviceMap = new Map();
-    this.deviceProcesses = new Proxy(deviceMap, {
-      get(target, prop, receiver) {
-        
-        if (prop === 'set') {
-          return (key, value) => {
-            const result = target.set(key, value);
-            try {
-              const SocketServer = getSocketServer();
-              if (SocketServer && SocketServer.io) {
-                SocketServer.io.emit(`${key}`, value);
-              }
-            } catch (err) {
-              logger.error('Socket emit error:', err);
-            }
-            return result;
-          };
-        }
-        const value = Reflect.get(target, prop, receiver);
-        if (typeof value === 'function') {
-          return value.bind(target);
-        }
-        return value;
+    // 存储结果窗口实例
+    this.resultWindow = null;
+  }
+
+  /**
+   * 创建或显示图像处理结果窗口
+   * @param {Object} imageData - 图像数据对象
+   * @param {string} imageData.processedImage - base64 编码的处理后图像
+   * @param {number} imageData.threshold - 使用的阈值
+   * @param {boolean} imageData.success - 是否成功
+   * @param {string} imageData.error - 错误信息（如果有）
+   */
+  showImageResultWindow(imageData) {
+    const { getMainWindow } = require('ee-core/electron');
+    const { getConfig } = require('ee-core/config');
+    
+    // 如果窗口已存在，通过 Socket.IO 发送数据并聚焦窗口
+    if (this.resultWindow && !this.resultWindow.isDestroyed()) {
+      // 通过 Socket.IO 发送数据到新窗口
+      const socketServer = getSocketServer();
+      if (socketServer) {
+        socketServer.io.emit('image-processed', imageData);
       }
-    });
-  }
-
-  async 获取设备列表() {
-    const data = {
-      "action": "list"
-    };
-    const res = await this.sendRequest(data);
-    if (res && res.result) {
-
-      const list = JSON.parse(res.result);
-      list.forEach(item => {
-        this.deviceProcesses.set(item.deviceId, {
-          ...item,
-          isRunning: false,
-          logs: ''
-        });
-      })
-      return [...this.deviceProcesses.values()];
+      this.resultWindow.focus();
+      return;
     }
-    return [];
-  }
-
-  sendRequest(payload) {
-
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket('ws://127.0.0.1:33332');
-
-      ws.on('open', () => {
-        try {
-          ws.send(JSON.stringify(payload));
-        } catch (e) {
-          ws.close();
-          reject(e);
+    
+    // 获取主窗口 URL 以确定加载地址
+    const mainWindow = getMainWindow();
+    let targetUrl = '';
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const mainUrl = mainWindow.webContents.getURL();
+      // 如果是开发环境（localhost），使用开发服务器地址
+      if (mainUrl.includes('localhost') || mainUrl.includes('127.0.0.1')) {
+        // 从主窗口 URL 提取协议和主机
+        const urlMatch = mainUrl.match(/^(https?:\/\/[^\/]+)/);
+        if (urlMatch) {
+          targetUrl = `${urlMatch[1]}/#/image-result`;
+        } else {
+          // 默认开发服务器地址
+          targetUrl = 'http://localhost:8080/#/image-result';
         }
-      });
-
-      ws.on('message', (data) => {
-        try {
-          const res = JSON.parse(data);
-          resolve(res);
-        } catch (error) {
-          console.log('极限投屏返回错误', error.message);
-          resolve(null);
-        } finally {
-          ws.close();
-        }
-      });
-
-      ws.on('error', (err) => {
-        console.log('连接投屏出错了');
-        reject(err);
-        ws.close();
-      });
+      } else {
+        // 生产环境，使用文件路径
+        const config = getConfig();
+        const indexPath = config.mainServer?.indexPath || '/public/dist/index.html';
+        const indexPathFull = path.join(getBaseDir(), indexPath.replace(/^\//, ''));
+        targetUrl = `file://${indexPathFull}#/image-result`;
+      }
+    } else {
+      // 如果无法获取主窗口，尝试使用配置
+      const config = getConfig();
+      const isDev = process.env.NODE_ENV === 'development' || !config.mainServer;
+      targetUrl = isDev 
+        ? 'http://localhost:8080/#/image-result'
+        : `file://${path.join(getBaseDir(), config.mainServer?.indexPath?.replace(/^\//, '') || 'public/dist/index.html')}#/image-result`;
+    }
+    
+    // 创建新窗口 - 设置较大的初始尺寸以适应大图片
+    this.resultWindow = new BrowserWindow({
+      width: 1200,
+      height: 900,
+      minWidth: 400,
+      minHeight: 300,
+      title: '图像处理结果',
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+      },
+      backgroundColor: '#1e1e1e',
+      show: false, // 先不显示，等加载完成后再显示
     });
-  }
-
-  changeDeviceProcesses(id, key, value) {
-    const current = this.deviceProcesses.get(id);
-
-    current[key] = value;
-    this.deviceProcesses.set(id, current);
+    
+    // 加载 Vue 路由
+    this.resultWindow.loadURL(targetUrl);
+    
+    // 存储要显示的数据，等待窗口准备好
+    const pendingData = imageData;
+    
+    // 窗口准备好后通过 Socket.IO 发送图像数据并显示
+    this.resultWindow.webContents.once('did-finish-load', () => {
+      // 延迟一下确保 Vue 应用和 Socket.IO 已初始化
+      setTimeout(() => {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('image-processed', pendingData);
+        }
+        this.resultWindow.show();
+        this.resultWindow.focus();
+      }, 500);
+    });
+    
+    // 窗口关闭时清理引用
+    this.resultWindow.on('closed', () => {
+      this.resultWindow = null;
+    });
   }
 
   async createPythonServer(runPath, port) {
     return new Promise((resolve, reject) => {
-    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `${runPath}/index.py`, `--id=${port}`], {
+    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `python/index.py`], {
       stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
       detached: false,
       cwd: runPath,
@@ -140,78 +151,13 @@ class ExampleService {
       }
     });
   }
-
-  async 开始任务(deviceList, taskList) {
-    const devicePromises = deviceList.map(async (item) => {
-
-      // 任务开始,记录当前任务执行状态
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', true)
-
-    
-
-      for (const taskName of taskList) {
-        try {
-          // 运行状态被关了,就不继续执行了
-          const current = this.deviceProcesses.get(item.deviceId);
-          if (current.isRunning) {
-            this.changeDeviceProcesses(item.deviceId, 'currentTask', taskName)
-            const runPath = path.join(getExtraResourcesDir(), `python`, taskName)
-            // const logPath = path.join(runPath, `logs/${item.deviceId}.log`);
-            // this.监听文件(item.deviceId, logPath)
-            await this.createPythonServer(runPath, item.deviceId);
-            this.changeDeviceProcesses(item.deviceId, 'currentTask', '')
-          }
-        } catch (err) {
-          this.deviceProcesses.delete(item.deviceId);
-          console.log(`执行任务出错: deviceId=${item.deviceId}, task=${taskName}`, err);
-          break; // 执行失败,后续的任务不执行了
-        }
-      }
-
-      // 任务全部做完, 运行状态结束
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
-    });
-    // 如果希望等所有设备的任务都执行完毕后再返回，可以 await
-    await Promise.all(devicePromises);
-  }
-
-  async 结束任务(deviceList) {
-    await Promise.all(deviceList.map((item) => {
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
-      this.stopPythonServer(item.deviceId)
-    }));
-  }
-
-  // async 监听文件(deviceId, logPath) {
-    
-  //   // 确保目录存在
-  //   const dir = path.dirname(logPath);
-  //   if (!fs.existsSync(dir)) {
-  //     fs.mkdirSync(dir, { recursive: true });
-  //   }
-    
-  //   // 若文件不存在则创建，存在则清空内容
-  //   fs.writeFileSync(logPath, '', 'utf8');
-
-  //   // 移除之前的监听器，防止重复监听
-  //   fs.unwatchFile(logPath);
-
-  //   // 添加新的监听器
-  //   fs.watchFile(logPath, { interval: 1000 }, (curr, prev) => {
-  //     if (curr.mtime !== prev.mtime) {
-  //       fs.readFile(logPath, 'utf8', (err, data) => {
-  //         if (!err) {
-  //           const arr = data.split('\r\n')
-  //           this.changeDeviceProcesses(deviceId, 'logs', arr[arr.length - 2])
-  //         }
-  //       });
-  //     }
-  //   });
-  // }
 }
 ExampleService.toString = () => '[class ExampleService]';
 
+// 创建单例实例
+const exampleService = new ExampleService();
+
 module.exports = {
   ExampleService,
-  exampleService: new ExampleService()
+  exampleService
 };

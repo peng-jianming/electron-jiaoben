@@ -14,6 +14,11 @@ const constantRouterMap = [
         name: 'ExampleHelloIndex',
         component: () => import('@/views/example/hello/Index.vue')
       },
+      {
+        path: '/image-result',
+        name: 'ImageResult',
+        component: () => import('@/views/example/image-result/Index.vue')
+      },
     ]
   },
 ]

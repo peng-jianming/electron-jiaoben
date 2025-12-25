@@ -8,6 +8,7 @@ const ipcApiRoute = {
   获取设备列表: 'controller/example/获取设备列表',
   开始任务: 'controller/example/开始任务',
   结束任务: 'controller/example/结束任务',
+  sendToPython: 'controller/example/sendToPython',
 }
 
 export {

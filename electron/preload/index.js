@@ -24,8 +24,32 @@ const createPythonServer = async () => {
 }
 
 
+const abc = () => {
+  const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `./python/index.py`], {
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    detached: false,
+    cwd: path.join(getExtraResourcesDir(), 'py'),
+    maxBuffer: 1024 * 1024 * 1024,
+    windowsHide: true
+  });
+  
+
+    coreProcess.on('exit', (code, signal) => {
+      logger.info('Python exit：', 'code=', code, 'signal=', signal);
+    });
+
+    coreProcess.on('error', (err) => {
+      logger.error('Python error：', err);
+    });
+}
+
+
 function preload() {
   // createPythonServer()
+
+
+
+
   logger.info('[preload] load 1');
 
 }
