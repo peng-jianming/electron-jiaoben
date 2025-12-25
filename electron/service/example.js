@@ -109,6 +109,18 @@ class ExampleService {
       this.resultWindow = null;
     });
   }
+  
+  /**
+   * 转发图片点击事件到主窗口
+   * @param {Object} data - 点击位置数据 {x, y}
+   */
+  forwardImageClick(data) {
+    const { getMainWindow } = require('ee-core/electron');
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('image-click', data);
+    }
+  }
 
   async createPythonServer(runPath, port) {
     return new Promise((resolve, reject) => {

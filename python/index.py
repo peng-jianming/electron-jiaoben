@@ -5,6 +5,7 @@ import numpy as np
 import base64
 import os
 import traceback
+import threading
 
 # Socket.IO 客户端实例
 _client = None
@@ -265,6 +266,139 @@ def handle_process_image(data):
         send_image_result(error=str(e))
 
 
+def flood_fill_step_by_step(img, seed_point, fill_color=(255, 255, 255), speed_ms=100):
+    """
+    逐步洪水填充算法，支持动画效果
+    
+    参数:
+        img: 输入图像（BGR格式）
+        seed_point: 种子点坐标 (x, y)
+        fill_color: 填充颜色 (B, G, R)
+        speed_ms: 每次更新的间隔（毫秒）
+    
+    返回:
+        填充后的图像
+    """
+    if img is None:
+        return None
+    
+    h, w = img.shape[:2]
+    x, y = seed_point
+    
+    # 检查种子点是否在图像范围内
+    if x < 0 or x >= w or y < 0 or y >= h:
+        return None
+    
+    # 创建结果图像的副本
+    result = img.copy()
+    
+    # 获取种子点的颜色
+    seed_color = tuple(map(int, img[y, x]))
+    
+    # 如果种子点颜色已经是填充颜色，直接返回
+    if seed_color == fill_color:
+        return result
+    
+    # 使用队列进行广度优先搜索
+    from collections import deque
+    queue = deque([(x, y)])
+    visited = np.zeros((h, w), dtype=np.uint8)
+    visited[y, x] = 1
+    
+    # 填充计数器
+    filled_count = 0
+    batch_size = max(1, w * h // 1000)  # 每批填充的像素数
+    
+    while queue:
+        # 处理一批像素
+        batch = []
+        for _ in range(min(batch_size, len(queue))):
+            if queue:
+                batch.append(queue.popleft())
+        
+        for px, py in batch:
+            # 检查当前像素是否应该填充
+            current_color = tuple(map(int, result[py, px]))
+            if current_color == seed_color:
+                result[py, px] = fill_color
+                filled_count += 1
+                
+                # 添加相邻像素到队列
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = px + dx, py + dy
+                    if 0 <= nx < w and 0 <= ny < h and visited[ny, nx] == 0:
+                        neighbor_color = tuple(map(int, result[ny, nx]))
+                        if neighbor_color == seed_color:
+                            visited[ny, nx] = 1
+                            queue.append((nx, ny))
+        
+        # 发送中间结果
+        if filled_count % batch_size == 0 or len(queue) == 0:
+            send_image_result(processed_image=result)
+            time.sleep(speed_ms / 1000.0)  # 转换为秒
+    
+    return result
+
+
+def handle_flood_fill(data):
+    """
+    处理洪水填充请求
+    
+    参数:
+        data: 包含洪水填充参数的数据字典
+            - x: 种子点x坐标
+            - y: 种子点y坐标
+            - speed: 填充速度（毫秒）
+    """
+    global _current_image, _current_image_filtered, _current_image_binary
+    
+    try:
+        # 确定使用哪个图像进行填充
+        source_image = _current_image_binary if _current_image_binary is not None else (
+            _current_image_filtered if _current_image_filtered is not None else _current_image
+        )
+        
+        if source_image is None:
+            print("错误: 未加载图像")
+            send_image_result(error="未加载图像")
+            return
+        
+        x = data.get("x", 0)
+        y = data.get("y", 0)
+        speed_ms = data.get("speed", 100)
+        
+        # 检查图像类型
+        if len(source_image.shape) == 2:
+            # 灰度图，转换为BGR
+            source_image_bgr = cv2.cvtColor(source_image, cv2.COLOR_GRAY2BGR)
+            fill_color = (255, 255, 255)  # 白色填充
+        else:
+            source_image_bgr = source_image.copy()
+            fill_color = (255, 255, 255)  # 白色填充
+        
+        print(f"开始洪水填充，种子点: ({x}, {y}), 速度: {speed_ms}ms")
+        
+        # 执行逐步洪水填充
+        filled_image = flood_fill_step_by_step(
+            source_image_bgr, 
+            (x, y), 
+            fill_color=fill_color,
+            speed_ms=speed_ms
+        )
+        
+        if filled_image is None:
+            print("错误: 洪水填充失败")
+            send_image_result(error="洪水填充失败")
+            return
+        
+        print("洪水填充完成")
+        
+    except Exception as e:
+        print(f"洪水填充时出错: {e}")
+        traceback.print_exc()
+        send_image_result(error=str(e))
+
+
 def send_image_result(processed_image=None, error=None):
     """
     发送图像处理结果到 Electron（公共方法）
@@ -325,6 +459,9 @@ def init_client(url="http://127.0.0.1:7070"):
                 # 统一的图像处理请求
                 elif message_type == "process_image":
                     handle_process_image(data)
+                # 洪水填充请求
+                elif message_type == "flood_fill":
+                    handle_flood_fill(data)
 
     client = _client
 

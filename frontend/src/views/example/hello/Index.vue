@@ -97,6 +97,34 @@
         </div>
       </div>
 
+      <!-- 洪水填充控制区域 -->
+      <div v-if="imageLoaded" class="flood-fill-section">
+        <div class="flood-fill-control">
+          <div class="flood-fill-speed">
+            <span>填充速度（毫秒）:</span>
+            <el-input-number
+              v-model="floodFillSpeed"
+              :min="10"
+              :max="1000"
+              :step="10"
+              size="small"
+              style="width: 120px; margin-left: 10px;"
+            />
+          </div>
+          <div class="flood-fill-hint">
+            <el-text type="info" size="small">
+              提示：先在图片上点击选择填充起始位置，然后勾选启用洪水填充
+            </el-text>
+            <div v-if="floodFillStartPoint" class="flood-fill-point-info">
+              已选择起始位置: ({{ floodFillStartPoint.x }}, {{ floodFillStartPoint.y }})
+            </div>
+          </div>
+        </div>
+        <el-checkbox v-model="enableFloodFill" @change="handleFloodFillToggle" :disabled="!floodFillStartPoint">
+          启用洪水填充
+        </el-checkbox>
+      </div>
+
       <!-- 处理状态 -->
       <el-alert
         v-if="processing"
@@ -123,6 +151,9 @@ const processing = ref(false);
 const imageLoaded = ref(false);
 const enableBinary = ref(false);
 const enableColorFilter = ref(false);
+const enableFloodFill = ref(false);
+const floodFillSpeed = ref(100);
+const floodFillStartPoint = ref(null); // 保存选择的起始位置 {x, y}
 const keepColors = ref([]);
 const filterColors = ref([]);
 
@@ -137,6 +168,8 @@ function handleImageSelect(file) {
   processing.value = true;
   enableBinary.value = false; // 默认不启用二值化
   enableColorFilter.value = false; // 默认不启用颜色过滤
+  enableFloodFill.value = false; // 默认不启用洪水填充
+  floodFillStartPoint.value = null; // 清除之前选择的起始位置
   imageLoaded.value = true; // 标记图像已加载
 
   // 获取文件路径（Electron 环境）
@@ -190,6 +223,75 @@ function handleBinaryToggle() {
   processImage();
 }
 
+// 处理洪水填充开关切换
+function handleFloodFillToggle() {
+  if (enableFloodFill.value) {
+    // 启用洪水填充，使用之前选择的起始位置开始填充
+    if (floodFillStartPoint.value) {
+      startFloodFill();
+    }
+  } else {
+    // 取消洪水填充，重新处理图像
+    processImage();
+  }
+}
+
+// 处理图片点击事件（从图片显示窗口接收）
+function handleImageClick(x, y) {
+  if (!imageLoaded.value) return;
+  
+  // 保存选择的起始位置
+  floodFillStartPoint.value = { x, y };
+  console.log(`已选择洪水填充起始位置: (${x}, ${y})`);
+  
+  // 如果已经勾选了启用洪水填充，立即开始填充
+  if (enableFloodFill.value) {
+    startFloodFill();
+  }
+}
+
+// 开始洪水填充
+function startFloodFill() {
+  if (!floodFillStartPoint.value) {
+    alert('请先选择填充起始位置');
+    enableFloodFill.value = false; // 取消勾选
+    return;
+  }
+  
+  // 先处理图像（应用颜色过滤和二值化），然后开始填充
+  // 使用 Promise 确保图像处理完成后再开始填充
+  const processPromise = new Promise((resolve) => {
+    // 先处理图像
+    processImage();
+    
+    // 监听图像处理完成
+    const checkProcessing = setInterval(() => {
+      if (!processing.value) {
+        clearInterval(checkProcessing);
+        resolve();
+      }
+    }, 100);
+  });
+  
+  processPromise.then(() => {
+    // 图像处理完成后开始填充
+    processing.value = true;
+    
+    const requestData = {
+      type: 'flood_fill',
+      x: floodFillStartPoint.value.x,
+      y: floodFillStartPoint.value.y,
+      speed: floodFillSpeed.value,
+    };
+    
+    ipc.invoke(ipcApiRoute.sendToPython, requestData).catch((error) => {
+      console.error("洪水填充失败:", error);
+      processing.value = false;
+      alert(`洪水填充失败: ${error.message || '未知错误'}`);
+    });
+  });
+}
+
 // 统一的图像处理函数
 function processImage() {
   if (!imageLoaded.value) return;
@@ -227,6 +329,14 @@ function processImage() {
     requestData.enableBinary = false;
   }
   
+  // 如果启用了洪水填充，添加洪水填充参数
+  if (enableFloodFill.value) {
+    requestData.enableFloodFill = true;
+    requestData.floodFillSpeed = floodFillSpeed.value;
+  } else {
+    requestData.enableFloodFill = false;
+  }
+  
   // 发送统一的处理请求
   ipc.invoke(ipcApiRoute.sendToPython, requestData).catch((error) => {
     console.error("图像处理失败:", error);
@@ -257,11 +367,38 @@ onMounted(() => {
     console.log("收到处理结果:", response);
     handleProcessedImage(response);
   });
+  
+  // 监听图片点击事件（从图片显示窗口通过IPC发送）
+  if (ipc) {
+    ipc.on('image-click', (event, data) => {
+      console.log("收到图片点击事件:", data);
+      handleImageClick(data.x, data.y);
+    });
+  } else if (window.ipcRenderer) {
+    window.ipcRenderer.on('image-click', (event, data) => {
+      console.log("收到图片点击事件:", data);
+      handleImageClick(data.x, data.y);
+    });
+  } else if (window.electron && window.electron.ipcRenderer) {
+    window.electron.ipcRenderer.on('image-click', (event, data) => {
+      console.log("收到图片点击事件:", data);
+      handleImageClick(data.x, data.y);
+    });
+  }
 });
 
 onUnmounted(() => {
   if (socket) {
     socket.disconnect();
+  }
+  
+  // 移除图片点击事件监听
+  if (ipc) {
+    ipc.removeAllListeners('image-click');
+  } else if (window.ipcRenderer) {
+    window.ipcRenderer.removeAllListeners('image-click');
+  } else if (window.electron && window.electron.ipcRenderer) {
+    window.electron.ipcRenderer.removeAllListeners('image-click');
   }
 });
 </script>
