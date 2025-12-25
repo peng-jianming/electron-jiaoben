@@ -242,12 +242,9 @@ import os
     "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/秘境降妖弹框界面.png"),
 }
 
-主界面_云乐游对话 = {
+选项框_秘境降妖按钮 = {
     "方式": "opencv找图",
-    '按钮': {
-        '秘境降妖': [1823, 257, 411, 73]
-    },
-    "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/主界面_云乐游对话.png"),
+    "图片路径": os.path.join(os.path.dirname(__file__), "秘境降妖/选项框_秘境降妖按钮.png"),
 }
 
 主界面_秘境降妖文字 = {
