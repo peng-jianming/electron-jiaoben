@@ -10,6 +10,7 @@ const ipcApiRoute = {
   结束任务: 'controller/example/结束任务',
   sendToPython: 'controller/example/sendToPython',
   handleImageClick: 'controller/example/handleImageClick',
+  openSaveDialog: 'controller/example/openSaveDialog',
 }
 
 export {

@@ -2,6 +2,7 @@
 
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
+const { dialog } = require('electron');
 /**
  * example
  * @class
@@ -20,8 +21,20 @@ class ExampleController {
    */
   receiveProcessedImage(args, event) {
     try {
+      const prop = args.prop;
       const imageData = args.message;
       
+      // 根据 prop 类型分发事件
+      if (prop === 'image-saved') {
+        // 保存结果事件
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('image-saved', imageData);
+        }
+        return { success: true, message: '保存结果已发送' };
+      }
+      
+      // 图像处理结果事件 (image-processed)
       // 只要有图像数据（原图或处理后的图像），就在新窗口中显示
       if (imageData && imageData.success && (imageData.processedImage || imageData.originalImage)) {
         exampleService.showImageResultWindow(imageData);
@@ -85,6 +98,38 @@ class ExampleController {
       return { success: true, message: '图片点击事件已转发' };
     } catch (error) {
       console.error('转发图片点击事件错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 打开保存文件对话框
+   * @param {Object} args - 参数对象
+   * @param {Object} event - 事件对象
+   */
+  async openSaveDialog(args, event) {
+    try {
+      const { getMainWindow } = require('ee-core/electron');
+      const mainWindow = getMainWindow();
+      
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: '保存图片',
+        defaultPath: args.defaultName || 'processed_image.png',
+        filters: [
+          { name: 'PNG 图片', extensions: ['png'] },
+          { name: 'JPEG 图片', extensions: ['jpg', 'jpeg'] },
+          { name: 'BMP 图片', extensions: ['bmp'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      });
+      
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+      
+      return { success: true, filePath: result.filePath };
+    } catch (error) {
+      console.error('打开保存对话框错误:', error);
       return { success: false, message: error.message };
     }
   }

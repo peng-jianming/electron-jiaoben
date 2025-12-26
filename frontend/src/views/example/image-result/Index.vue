@@ -68,9 +68,12 @@ function handleImageData(data) {
   loading.value = false;
   
   if (data && data.success) {
-    // 优先显示处理后的图像
+    // 优先显示处理后的图像（支持 PNG 和 JPEG）
     if (data.processedImage) {
-      processedImage.value = `data:image/png;base64,${data.processedImage}`;
+      // 自动检测图像格式（JPEG 以 /9j/ 开头，PNG 以 iVBOR 开头）
+      const isJpeg = data.processedImage.startsWith('/9j/');
+      const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+      processedImage.value = `data:${mimeType};base64,${data.processedImage}`;
       threshold.value = data.threshold || 127;
       error.value = null;
     } 
@@ -140,16 +143,19 @@ function handleImageClick(event) {
 .image-result-container {
   width: 100%;
   height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background: #1e1e1e;
   overflow: auto;
+  /* 使用 padding 让小图片看起来居中，大图片可以完整滚动 */
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .loading {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
   gap: 15px;
   color: #999;
@@ -169,8 +175,11 @@ function handleImageClick(event) {
 }
 
 .error {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
   gap: 15px;
   color: #f56c6c;
@@ -188,12 +197,11 @@ function handleImageClick(event) {
 
 .result-image {
   display: block;
+  /* 保持原始尺寸，不缩放 */
   width: auto;
   height: auto;
   max-width: none;
   max-height: none;
-  /* 保持原始尺寸和比例，不压缩，不缩放 */
-  object-fit: contain;
 }
 </style>
 
