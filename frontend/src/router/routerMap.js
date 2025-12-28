@@ -24,6 +24,11 @@ const constantRouterMap = [
         name: 'ScreenshotPreview',
         component: () => import('@/views/example/screenshot-preview/Index.vue')
       },
+      {
+        path: '/pathfinding-map',
+        name: 'PathfindingMap',
+        component: () => import('@/views/example/pathfinding-map/Index.vue')
+      },
     ]
   },
 ]
