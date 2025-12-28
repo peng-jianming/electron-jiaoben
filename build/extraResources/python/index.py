@@ -917,6 +917,8 @@ class TaskLineMachine:
         self._previous_interface = None
         self._is_running = False
         self._context = {}  # 上下文信息
+        self._unknown_start_time = None  # 未知界面开始时间
+        self._unknown_timeout = 60  # 未知界面超时时间（秒）
         
         
     def state(self, Field):
@@ -927,6 +929,56 @@ class TaskLineMachine:
                 'Field': Field
             }
         return decorator
+        
+    def _copy_unknown_screenshot(self, url):
+        """复制未知界面截图到unknown文件夹"""
+        import shutil
+        try:
+            # 创建unknown文件夹
+            unknown_dir = os.path.join(os.path.dirname(__file__), "resource", "unknown")
+            os.makedirs(unknown_dir, exist_ok=True)
+            
+            # 生成带时间戳的文件名
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"unknown_{timestamp}.png"
+            dest_path = os.path.join(unknown_dir, filename)
+            
+            # 复制文件
+            shutil.copy(url, dest_path)
+            print(f"未知界面截图已保存: {dest_path}")
+        except Exception as e:
+            print(f"复制未知界面截图失败: {e}")
+    
+    def _play_alert_music(self):
+        """播放提示音乐"""
+        import threading
+        try:
+            music_path = os.path.join(os.path.dirname(__file__), "resource", "music.mp3")
+            if os.path.exists(music_path):
+                # 在后台线程播放，避免阻塞主程序
+                def play():
+                    try:
+                        from playsound import playsound
+                        playsound(music_path)
+                    except ImportError:
+                        # 如果没有playsound，尝试使用系统命令
+                        import platform
+                        if platform.system() == 'Windows':
+                            os.system(f'start "" "{music_path}"')
+                        elif platform.system() == 'Darwin':  # macOS
+                            os.system(f'afplay "{music_path}" &')
+                        else:  # Linux
+                            os.system(f'mpg123 "{music_path}" &')
+                    except Exception as e:
+                        print(f"播放音乐失败: {e}")
+                
+                thread = threading.Thread(target=play, daemon=True)
+                thread.start()
+                print("正在播放提示音乐...")
+            else:
+                print(f"音乐文件不存在: {music_path}")
+        except Exception as e:
+            print(f"播放音乐出错: {e}")
         
     def start(self):
         """启动状态机"""
@@ -945,6 +997,8 @@ class TaskLineMachine:
                             print(f"目前位于: {config['标识']}")
                             self.update_context(上一状态=self._current_interface)
                             self._current_interface = config['标识']
+                            # 找到已知界面，重置未知界面计时器
+                            self._unknown_start_time = None
                             result = handler(self._context)
                             if isinstance(result, dict):
                                 self._context.update(result)
@@ -955,7 +1009,21 @@ class TaskLineMachine:
 
                     if not 是否找到:
                         # 可以在这里设置时长,如果长时间处于未知界面,那么就报警,或者调用关闭函数关闭所有界面等
-                        print("目前处于: 未知界面")     
+                        print("目前处于: 未知界面")
+                        
+                        # 未知界面计时逻辑
+                        if self._unknown_start_time is None:
+                            self._unknown_start_time = time.time()
+                        else:
+                            elapsed = time.time() - self._unknown_start_time
+                            if elapsed >= self._unknown_timeout:
+                                print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
+                                # 截图
+                                self._copy_unknown_screenshot(url)
+                                # 播放提示音乐
+                                self._play_alert_music()
+                                # 重置计时器，避免重复保存
+                                self._unknown_start_time = time.time()
                     # 短暂延迟，避免CPU占用过高
                     # time.sleep(1)
                 
