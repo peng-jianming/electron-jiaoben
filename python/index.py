@@ -13,18 +13,21 @@ _client = None
 
 # 存储当前加载的图像（numpy 数组格式）
 _current_image = None  # 原图
-_current_image_filtered = None  # 颜色过滤后的图像
-_current_image_binary = None  # 二值化后的图像
-_current_image_flood_filled = None  # 洪水填充后的图像
+_current_processed_image = None  # 当前处理后的图像（用于步骤链）
+_step_images = {}  # 每个步骤完成后的图像，key为步骤索引
 
 # 洪水填充控制标志
 _flood_fill_running = False
 _flood_fill_stop_event = threading.Event()
 
+# 步骤处理控制
+_steps_processing = False
+_steps_stop_event = threading.Event()
+
 
 def 上传图片(data):
     """处理图像上传请求"""
-    global _current_image, _current_image_filtered, _current_image_binary, _current_image_flood_filled
+    global _current_image, _current_processed_image, _step_images
 
     try:
         image_path = data.get("path")
@@ -51,9 +54,8 @@ def 上传图片(data):
             return
 
         _current_image = img
-        _current_image_filtered = None
-        _current_image_binary = None
-        _current_image_flood_filled = None
+        _current_processed_image = None
+        _step_images = {}  # 清空步骤图像缓存
         print(f"图像已加载: {image_path}")
         send_image_result(processed_image=img)
 
@@ -102,6 +104,10 @@ def 对图像应用颜色过滤(img, keep_colors, filter_colors):
     if img is None:
         return None
 
+    # 确保图像是BGR格式
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
     result = img.copy()
     mask = np.ones((img.shape[0], img.shape[1]), dtype=np.uint8) * 255
 
@@ -127,51 +133,23 @@ def 对图像应用颜色过滤(img, keep_colors, filter_colors):
     return cv2.bitwise_and(result, result, mask=mask)
 
 
-def 处理图片流程(data):
-    """统一的图像处理函数：颜色过滤 -> 二值化"""
-    global _current_image_filtered, _current_image_binary, _current_image_flood_filled
-
-    try:
-        if _current_image is None:
-            send_image_result(error="未加载图像，请先上传图像")
-            return
-
-        source_image = _current_image
-        _current_image_filtered = None
-        _current_image_binary = None
-        _current_image_flood_filled = None
-
-        # 步骤1: 颜色过滤
-        if data.get("enableColorFilter"):
-            keep_colors = data.get("keepColors", [])
-            filter_colors = data.get("filterColors", [])
-
-            if keep_colors or filter_colors:
-                filtered_img = 对图像应用颜色过滤(_current_image, keep_colors, filter_colors)
-                if filtered_img is None:
-                    send_image_result(error="颜色过滤失败")
-                    return
-                source_image = filtered_img
-                _current_image_filtered = filtered_img
-                print(f"颜色过滤完成，保留: {keep_colors}, 过滤: {filter_colors}")
-
-        # 步骤2: 二值化
-        if data.get("enableBinary"):
-            threshold_value = data.get("threshold", 127)
-            gray = cv2.cvtColor(source_image, cv2.COLOR_BGR2GRAY)
-            _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY)
-            source_image = binary
-            _current_image_binary = binary
-            print(f"二值化处理完成，阈值: {threshold_value}")
-
-        send_image_result(processed_image=source_image)
-
-    except Exception as e:
-        traceback.print_exc()
-        send_image_result(error=str(e))
+def 对图像应用二值化(img, threshold_value):
+    """对图像应用二值化处理"""
+    if img is None:
+        return None
+    
+    # 如果是彩色图像，先转换为灰度
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img.copy()
+    
+    _, binary = cv2.threshold(gray, threshold_value, 255, cv2.THRESH_BINARY)
+    return binary
 
 
-def 逐步洪水填充算法(img, seed_point, fill_color=(255, 255, 255), batch_size=100):
+def 逐步洪水填充算法(img, seed_point, fill_color=(255, 255, 255), batch_size=100, 
+                      step_index=None, send_progress=True):
     """逐步洪水填充算法，支持动画效果"""
     if img is None:
         return None
@@ -196,7 +174,7 @@ def 逐步洪水填充算法(img, seed_point, fill_color=(255, 255, 255), batch_
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
     def should_stop():
-        return _flood_fill_stop_event.is_set()
+        return _flood_fill_stop_event.is_set() or _steps_stop_event.is_set()
 
     while queue:
         if should_stop():
@@ -216,100 +194,134 @@ def 逐步洪水填充算法(img, seed_point, fill_color=(255, 255, 255), batch_
                         visited[ny, nx] = True
                         queue.append((nx, ny))
 
-            if filled_count % batch_size == 0:
+            if send_progress and filled_count % batch_size == 0:
                 time.sleep(0.05)
                 if should_stop():
                     return None
-                send_image_result(processed_image=result, use_fast_encode=True)
+                send_image_result(processed_image=result, use_fast_encode=True, 
+                                step_index=step_index)
 
     if should_stop():
         return None
 
-    send_image_result(processed_image=result)
     return result
 
 
-def 洪水填充线程函数(source_image_bgr, x, y, fill_color, batch_size):
-    """洪水填充线程函数"""
-    global _flood_fill_running, _current_image_flood_filled
+def 处理步骤列表(data):
+    """处理步骤列表 - 按顺序执行每个步骤"""
+    global _current_processed_image, _steps_processing, _step_images
 
     try:
-        print(f"开始洪水填充，种子点: ({x}, {y}), 批量大小: {batch_size}")
-        filled_image = 逐步洪水填充算法(
-            source_image_bgr, (x, y), fill_color=fill_color, batch_size=batch_size
-        )
-        _flood_fill_running = False
-
-        if filled_image is None and not _flood_fill_stop_event.is_set():
-            send_image_result(error="洪水填充失败")
-        elif filled_image is not None:
-            _current_image_flood_filled = filled_image
-            print("洪水填充完成")
-
-    except Exception as e:
-        _flood_fill_running = False
-        traceback.print_exc()
-        send_image_result(error=str(e))
-
-
-def 洪水填充(data):
-    """处理洪水填充请求"""
-    global _flood_fill_running
-
-    try:
-        if _flood_fill_running:
-            _flood_fill_stop_event.set()
-            time.sleep(0.05)
-
-        _flood_fill_stop_event.clear()
-        _flood_fill_running = True
-
-        # 确定使用哪个图像
-        if _current_image_binary is not None:
-            source_image = _current_image_binary
-        elif _current_image_filtered is not None:
-            source_image = _current_image_filtered
-        else:
-            source_image = _current_image
-
-        if source_image is None:
-            send_image_result(error="未加载图像")
-            _flood_fill_running = False
+        if _current_image is None:
+            send_image_result(error="未加载图像，请先上传图像")
             return
 
-        x, y = data.get("x", 0), data.get("y", 0)
-        batch_size = data.get("batchSize", 100)
+        steps = data.get("steps", [])
+        _step_images = {}  # 清空步骤图像缓存
+        
+        # 如果没有步骤，直接返回原图
+        if not steps:
+            _current_processed_image = _current_image.copy()
+            print("没有处理步骤，返回原图")
+            send_image_result(processed_image=_current_image)
+            return
 
-        # 转换为BGR格式
-        if len(source_image.shape) == 2:
-            source_image_bgr = cv2.cvtColor(source_image, cv2.COLOR_GRAY2BGR)
-        else:
-            source_image_bgr = source_image.copy()
-
-        thread = threading.Thread(
-            target=洪水填充线程函数,
-            args=(source_image_bgr, x, y, (255, 255, 255), batch_size),
-            daemon=True
-        )
-        thread.start()
-
-    except Exception as e:
-        _flood_fill_running = False
-        traceback.print_exc()
-        send_image_result(error=str(e))
-
-
-def 清除洪水填充(data):
-    """清除洪水填充并重新处理图像"""
-    global _current_image_flood_filled
-    
-    try:
+        # 停止之前的处理
+        _steps_stop_event.set()
         _flood_fill_stop_event.set()
-        _current_image_flood_filled = None
-        print("正在停止洪水填充...")
-        处理图片流程(data)
-        print("洪水填充已清除")
+        time.sleep(0.1)
+        _steps_stop_event.clear()
+        _flood_fill_stop_event.clear()
+        _steps_processing = True
+
+        # 从原图开始处理
+        current_img = _current_image.copy()
+        print(f"开始处理 {len(steps)} 个步骤")
+
+        for index, step in enumerate(steps):
+            if _steps_stop_event.is_set():
+                print("步骤处理已被中断")
+                _steps_processing = False
+                return
+
+            step_type = step.get("type")
+            params = step.get("params", {})
+            print(f"处理步骤 {index + 1}/{len(steps)}: {step_type}")
+
+            try:
+                if step_type == "color_filter":
+                    # 颜色过滤
+                    keep_colors = params.get("keepColors", [])
+                    filter_colors = params.get("filterColors", [])
+                    result = 对图像应用颜色过滤(current_img, keep_colors, filter_colors)
+                    if result is None:
+                        send_image_result(error=f"步骤 {index + 1} 颜色过滤失败", 
+                                        step_index=index)
+                        _steps_processing = False
+                        return
+                    current_img = result
+                    print(f"颜色过滤完成，保留: {keep_colors}, 过滤: {filter_colors}")
+
+                elif step_type == "binary":
+                    # 二值化
+                    threshold_value = params.get("threshold", 127)
+                    result = 对图像应用二值化(current_img, threshold_value)
+                    if result is None:
+                        send_image_result(error=f"步骤 {index + 1} 二值化失败", 
+                                        step_index=index)
+                        _steps_processing = False
+                        return
+                    current_img = result
+                    print(f"二值化处理完成，阈值: {threshold_value}")
+
+                elif step_type == "flood_fill":
+                    # 洪水填充（无动画，直接完成）
+                    x = params.get("x", 0)
+                    y = params.get("y", 0)
+                    
+                    # 保存洪水填充前的图像，用于后续动画展示
+                    _step_images[index] = current_img.copy()
+                    
+                    # 确保图像是BGR格式用于洪水填充
+                    if len(current_img.shape) == 2:
+                        current_img = cv2.cvtColor(current_img, cv2.COLOR_GRAY2BGR)
+                    
+                    result = 逐步洪水填充算法(
+                        current_img, (x, y), 
+                        fill_color=(255, 255, 255), 
+                        batch_size=100,
+                        step_index=index,
+                        send_progress=False  # 不发送进度，直接完成
+                    )
+                    if result is None:
+                        if not _steps_stop_event.is_set():
+                            send_image_result(error=f"步骤 {index + 1} 洪水填充失败", 
+                                            step_index=index)
+                        _steps_processing = False
+                        return
+                    current_img = result
+                    print(f"洪水填充完成，起点: ({x}, {y})")
+
+                else:
+                    print(f"未知的步骤类型: {step_type}")
+                    continue
+
+                # 发送当前步骤完成的结果
+                _current_processed_image = current_img
+                send_image_result(processed_image=current_img, step_index=index)
+
+            except Exception as e:
+                traceback.print_exc()
+                send_image_result(error=f"步骤 {index + 1} 处理失败: {str(e)}", 
+                                step_index=index)
+                _steps_processing = False
+                return
+
+        _steps_processing = False
+        print("所有步骤处理完成")
+
     except Exception as e:
+        _steps_processing = False
         traceback.print_exc()
         send_image_result(error=str(e))
 
@@ -322,18 +334,11 @@ def 保存图片(data):
             send_save_result(error="未提供保存路径")
             return
 
-        # 确定要保存的图片：优先级 洪水填充 > 二值化 > 颜色过滤 > 原图
+        # 确定要保存的图片：优先级 处理后的图像 > 原图
         image_to_save = None
-        if _current_image_flood_filled is not None:
-            image_to_save = _current_image_flood_filled
-            print("保存洪水填充后的图片")
-        elif _current_image_binary is not None:
-            # 二值化图片需要转换为BGR格式
-            image_to_save = cv2.cvtColor(_current_image_binary, cv2.COLOR_GRAY2BGR)
-            print("保存二值化后的图片")
-        elif _current_image_filtered is not None:
-            image_to_save = _current_image_filtered
-            print("保存颜色过滤后的图片")
+        if _current_processed_image is not None:
+            image_to_save = _current_processed_image
+            print("保存处理后的图片")
         elif _current_image is not None:
             image_to_save = _current_image
             print("保存原图")
@@ -364,6 +369,145 @@ def 保存图片(data):
         send_save_result(error=str(e))
 
 
+def 洪水填充动画(data):
+    """在新窗口中显示洪水填充动画"""
+    global _flood_fill_running
+    
+    try:
+        step_index = data.get("stepIndex", 0)
+        params = data.get("params", {})
+        x = params.get("x", 0)
+        y = params.get("y", 0)
+        
+        # 获取该步骤开始前的图像
+        if step_index in _step_images:
+            base_img = _step_images[step_index].copy()
+        elif step_index == 0 and _current_image is not None:
+            base_img = _current_image.copy()
+        else:
+            print(f"未找到步骤 {step_index} 的基础图像")
+            return
+        
+        # 确保图像是BGR格式
+        if len(base_img.shape) == 2:
+            base_img = cv2.cvtColor(base_img, cv2.COLOR_GRAY2BGR)
+        
+        print(f"开始洪水填充动画，步骤: {step_index}, 起点: ({x}, {y})")
+        
+        # 停止之前的洪水填充
+        _flood_fill_stop_event.set()
+        time.sleep(0.1)
+        _flood_fill_stop_event.clear()
+        _flood_fill_running = True
+        
+        # 在新线程中运行动画
+        def run_animation():
+            global _flood_fill_running
+            try:
+                h, w = base_img.shape[:2]
+                
+                if not (0 <= x < w and 0 <= y < h):
+                    print("起始点超出图像范围")
+                    _flood_fill_running = False
+                    return
+                
+                result = base_img.copy()
+                seed_color = base_img[y, x].copy()
+                fill_color = np.array([255, 255, 255], dtype=np.uint8)
+                
+                if np.array_equal(seed_color, fill_color):
+                    print("起始点颜色与填充颜色相同")
+                    _flood_fill_running = False
+                    return
+                
+                queue = deque([(x, y)])
+                visited = np.zeros((h, w), dtype=bool)
+                visited[y, x] = True
+                filled_count = 0
+                batch_size = 100
+                directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                
+                # 创建窗口
+                window_name = f"洪水填充动画 - 步骤 {step_index + 1}"
+                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+                
+                # 设置窗口置顶
+                cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+                
+                # 计算窗口大小（限制最大尺寸）
+                max_size = 800
+                scale = min(max_size / w, max_size / h, 1.0)
+                win_w, win_h = int(w * scale), int(h * scale)
+                cv2.resizeWindow(window_name, win_w, win_h)
+                
+                def is_window_closed():
+                    """检测窗口是否被用户关闭"""
+                    try:
+                        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
+                    except:
+                        return True
+                
+                while queue:
+                    if _flood_fill_stop_event.is_set() or is_window_closed():
+                        print("洪水填充动画已中断")
+                        _flood_fill_stop_event.set()
+                        break
+                    
+                    px, py = queue.popleft()
+                    
+                    if np.array_equal(result[py, px], seed_color):
+                        result[py, px] = fill_color
+                        filled_count += 1
+                        
+                        for dx, dy in directions:
+                            nx, ny = px + dx, py + dy
+                            if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx]:
+                                if np.array_equal(result[ny, nx], seed_color):
+                                    visited[ny, nx] = True
+                                    queue.append((nx, ny))
+                        
+                        if filled_count % batch_size == 0:
+                            cv2.imshow(window_name, result)
+                            key = cv2.waitKey(1)
+                            if key == 27 or key == ord('q') or is_window_closed():  # ESC、Q 或关闭窗口
+                                _flood_fill_stop_event.set()
+                                break
+                
+                # 显示最终结果
+                if not _flood_fill_stop_event.is_set() and not is_window_closed():
+                    cv2.imshow(window_name, result)
+                    print(f"洪水填充动画完成，共填充 {filled_count} 个像素")
+                    print("按任意键关闭窗口...")
+                    while True:
+                        key = cv2.waitKey(100)
+                        if key != -1 or is_window_closed():
+                            break
+                
+                # 安全关闭窗口
+                try:
+                    cv2.destroyWindow(window_name)
+                except:
+                    pass  # 窗口可能已被用户关闭
+                _flood_fill_running = False
+                
+            except Exception as e:
+                traceback.print_exc()
+                # 安全关闭窗口
+                try:
+                    cv2.destroyWindow(window_name)
+                except:
+                    pass
+                _flood_fill_running = False
+        
+        # 启动动画线程
+        animation_thread = threading.Thread(target=run_animation, daemon=True)
+        animation_thread.start()
+        
+    except Exception as e:
+        traceback.print_exc()
+        _flood_fill_running = False
+
+
 def send_save_result(success=False, path=None, error=None):
     """发送保存结果到 Electron"""
     message = {"success": success}
@@ -379,12 +523,15 @@ def send_save_result(success=False, path=None, error=None):
     )
 
 
-def send_image_result(processed_image=None, error=None, use_fast_encode=False):
+def send_image_result(processed_image=None, error=None, use_fast_encode=False, step_index=None):
     """发送图像处理结果到 Electron"""
-    if use_fast_encode and _flood_fill_stop_event.is_set():
+    if use_fast_encode and (_flood_fill_stop_event.is_set() or _steps_stop_event.is_set()):
         return
 
     message = {"success": error is None}
+
+    if step_index is not None:
+        message["stepIndex"] = step_index
 
     if error:
         message["error"] = error
@@ -394,12 +541,12 @@ def send_image_result(processed_image=None, error=None, use_fast_encode=False):
         else:
             _, buffer = cv2.imencode(".png", processed_image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-        if use_fast_encode and _flood_fill_stop_event.is_set():
+        if use_fast_encode and (_flood_fill_stop_event.is_set() or _steps_stop_event.is_set()):
             return
 
         message["processedImage"] = base64.b64encode(buffer).decode("utf-8")
 
-    if use_fast_encode and _flood_fill_stop_event.is_set():
+    if use_fast_encode and (_flood_fill_stop_event.is_set() or _steps_stop_event.is_set()):
         return
 
     send_to_electron(
@@ -423,10 +570,9 @@ def init_client(url="http://127.0.0.1:7070"):
 
             handlers = {
                 "upload_image": 上传图片,
-                "process_image": 处理图片流程,
-                "flood_fill": 洪水填充,
-                "clear_flood_fill": 清除洪水填充,
+                "process_steps": 处理步骤列表,
                 "save_image": 保存图片,
+                "flood_fill_animation": 洪水填充动画,
             }
             
             handler = handlers.get(data.get("type"))

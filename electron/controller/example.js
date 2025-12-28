@@ -133,6 +133,66 @@ class ExampleController {
       return { success: false, message: error.message };
     }
   }
+
+  /**
+   * 打开截图窗口
+   */
+  openCaptureWindow(args, event) {
+    try {
+      return exampleService.createCaptureWindow();
+    } catch (error) {
+      console.error('打开截图窗口错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 关闭截图窗口
+   */
+  closeCaptureWindow(args, event) {
+    try {
+      return exampleService.closeCaptureWindow();
+    } catch (error) {
+      console.error('关闭截图窗口错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 开始连续截图
+   */
+  async startCapturing(args, event) {
+    try {
+      return await exampleService.startCapturing();
+    } catch (error) {
+      console.error('开始截图错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 停止连续截图
+   */
+  stopCapturing(args, event) {
+    try {
+      return exampleService.stopCapturing();
+    } catch (error) {
+      console.error('停止截图错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 获取截图状态
+   */
+  getCaptureStatus(args, event) {
+    try {
+      return exampleService.getCaptureStatus();
+    } catch (error) {
+      console.error('获取截图状态错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
 }
 ExampleController.toString = () => '[class ExampleController]';
 
