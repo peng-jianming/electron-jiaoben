@@ -42,6 +42,7 @@ const handleGetDeviceList = async () => {
   const result = await ipc.invoke(ipcApiRoute.获取设备列表);
   list.value = result;
 
+  
   list.value.forEach((item, index) => {
     // 移除之前的监听器，防止重复监听
     client.socket.off(`${item.deviceId}`);

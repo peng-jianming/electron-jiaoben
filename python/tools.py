@@ -12,6 +12,7 @@ from PIL import Image
 import socketio
 
 
+
 class DeviceController:
     """设备控制器类，封装所有设备操作功能"""
     
@@ -25,13 +26,14 @@ class DeviceController:
         self.device_id = device_id
         self._model_path = ""
         self._model = None
-        self._client = None
-        # 初始化任务状态机
-        self._task_machine = None
+        self._socketio_client = None
+        # 初始化 Socket.IO 客户端（可选，延迟连接）
+        self.init_client()
+        # self.send_to_electron("abc", '123')
         
     def 写入日志(self, info):
         """写入日志"""
-        print(f'{info}')
+        self.send_to_electron('logs', info)
     
     async def _send_to_gc(self, payload):
         """发送消息到GC服务器"""
@@ -427,38 +429,23 @@ class DeviceController:
     
     def init_client(self, url="http://127.0.0.1:7070"):
         """初始化 Socket.IO 客户端"""
-        if self._client is None:
-            self._client = socketio.Client()
-            
-            @self._client.on("python-message")
-            def on_message(data):
-                print(f"收到来自 Electron 的消息: {data}")
-                if not isinstance(data, dict):
-                    return
-                
-                # 注意：以下函数需要用户自行实现
-                handlers = {
-                    # "upload_image": 上传图片,
-                    # "process_steps": 处理步骤列表,
-                    # "save_image": 保存图片,
-                    # "flood_fill_animation": 洪水填充动画,
-                }
-                
-                handler = handlers.get(data.get("type"))
-                if handler:
-                    handler(data)
+        if not hasattr(self, '_socketio_client') or self._socketio_client is None:
+            self._socketio_client = socketio.Client()
         
-        if not self._client.connected:
-            self._client.connect(url)
+        if not self._socketio_client.connected:
+            try:
+                self._socketio_client.connect(url)
+            except Exception as e:
+                print(f"Socket.IO 连接失败: {e}")
         
-        return self._client
+        return self._socketio_client
     
-    def send_to_electron(self, prop, message, method="controller/example/receiveProcessedImage",
+    def send_to_electron(self, prop, message, method="controller/example/changeProp",
                          url="http://127.0.0.1:7070", wait_response=True):
         """向 Electron 发送数据"""
         try:
             client = self.init_client(url)
-            data = {"cmd": method, "args": {"prop": prop, "message": message}}
+            data = {"cmd": method, "args": {"deviceId": self.device_id, "prop": prop, "message": message}}
             
             if not wait_response:
                 client.emit("socket-channel", data)
@@ -491,282 +478,6 @@ class DeviceController:
         except Exception as e:
             print(f"发送数据错误: {e}")
             return None
-    
-    def create_field(self, config):
-        """
-        创建字段查找实例
-        
-        参数:
-            config: 配置字典
-        
-        返回:
-            Field实例
-        """
-        return self.Field(config, self)
-    
-    @property
-    def task_machine(self):
-        """
-        获取任务状态机实例（懒加载）
-        
-        返回:
-            TaskLineMachine实例
-        """
-        if self._task_machine is None:
-            self._task_machine = self.TaskLineMachine(self)
-        return self._task_machine
-    
-    class Field:
-        """字段查找类（内部类）"""
-        
-        def __init__(self, config, controller):
-            """
-            初始化字段
-            
-            参数:
-                config: 配置字典
-                controller: DeviceController实例
-            """
-            self.controller = controller
-            self.标识 = config.get("标识")
-            self.方式 = config.get("方式")
-            self.图片路径 = config.get("图片路径")
-            self.大图路径 = config.get("大图路径")
-            self.相似度 = config.get("相似度", 0.8)
-            self.分类名 = config.get("分类名")
-            self.模型路径 = config.get("模型路径")
-            self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
-            self.x = 0
-            self.y = 0
-            self.w = 0
-            self.h = 0
-            self.是否判断状态 = False
-        
-        def 查找(self):
-            """查找字段"""
-            url = self.大图路径 if self.大图路径 else self.controller.截图()
-            if url:
-                if self.方式 == "opencv找图":
-                    result = self.controller.opencv找图(url, self.图片路径, self.相似度, 
-                                                        (self.查找区域["x"], self.查找区域["y"],
-                                                         self.查找区域["w"], self.查找区域["h"]))
-                    if result:
-                        self.x = result["x"]
-                        self.y = result["y"]
-                        self.w = result["w"]
-                        self.h = result["h"]
-                elif self.方式 == "opencv找透明图":
-                    result = self.controller.opencv找透明图(url, self.图片路径, 50, self.相似度,
-                                                            (self.查找区域["x"], self.查找区域["y"],
-                                                             self.查找区域["w"], self.查找区域["h"]))
-                    if result:
-                        self.x = result["x"]
-                        self.y = result["y"]
-                        self.w = result["w"]
-                        self.h = result["h"]
-                elif self.方式 == "yolo":
-                    result = self.controller.yolo(url, self.模型路径, self.相似度)
-                    if len(result):
-                        for r in result:
-                            if r["class_name"] == self.分类名:
-                                print(r)
-                                self.x = self.查找区域["x"] + math.ceil(r["x"])
-                                self.y = self.查找区域["y"] + math.ceil(r["y"])
-                                self.w = math.floor(r["w"])
-                                self.h = math.floor(r["h"])
-                                break
-            if self.是否判断状态:
-                self.controller.写入日志(f"{self.标识}: {'是' if self.是否找到() else '否'}")
-            return self
-        
-        def 点击(self, x=None, y=None, w=None, h=None):
-            """点击字段"""
-            if self.是否找到():
-                if x and y and w and h:
-                    self.controller.随机ADB点击(x, y, w, h)
-                elif x and y:
-                    self.controller.ADB点击(x, y)
-                elif self.x and self.y:
-                    self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
-                
-                if self.标识:
-                    self.controller.写入日志(f"{self.标识}")
-            return self
-        
-        def 偏移点击(self, x=None, y=None, w=None, h=None):
-            """偏移点击"""
-            if self.是否找到():
-                if not w and not h:
-                    self.controller.ADB点击(self.x + x, self.y + y)
-                if w and h:
-                    self.controller.随机ADB点击(self.x + x, self.y + y, w, h)
-                
-                if self.标识:
-                    self.controller.写入日志(f"{self.标识}")
-            return self
-        
-        def 随机延时(self, startMs, endMs):
-            """随机延时"""
-            if self.是否找到():
-                self.controller.随机延时(startMs, endMs)
-            return self
-        
-        def 设置查找区域(self, 查找区域):
-            """设置查找区域"""
-            self.查找区域 = 查找区域
-            return self
-        
-        def 设置大图路径(self, 大图路径):
-            """设置大图路径"""
-            self.大图路径 = 大图路径
-            return self
-        
-        def 设置标识(self, 标识, 是否判断状态=False):
-            """设置标识"""
-            self.标识 = 标识
-            self.是否判断状态 = 是否判断状态
-            return self
-        
-        def 是否找到(self):
-            """判断是否找到"""
-            return bool(self.x and self.y)
-    
-    class TaskLineMachine:
-        """任务状态机类（内部类）"""
-        
-        def __init__(self, controller):
-            """
-            初始化任务状态机
-            
-            参数:
-                controller: DeviceController实例
-            """
-            self.controller = controller
-            self._states = {}
-            self._current_interface = None
-            self._previous_interface = None
-            self._is_running = False
-            self._context = {}  # 上下文信息
-            self._unknown_start_time = None  # 未知界面开始时间
-            self._unknown_timeout = 60  # 未知界面超时时间（秒）
-        
-        def state(self, Field):
-            """装饰器：直接注册界面处理函数"""
-            def decorator(func):
-                self._states[Field['标识']] = {
-                    'handler': func,
-                    'Field': Field
-                }
-            return decorator
-        
-        def _copy_unknown_screenshot(self, url):
-            """复制未知界面截图到unknown文件夹"""
-            import shutil
-            try:
-                # 创建unknown文件夹
-                unknown_dir = os.path.join(os.path.dirname(__file__), "resource", "unknown")
-                os.makedirs(unknown_dir, exist_ok=True)
-                
-                # 生成带时间戳的文件名
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                filename = f"unknown_{timestamp}.png"
-                dest_path = os.path.join(unknown_dir, filename)
-                
-                # 复制文件
-                shutil.copy(url, dest_path)
-                print(f"未知界面截图已保存: {dest_path}")
-            except Exception as e:
-                print(f"复制未知界面截图失败: {e}")
-        
-        def _play_alert_music(self):
-            """播放提示音乐"""
-            import threading
-            try:
-                music_path = os.path.join(os.path.dirname(__file__), "resource", "music.mp3")
-                if os.path.exists(music_path):
-                    # 在后台线程播放，避免阻塞主程序
-                    def play():
-                        try:
-                            from playsound import playsound
-                            playsound(music_path)
-                        except ImportError:
-                            # 如果没有playsound，尝试使用系统命令
-                            import platform
-                            if platform.system() == 'Windows':
-                                os.system(f'start "" "{music_path}"')
-                            elif platform.system() == 'Darwin':  # macOS
-                                os.system(f'afplay "{music_path}" &')
-                            else:  # Linux
-                                os.system(f'mpg123 "{music_path}" &')
-                        except Exception as e:
-                            print(f"播放音乐失败: {e}")
-                    
-                    thread = threading.Thread(target=play, daemon=True)
-                    thread.start()
-                    print("正在播放提示音乐...")
-                else:
-                    print(f"音乐文件不存在: {music_path}")
-            except Exception as e:
-                print(f"播放音乐出错: {e}")
-        
-        def start(self):
-            """启动状态机"""
-            self._is_running = True
-            
-            while self._is_running:
-                try:
-                    url = self.controller.截图()
-                    if url:
-                        是否找到 = False
-                        for state in self._states.values():
-                            handler = state['handler']
-                            config = state['Field']
-                            if self.controller.Field(config, self.controller).设置大图路径(url).查找().是否找到():
-                                是否找到 = True
-                                print(f"目前位于: {config['标识']}")
-                                self.update_context(上一状态=self._current_interface)
-                                self._current_interface = config['标识']
-                                # 找到已知界面，重置未知界面计时器
-                                self._unknown_start_time = None
-                                result = handler(self._context)
-                                if isinstance(result, dict):
-                                    self._context.update(result)
-                                elif result is False:
-                                    # 处理函数返回False，表示操作失败或需要重试
-                                    print(f"界面 {self._current_interface} 处理失败")
-                                break
-                        
-                        if not 是否找到:
-                            # 可以在这里设置时长,如果长时间处于未知界面,那么就报警,或者调用关闭函数关闭所有界面等
-                            print("目前处于: 未知界面")
-                            
-                            # 未知界面计时逻辑
-                            if self._unknown_start_time is None:
-                                self._unknown_start_time = time.time()
-                            else:
-                                elapsed = time.time() - self._unknown_start_time
-                                if elapsed >= self._unknown_timeout:
-                                    print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
-                                    # 截图
-                                    self._copy_unknown_screenshot(url)
-                                    # 播放提示音乐
-                                    self._play_alert_music()
-                                    # 重置计时器，避免重复保存
-                                    self._unknown_start_time = time.time()
-                        # 短暂延迟，避免CPU占用过高
-                        # time.sleep(1)
-                    
-                except Exception as e:
-                    print(f"状态机运行异常: {e}")
-                    self.stop()
-        
-        def stop(self):
-            """停止状态机"""
-            self._is_running = False
-        
-        def update_context(self, **kwargs):
-            """更新上下文"""
-            self._context.update(kwargs)
 
 
 class Field:
@@ -1021,19 +732,3 @@ class TaskLineMachine:
     def update_context(self, **kwargs):
         """更新上下文"""
         self._context.update(kwargs)
-
-
-# 为了保持向后兼容，保留命令行参数解析（可选）
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Python Server")
-    parser.add_argument("--id", type=str, default='', help="The id number.")
-    args = parser.parse_args()
-    
-    # 使用示例
-    if args.id:
-        controller = DeviceController(args.id)
-        # 使用controller进行各种操作
-        # controller.截图()
-        # controller.ADB点击(100, 200)
-        # ...

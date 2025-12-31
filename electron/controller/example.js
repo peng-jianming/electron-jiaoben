@@ -1,7 +1,7 @@
 'use strict';
 
 const { exampleService } = require('../service/example');
-
+const { getSocketServer } = require('ee-core/socket');
 /**
  * example
  * @class
@@ -21,17 +21,48 @@ class ExampleController {
 
   async 开始任务(args, event) {
     const params = args || {};
-    const aaa =  await exampleService.开始任务(JSON.parse(params.deviceList || '[]'), params.taskList);
-    return aaa;
-    
+    JSON.parse(params.deviceList || '[]').forEach(item => {
+      this.sendToPython({
+        type: 'start',
+        device_id: item.deviceId,
+        task_type: 'shimen'
+      });
+    });
   }
 
   async 结束任务(args, event) {
     const params = args || {};
-    await exampleService.结束任务(JSON.parse(params.deviceList || '[]'));
+    JSON.parse(params.deviceList || '[]').forEach(item => {
+      this.sendToPython({
+        type: 'stop',
+        device_id: item.deviceId
+      });
+    });
   }
   changeProp(args, event){
+    console.log('changeProp', args, "===========");
     exampleService.changeDeviceProcesses(args.deviceId, args.prop, args.message)
+  }
+
+  sendToPython(args, event) {
+    try {
+      // 获取 socket 服务器实例
+      const socketServer = getSocketServer();
+      
+      if (!socketServer) {
+        console.error('Socket 服务器未初始化');
+        return { success: false, message: 'Socket 服务器未初始化' };
+      }
+
+      // 向所有连接的客户端发送消息
+      // 事件名：'python-message'
+      // 数据：args 对象
+      socketServer.io.emit('python-message', args);
+      
+      return { success: true, message: '消息已发送' };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   }
 }
 ExampleController.toString = () => '[class ExampleController]';

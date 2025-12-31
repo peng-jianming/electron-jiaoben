@@ -42,14 +42,16 @@ class ExampleService {
     const data = {
       "action": "list"
     };
-    const res = await this.sendRequest(data);
+    // const res = await this.sendRequest(data);
+    const res = {
+      result: "[{\"deviceId\":\"1\",\"name\":\"设备1\",\"logs\":\"\"},{\"deviceId\":\"2\",\"name\":\"设备2\",\"logs\":\"\"},{\"deviceId\":\"3\",\"name\":\"设备3\",\"logs\":\"\"}]"
+    }
+    
     if (res && res.result) {
-
       const list = JSON.parse(res.result);
       list.forEach(item => {
         this.deviceProcesses.set(item.deviceId, {
           ...item,
-          isRunning: false,
           logs: ''
         });
       })
@@ -95,13 +97,15 @@ class ExampleService {
   changeDeviceProcesses(id, key, value) {
     const current = this.deviceProcesses.get(id);
 
-    current[key] = value;
-    this.deviceProcesses.set(id, current);
+    if(current) {
+      current[key] = value;
+      this.deviceProcesses.set(id, current);
+    }
   }
 
   async createPythonServer(runPath, port) {
     return new Promise((resolve, reject) => {
-    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `${runPath}/index.py`, `--id=${port}`], {
+    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `${runPath}/index.py`, `--ids=${port}`], {
       stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
       detached: false,
       cwd: runPath,
@@ -140,74 +144,6 @@ class ExampleService {
       }
     });
   }
-
-  async 开始任务(deviceList, taskList) {
-    const devicePromises = deviceList.map(async (item) => {
-
-      // 任务开始,记录当前任务执行状态
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', true)
-
-    
-
-      for (const taskName of taskList) {
-        try {
-          // 运行状态被关了,就不继续执行了
-          const current = this.deviceProcesses.get(item.deviceId);
-          if (current.isRunning) {
-            this.changeDeviceProcesses(item.deviceId, 'currentTask', taskName)
-            const runPath = path.join(getExtraResourcesDir(), `python`, taskName)
-            // const logPath = path.join(runPath, `logs/${item.deviceId}.log`);
-            // this.监听文件(item.deviceId, logPath)
-            await this.createPythonServer(runPath, item.deviceId);
-            this.changeDeviceProcesses(item.deviceId, 'currentTask', '')
-          }
-        } catch (err) {
-          this.deviceProcesses.delete(item.deviceId);
-          console.log(`执行任务出错: deviceId=${item.deviceId}, task=${taskName}`, err);
-          break; // 执行失败,后续的任务不执行了
-        }
-      }
-
-      // 任务全部做完, 运行状态结束
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
-    });
-    // 如果希望等所有设备的任务都执行完毕后再返回，可以 await
-    await Promise.all(devicePromises);
-  }
-
-  async 结束任务(deviceList) {
-    await Promise.all(deviceList.map((item) => {
-      this.changeDeviceProcesses(item.deviceId, 'isRunning', false)
-      this.stopPythonServer(item.deviceId)
-    }));
-  }
-
-  // async 监听文件(deviceId, logPath) {
-    
-  //   // 确保目录存在
-  //   const dir = path.dirname(logPath);
-  //   if (!fs.existsSync(dir)) {
-  //     fs.mkdirSync(dir, { recursive: true });
-  //   }
-    
-  //   // 若文件不存在则创建，存在则清空内容
-  //   fs.writeFileSync(logPath, '', 'utf8');
-
-  //   // 移除之前的监听器，防止重复监听
-  //   fs.unwatchFile(logPath);
-
-  //   // 添加新的监听器
-  //   fs.watchFile(logPath, { interval: 1000 }, (curr, prev) => {
-  //     if (curr.mtime !== prev.mtime) {
-  //       fs.readFile(logPath, 'utf8', (err, data) => {
-  //         if (!err) {
-  //           const arr = data.split('\r\n')
-  //           this.changeDeviceProcesses(deviceId, 'logs', arr[arr.length - 2])
-  //         }
-  //       });
-  //     }
-  //   });
-  // }
 }
 ExampleService.toString = () => '[class ExampleService]';
 
