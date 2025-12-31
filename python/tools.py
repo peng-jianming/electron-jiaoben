@@ -732,3 +732,27 @@ class TaskLineMachine:
     def update_context(self, **kwargs):
         """更新上下文"""
         self._context.update(kwargs)
+
+
+
+class Task:
+    """任务类"""
+    def __init__(self):
+        self._is_running = False
+
+    def run(self):
+        pass
+    
+    def start(self):
+        self._is_running = True
+        try:
+            self.run()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        finally:
+            self._is_running = False
+    
+    def stop(self):
+        self._is_running = False
+    

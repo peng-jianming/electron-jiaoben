@@ -25,7 +25,7 @@ class ExampleController {
       this.sendToPython({
         type: 'start',
         device_id: item.deviceId,
-        task_type: 'shimen'
+        task_queue: ['shimen', 'baotu']
       });
     });
   }
@@ -40,7 +40,6 @@ class ExampleController {
     });
   }
   changeProp(args, event){
-    console.log('changeProp', args, "===========");
     exampleService.changeDeviceProcesses(args.deviceId, args.prop, args.message)
   }
 

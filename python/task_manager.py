@@ -1,6 +1,5 @@
 import threading
 import time
-from typing import Dict, Optional
 from baotu import Baotu
 from shimen import Shimen
 
@@ -11,7 +10,11 @@ class TaskManager:
     def __init__(self):
         """初始化任务管理器"""
         # 存储运行中的任务: {task_key: {'thread': Thread, 'task_instance': Task, 'device_id': str, 'task_type': str}}
-        self._tasks: Dict[str, dict] = {}
+        self._tasks = {}
+        # 存储任务队列: {device_id: [task_type1, task_type2, ...]}
+        self._task_queues = {}
+        # 存储当前执行的任务在队列中的索引: {device_id: index}
+        self._current_queue_index = {}
         self._lock = threading.Lock()  # 线程锁，确保线程安全
         
         # 任务类型映射
@@ -20,13 +23,20 @@ class TaskManager:
             'shimen': Shimen,
         }
     
-    def _get_task_key(self, device_id: str, task_type: str) -> str:
+    def _get_task_key(self, device_id, task_type):
         """生成任务唯一标识"""
         return f"{device_id}_{task_type}"
     
-    def start_task(self, device_id: str, task_type: str) -> bool:
+    def _cleanup_queue(self, device_id):
+        """清理任务队列信息"""
+        if device_id in self._task_queues:
+            del self._task_queues[device_id]
+        if device_id in self._current_queue_index:
+            del self._current_queue_index[device_id]
+    
+    def _start_task(self, device_id, task_type):
         """
-        启动任务
+        内部方法：启动任务（用于任务队列）
         
         参数:
             device_id: 设备ID
@@ -40,32 +50,23 @@ class TaskManager:
             return False
         
         task_key = self._get_task_key(device_id, task_type)
-        
         with self._lock:
             # 检查任务是否已存在
             if task_key in self._tasks:
-                task_info = self._tasks[task_key]
-                if task_info['thread'].is_alive():
+                if self._tasks[task_key]['thread'].is_alive():
                     print(f"任务 {task_key} 已在运行中")
                     return False
-                else:
-                    # 清理已停止的任务
-                    del self._tasks[task_key]
+                del self._tasks[task_key]
             
             # 创建任务实例
             try:
-                task_class = self._task_classes[task_type]
-                task_instance = task_class(device_id)
-                
-                # 创建线程运行任务
+                task_instance = self._task_classes[task_type](device_id, max_rounds=2)
                 thread = threading.Thread(
                     target=self._run_task,
                     args=(task_instance, device_id, task_type, task_key),
                     daemon=True,
                     name=f"Task-{task_key}"
                 )
-                
-                # 保存任务信息
                 self._tasks[task_key] = {
                     'thread': thread,
                     'task_instance': task_instance,
@@ -73,19 +74,46 @@ class TaskManager:
                     'task_type': task_type,
                     'start_time': time.time(),
                 }
-                
-                # 启动线程
                 thread.start()
                 print(f"已启动任务: {task_key} (设备: {device_id}, 类型: {task_type})")
                 return True
-                
             except Exception as e:
                 print(f"启动任务失败 {task_key}: {e}")
                 import traceback
                 traceback.print_exc()
                 return False
     
-    def _run_task(self, task_instance, device_id: str, task_type: str, task_key: str):
+    def start_task_queue(self, device_id, task_queue):
+        """
+        启动任务队列（按顺序执行多个任务）
+        
+        参数:
+            device_id: 设备ID
+            task_queue: 任务类型列表，例如 ['shimen', 'baotu']
+        
+        返回:
+            bool: 是否成功启动
+        """
+        if not isinstance(task_queue, list) or not task_queue:
+            print(f"无效的任务队列: {task_queue}")
+            return False
+        
+        # 验证所有任务类型
+        invalid_types = [t for t in task_queue if t not in self._task_classes]
+        if invalid_types:
+            print(f"未知的任务类型: {invalid_types}")
+            return False
+        
+        with self._lock:
+            if device_id in self._task_queues:
+                print(f"设备 {device_id} 已有任务队列在运行")
+                return False
+            self._task_queues[device_id] = task_queue.copy()
+            self._current_queue_index[device_id] = 0
+        
+        return self._start_task(device_id, task_queue[0])
+    
+    def _run_task(self, task_instance, device_id, task_type, task_key):
         """
         在独立线程中运行任务
         
@@ -107,55 +135,75 @@ class TaskManager:
             import traceback
             traceback.print_exc()
         finally:
-            # 任务结束后清理
             with self._lock:
                 if task_key in self._tasks:
                     print(f"[{task_key}] 任务已结束")
-                    # 注意：这里不删除任务信息，保留以便查询状态
-                    # 如果需要立即删除，可以取消注释下面这行
-                    # del self._tasks[task_key]
+                has_queue = device_id in self._task_queues
+            
+            if has_queue:
+                self._start_next_task_in_queue(device_id)
     
-    def stop_task(self, device_id: str, task_type: Optional[str] = None) -> bool:
+    def stop_task(self, device_id):
         """
-        停止任务
+        停止任务队列（停止该设备的所有任务）
         
         参数:
             device_id: 设备ID
-            task_type: 任务类型，如果为 None 则停止该设备的所有任务
         
         返回:
             bool: 是否成功停止
         """
         with self._lock:
-            if task_type:
-                # 停止指定类型的任务
-                task_key = self._get_task_key(device_id, task_type)
-                if task_key in self._tasks:
-                    return self._stop_single_task(task_key)
-                else:
-                    print(f"任务 {task_key} 不存在")
-                    return False
-            else:
-                # 停止该设备的所有任务
-                stopped_count = 0
-                task_keys_to_stop = [
-                    key for key, info in self._tasks.items()
-                    if info['device_id'] == device_id
-                ]
-                
-                for task_key in task_keys_to_stop:
-                    if self._stop_single_task(task_key):
-                        stopped_count += 1
-                
-                if stopped_count > 0:
-                    print(f"已停止设备 {device_id} 的 {stopped_count} 个任务")
-                    return True
-                else:
-                    print(f"设备 {device_id} 没有运行中的任务")
-                    return False
+            # 只能停止任务队列，不能停止单个任务
+            if device_id not in self._task_queues:
+                print(f"设备 {device_id} 没有运行中的任务队列")
+                return False
+            
+            print(f"[{device_id}] 停止任务队列")
+            # 清理任务队列信息，防止启动下一个任务
+            self._cleanup_queue(device_id)
+            
+            # 获取该设备的所有任务
+            task_keys_to_stop = [
+                key for key, info in self._tasks.items()
+                if info['device_id'] == device_id
+            ]
+        
+        # 停止该设备的所有任务
+        stopped_count = 0
+        for task_key in task_keys_to_stop:
+            if self._stop_single_task(task_key):
+                stopped_count += 1
+        
+        if stopped_count > 0:
+            print(f"已停止设备 {device_id} 的 {stopped_count} 个任务")
+            return True
+        print(f"设备 {device_id} 没有运行中的任务")
+        return False
     
-    def _stop_single_task(self, task_key: str) -> bool:
-        """停止单个任务"""
+    def _start_next_task_in_queue(self, device_id):
+        """启动任务队列中的下一个任务（必须在锁外调用）"""
+        with self._lock:
+            if device_id not in self._task_queues:
+                return
+            
+            queue = self._task_queues[device_id]
+            current_index = self._current_queue_index.get(device_id, 0)
+            
+            # 移动到下一个任务
+            current_index += 1
+            
+            if current_index < len(queue):
+                self._current_queue_index[device_id] = current_index
+                next_task_type = queue[current_index]
+                print(f"[{device_id}] 任务队列: 启动下一个任务 ({current_index + 1}/{len(queue)}): {next_task_type}")
+                threading.Timer(0.5, lambda: self._start_task(device_id, next_task_type)).start()
+            else:
+                print(f"[{device_id}] 任务队列执行完毕，共完成 {len(queue)} 个任务")
+                self._cleanup_queue(device_id)
+    
+    def _stop_single_task(self, task_key):
+        """停止单个任务（内部方法，仅用于停止任务队列中的任务）"""
         if task_key not in self._tasks:
             return False
         
@@ -186,7 +234,7 @@ class TaskManager:
             del self._tasks[task_key]
             return True
     
-    def get_task_status(self, device_id: Optional[str] = None) -> Dict:
+    def get_task_status(self, device_id=None):
         """
         获取任务状态
         
@@ -197,30 +245,42 @@ class TaskManager:
             dict: 任务状态信息
         """
         with self._lock:
-            if device_id:
-                # 返回指定设备的任务状态
-                tasks = {
-                    key: info for key, info in self._tasks.items()
-                    if info['device_id'] == device_id
-                }
-            else:
-                # 返回所有任务状态
-                tasks = self._tasks.copy()
+            tasks = {
+                key: info for key, info in self._tasks.items()
+                if not device_id or info['device_id'] == device_id
+            }
             
             status = {}
             for task_key, task_info in tasks.items():
                 thread = task_info['thread']
+                start_time = task_info.get('start_time', time.time())
                 status[task_key] = {
                     'device_id': task_info['device_id'],
                     'task_type': task_info['task_type'],
                     'is_running': thread.is_alive(),
-                    'start_time': task_info.get('start_time', 0),
-                    'runtime': time.time() - task_info.get('start_time', time.time()) if thread.is_alive() else 0,
+                    'start_time': start_time,
+                    'runtime': time.time() - start_time if thread.is_alive() else 0,
                 }
+            
+            # 添加任务队列信息
+            devices = [device_id] if device_id else list(self._task_queues.keys())
+            for dev_id in devices:
+                if dev_id in self._task_queues:
+                    queue_info = {
+                        'queue': self._task_queues[dev_id],
+                        'current_index': self._current_queue_index.get(dev_id, 0),
+                        'total': len(self._task_queues[dev_id]),
+                    }
+                    if device_id:
+                        status['_queue'] = queue_info
+                    else:
+                        if dev_id not in status:
+                            status[dev_id] = {}
+                        status[dev_id]['_queue'] = queue_info
             
             return status
     
-    def get_all_running_tasks(self) -> list:
+    def get_all_running_tasks(self):
         """获取所有运行中的任务列表"""
         with self._lock:
             return [
@@ -238,7 +298,7 @@ class TaskManager:
 _task_manager = None
 
 
-def get_task_manager() -> TaskManager:
+def get_task_manager():
     """获取全局任务管理器实例（单例模式）"""
     global _task_manager
     if _task_manager is None:

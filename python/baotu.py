@@ -3,16 +3,24 @@ from tools import DeviceController
 
 
 class Baotu(DeviceController):
-    def __init__(self, device_id):
+    def __init__(self, device_id, max_rounds=None):
+        """
+        初始化宝图任务
+        
+        参数:
+            device_id: 设备ID
+            max_rounds: 最大执行轮数，None 表示无限循环（用于单独运行），数字表示执行指定轮数后结束（用于任务队列）
+        """
         super().__init__(device_id)
         self._is_running = False
         self._task_count = 0
+        self._max_rounds = max_rounds  # None 表示无限循环
 
     def start(self):
         """开始宝图任务"""
         self._is_running = True
         self._task_count = 0
-        print(f'[{self.device_id}] 开始宝图任务')
+        print(f'[{self.device_id}] 开始宝图任务' + (f' (最多 {self._max_rounds} 轮)' if self._max_rounds else ''))
         
         try:
             # 任务主循环
@@ -22,6 +30,11 @@ class Baotu(DeviceController):
                 
                 # 模拟任务步骤
                 self._执行宝图步骤()
+                
+                # 检查是否达到最大轮数
+                if self._max_rounds and self._task_count >= self._max_rounds:
+                    print(f'[{self.device_id}] 宝图任务达到最大轮数 ({self._max_rounds})，自动结束')
+                    break
                 
                 # 检查是否还在运行
                 if not self._is_running:
