@@ -274,13 +274,14 @@ class DeviceController:
                     best_val = weighted_val
                     best_match = current_loc 
             # 9. 如果匹配度不足，直接返回
+
             if best_val < similarity:
                 return None
             
             # 将区域内的坐标转换为大图坐标
             start_x = region_x + best_match[0]
             start_y = region_y + best_match[1]
-            
+
             # 10. 根据容差进行二次像素级验证
             final_similarity = best_val
             if tolerance > 0:
@@ -528,6 +529,15 @@ class Field:
                     self.y = result["y"]
                     self.w = result["w"]
                     self.h = result["h"]
+            elif self.方式 == "opencv找透明图2":
+                result = self.controller.opencv找透明图2(url, self.图片路径, self.相似度,
+                                                        (self.查找区域["x"], self.查找区域["y"],
+                                                         self.查找区域["w"], self.查找区域["h"]))
+                if result:
+                    self.x = result["x"]
+                    self.y = result["y"]
+                    self.w = result["w"]
+                    self.h = result["h"]
             elif self.方式 == "yolo":
                 result = self.controller.yolo(url, self.模型路径, self.相似度)
                 if len(result):
@@ -599,14 +609,14 @@ class Field:
 class TaskLineMachine:
     """任务状态机类"""
     
-    def __init__(self, controller):
+    def __init__(self, device_id):
         """
         初始化任务状态机
         
         参数:
             controller: DeviceController实例
         """
-        self.controller = controller
+        self.controller = DeviceController(device_id)
         self._states = {}
         self._current_interface = None
         self._previous_interface = None
@@ -733,26 +743,7 @@ class TaskLineMachine:
         """更新上下文"""
         self._context.update(kwargs)
 
+    def Field(self, config):
+        return Field(config,self.controller)
 
-
-class Task:
-    """任务类"""
-    def __init__(self):
-        self._is_running = False
-
-    def run(self):
-        pass
-    
-    def start(self):
-        self._is_running = True
-        try:
-            self.run()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-        finally:
-            self._is_running = False
-    
-    def stop(self):
-        self._is_running = False
     

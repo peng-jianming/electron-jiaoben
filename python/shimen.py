@@ -1,81 +1,84 @@
-import time
-from tools import Task, DeviceController
+
+from resource.assets import config as 配置
+from tools import TaskLineMachine
 
 
-class Shimen(Task):
-    def __init__(self, device_id, max_rounds=None):
-        """
-        初始化师门任务
-        
-        参数:
-            device_id: 设备ID
-            max_rounds: 最大执行轮数，None 表示无限循环（用于单独运行），数字表示执行指定轮数后结束（用于任务队列）
-        """
-        self.device_id = device_id
-        self.controller = DeviceController(device_id)
-        self._task_count = 0
-        self._max_rounds = max_rounds  # None 表示无限循环
+def create_shimen_task(device_id):
+    sm = TaskLineMachine(device_id)
 
-    def run(self):
-                    # 任务主循环
-        while self._is_running:
-            self._task_count += 1
+    @sm.state(配置.继续剧情对话界面)
+    def _(context):
+        sm.Field(配置.继续剧情对话界面).设置标识('点击任务位置继续剧情对话').查找().点击(*配置.继续剧情对话界面['按钮']['任意位置']).随机延时(1, 3)
 
-            self.controller.写入日志(f'[{self.device_id}] 师门任务 - 第 {self._task_count} 轮')
+
+    @sm.state(配置.师门任务完成界面)
+    def _(context):
+        sm.Field(配置.师门任务完成界面).设置标识('点击确定').查找().偏移点击(*配置.师门任务完成界面['按钮']['确定']).随机延时(1, 3)
+        sm.stop()
+
+
+    @sm.state(配置.活动界面)
+    def _(context):
+        if not sm.Field(配置.活动界面['按钮']['师门任务']).设置标识('点击参加').查找().偏移点击(*配置.活动界面['按钮']['师门任务']['偏移点击区域']).随机延时(1, 3).是否找到():
+            sm.stop()
+
+
+    @sm.state(配置.战斗界面)
+    def _(context):
+        sm.Field(配置.战斗界面['状态']['是否未准备战斗']).设置标识('点击未准备战斗按钮').查找().点击(*配置.战斗界面['按钮']['未准备战斗']).随机延时(1, 3)
+
+
+
+    @sm.state(配置.摆摊弹框界面)
+    def _(context):
+        sm.Field(配置.摆摊弹框界面).设置标识('选择第一个商品').查找().点击(*配置.摆摊弹框界面['按钮']['第一个商品']).随机延时(1, 3)
+        sm.Field(配置.摆摊弹框界面).设置标识('点击摆摊购买按钮').查找().点击(*配置.摆摊弹框界面['按钮']['购买']).随机延时(1, 3)
+        sm.Field(配置.摆摊弹框界面).设置标识('点击摆摊关闭按钮').查找().点击(*配置.摆摊弹框界面['按钮']['关闭']).随机延时(1, 3)
+
+
+    @sm.state(配置.任务物品选择弹框界面)
+    def _(context):
+        sm.Field(配置.任务物品选择弹框界面).设置标识('点击任务物品选择弹框上交按钮').查找().点击(*配置.任务物品选择弹框界面['按钮']['上交']).随机延时(1, 3)
+
+
+
+    @sm.state(配置.师门任务弹框界面)
+    def _(context):
+            if sm.Field(配置.师门任务弹框界面['按钮']['选择按钮']).设置标识('点击选择').查找().点击().随机延时(1, 3).是否找到():
+                return
+            if sm.Field(配置.师门任务弹框界面['按钮']['去完成按钮']).设置标识('点击去完成').查找().点击().随机延时(1, 3).是否找到():
+                return
+            if sm.Field(配置.师门任务弹框界面['按钮']['继续任务按钮']).设置标识('点击继续任务').查找().点击().随机延时(1, 3).是否找到():
+                return
             
-            # 模拟任务步骤
-            self._执行师门步骤()
-            
-            # 检查是否达到最大轮数
-            if self._max_rounds and self._task_count >= self._max_rounds:
-                self.controller.写入日志(f'[{self.device_id}] 师门任务达到最大轮数 ({self._max_rounds})，自动结束')
-                break
-            
-            # 检查是否还在运行
-            if not self._is_running:
-                break
-            
-            # 等待一段时间再执行下一轮（模拟任务间隔）
-            for _ in range(10):  # 每0.5秒检查一次，总共5秒
-                if not self._is_running:
-                    break
-                time.sleep(0.5)
-        
-        self.controller.写入日志(f'[{self.device_id}] 师门任务已结束，共完成 {self._task_count} 轮')
-    
-    def _执行师门步骤(self):
-        """执行师门任务的具体步骤"""
-        if not self._is_running:
-            return
-        
-        # 步骤1: 截图
-        print(f'[{self.device_id}] 师门任务 - 步骤1: 截图')
-        # screenshot_path = self.截图()
-        # if screenshot_path:
-        #     print(f'[{self.device_id}] 截图成功: {screenshot_path}')
-        time.sleep(0.5)
-        
-        if not self._is_running:
-            return
-        
-        # 步骤2: 查找NPC
-        print(f'[{self.device_id}] 师门任务 - 步骤2: 查找NPC')
-        time.sleep(0.5)
-        
-        if not self._is_running:
-            return
-        
-        # 步骤3: 点击NPC
-        print(f'[{self.device_id}] 师门任务 - 步骤3: 点击NPC')
-        time.sleep(0.5)
-        
-        if not self._is_running:
-            return
-        
-        # 步骤4: 完成任务
-        print(f'[{self.device_id}] 师门任务 - 步骤4: 完成任务')
-        time.sleep(0.5)
-        
+            if sm.Field(配置.师门任务弹框界面['按钮']['关闭']).设置标识('关闭师门任务弹框').查找().点击().随机延时(1, 3).是否找到():
+                sm.stop()
+
+
+
+    @sm.state(配置.主界面)
+    def _(context):
+            aaa = sm.Field(配置.主界面['按钮']['对话框第一个选项按钮']).设置标识('点击对话框第一个选项按钮').查找()
+            print(aaa.x,aaa.y, "====")
+
+            # if sm.Field(配置.主界面['按钮']['使用']).设置标识('点击使用按钮').查找().点击().随机延时(1, 3).是否找到():
+            #     return
+            # if sm.Field(配置.主界面['按钮']['对话框第一个选项按钮']).设置标识('点击对话框第一个选项按钮').查找().偏移点击(*配置.主界面['按钮']['对话框第一个选项按钮']['偏移点击区域']).随机延时(1, 3).是否找到():
+            #     return
+            # if sm.Field(配置.主界面['状态']['是否未选中任务栏']).设置标识('选中任务栏').查找().点击().随机延时(1, 3).是否找到():
+            #     return
+            # if sm.Field(配置.主界面_师门文字).设置标识('点击任务面板的师门文字').查找().偏移点击(*配置.主界面_师门文字['偏移点击区域']).随机延时(1, 3).是否找到():
+            #     return
+
+            # if sm.Field(配置.主界面).设置标识('点击活动按钮').查找().点击(*配置.主界面["按钮"]["活动"]).随机延时(1, 3).是否找到():
+            #     return
+
+   
+    return sm
+
+
+
+
 
 
 

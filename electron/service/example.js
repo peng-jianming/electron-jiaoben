@@ -42,10 +42,7 @@ class ExampleService {
     const data = {
       "action": "list"
     };
-    // const res = await this.sendRequest(data);
-    const res = {
-      result: "[{\"deviceId\":\"1\",\"name\":\"设备1\",\"logs\":\"\"},{\"deviceId\":\"2\",\"name\":\"设备2\",\"logs\":\"\"},{\"deviceId\":\"3\",\"name\":\"设备3\",\"logs\":\"\"}]"
-    }
+    const res = await this.sendRequest(data);
     
     if (res && res.result) {
       const list = JSON.parse(res.result);

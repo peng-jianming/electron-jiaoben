@@ -1,100 +1,30 @@
-import time
-from tools import DeviceController
+from resource.assets import config as 配置
+from tools import TaskLineMachine
 
 
-class Baotu(DeviceController):
-    def __init__(self, device_id, max_rounds=None):
-        """
-        初始化宝图任务
-        
-        参数:
-            device_id: 设备ID
-            max_rounds: 最大执行轮数，None 表示无限循环（用于单独运行），数字表示执行指定轮数后结束（用于任务队列）
-        """
-        super().__init__(device_id)
-        self._is_running = False
-        self._task_count = 0
-        self._max_rounds = max_rounds  # None 表示无限循环
+def create_baotu_task(device_id):
+    sm = TaskLineMachine(device_id)
 
-    def start(self):
-        """开始宝图任务"""
-        self._is_running = True
-        self._task_count = 0
-        print(f'[{self.device_id}] 开始宝图任务' + (f' (最多 {self._max_rounds} 轮)' if self._max_rounds else ''))
-        
-        try:
-            # 任务主循环
-            while self._is_running:
-                self._task_count += 1
-                print(f'[{self.device_id}] 宝图任务 - 第 {self._task_count} 轮')
-                
-                # 模拟任务步骤
-                self._执行宝图步骤()
-                
-                # 检查是否达到最大轮数
-                if self._max_rounds and self._task_count >= self._max_rounds:
-                    print(f'[{self.device_id}] 宝图任务达到最大轮数 ({self._max_rounds})，自动结束')
-                    break
-                
-                # 检查是否还在运行
-                if not self._is_running:
-                    break
-                
-                # 等待一段时间再执行下一轮（模拟任务间隔）
-                for _ in range(10):  # 每0.5秒检查一次，总共5秒
-                    if not self._is_running:
-                        break
-                    time.sleep(0.5)
-            
-            print(f'[{self.device_id}] 宝图任务已结束，共完成 {self._task_count} 轮')
-            
-        except Exception as e:
-            print(f'[{self.device_id}] 宝图任务执行出错: {e}')
-            import traceback
-            traceback.print_exc()
-        finally:
-            self._is_running = False
-    
-    def _执行宝图步骤(self):
-        """执行宝图任务的具体步骤"""
-        if not self._is_running:
+    @sm.state(配置.活动界面)
+    def _(context):
+        if not sm.Field(配置.活动界面['按钮']['宝图任务']).设置标识('点击参加').查找().偏移点击(*配置.活动界面['按钮']['宝图任务']['偏移点击区域']).随机延时(1, 3).是否找到():
+            sm.stop()
+
+    @sm.state(配置.战斗界面)
+    def _(context):
+        sm.Field(配置.战斗界面['状态']['是否未准备战斗']).设置标识('点击未准备战斗按钮').查找().点击(*配置.战斗界面['按钮']['未准备战斗']).随机延时(1, 3)
+
+    @sm.state(配置.主界面)
+    def _(context):
+        if sm.Field(配置.主界面_店小二对话['按钮']['听听无妨']).设置标识('点击店小二对话的听听无妨按钮').查找().点击().随机延时(1, 3).是否找到():
             return
         
-        # 步骤1: 截图
-        print(f'[{self.device_id}] 宝图任务 - 步骤1: 截图')
-        # screenshot_path = self.截图()
-        # if screenshot_path:
-        #     print(f'[{self.device_id}] 截图成功: {screenshot_path}')
-        time.sleep(0.5)
-        
-        if not self._is_running:
+        if sm.Field(配置.主界面['状态']['是否未选中任务栏']).设置标识('选中任务栏').查找().点击().随机延时(1, 3).是否找到():
             return
-        
-        # 步骤2: 查找宝图NPC
-        print(f'[{self.device_id}] 宝图任务 - 步骤2: 查找宝图NPC')
-        time.sleep(0.5)
-        
-        if not self._is_running:
+
+        if sm.Field(配置.主界面_宝图文字).设置标识('点击任务面板的宝图任务文字').查找().偏移点击(*配置.主界面_宝图文字['偏移点击区域']).随机延时(1, 3).是否找到():
             return
-        
-        # 步骤3: 点击NPC
-        print(f'[{self.device_id}] 宝图任务 - 步骤3: 点击NPC')
-        time.sleep(0.5)
-        
-        if not self._is_running:
-            return
-        
-        # 步骤4: 挖宝图
-        print(f'[{self.device_id}] 宝图任务 - 步骤4: 挖宝图')
-        time.sleep(0.5)
-        
-    def stop(self):
-        """停止宝图任务"""
-        if self._is_running:
-            print(f'[{self.device_id}] 正在停止宝图任务...')
-            self._is_running = False
-        else:
-            print(f'[{self.device_id}] 宝图任务未在运行')
 
+        sm.Field(配置.主界面).设置标识('点击活动按钮').查找().点击(*配置.主界面["按钮"]["活动"]).随机延时(1, 3)
 
-
+    return sm

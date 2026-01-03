@@ -1,8 +1,8 @@
 import threading
 import time
-from baotu import Baotu
-from shimen import Shimen
-
+from baotu import create_baotu_task
+from zhuagui import create_zhuagui_task
+from shimen import create_shimen_task
 
 class TaskManager:
     """多线程任务管理器"""
@@ -17,10 +17,11 @@ class TaskManager:
         self._current_queue_index = {}
         self._lock = threading.Lock()  # 线程锁，确保线程安全
         
-        # 任务类型映射
+        # 任务类型映射（工厂函数或类，接收 device_id 参数）
         self._task_classes = {
-            'baotu': Baotu,
-            'shimen': Shimen,
+            'baotu': create_baotu_task,
+            'zhuagui': create_zhuagui_task,
+            'shimen': create_shimen_task
         }
     
     def _get_task_key(self, device_id, task_type):
@@ -60,7 +61,7 @@ class TaskManager:
             
             # 创建任务实例
             try:
-                task_instance = self._task_classes[task_type](device_id, max_rounds=2)
+                task_instance = self._task_classes[task_type](device_id)
                 thread = threading.Thread(
                     target=self._run_task,
                     args=(task_instance, device_id, task_type, task_key),
