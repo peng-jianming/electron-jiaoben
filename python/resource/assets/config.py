@@ -22,7 +22,7 @@ import os
         #     "模型路径": os.path.join(os.path.dirname(__file__), "best.pt"),
         # },
         '对话框第一个选项按钮': {
-            "方式": "opencv找透明图2",
+            "方式": "opencv找透明图",
             '偏移点击区域': [28 ,118, 411 , 64],
             "图片路径": os.path.join(os.path.dirname(__file__), "请选择要做的事.png"),
         },

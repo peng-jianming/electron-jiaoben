@@ -129,19 +129,21 @@ def color_match_template(
     # 对大图和小图进行二值化处理
     big_binary = _binarize_array(big_array, base_color, tolerance)
     small_binary = _binarize_array(small_array, base_color, tolerance)
-    # cv2.imshow('big_binary', big_binary)
-    # cv2.imshow('small_binary', small_binary)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+
+
+    cv2.imshow('big_binary', big_binary)
+    cv2.imshow('small_binary', small_binary)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
     # 检查小图尺寸是否合法
     if small_binary.shape[0] > big_binary.shape[0] or small_binary.shape[1] > big_binary.shape[1]:
         return False, None, 0.0
     
     # 创建掩码：白色像素(255)参与匹配，黑色像素(0)被忽略
-    mask = small_binary.copy()
+    # mask = small_binary.copy()
     
     # 使用带掩码的模板匹配 (TM_CCORR_NORMED 支持掩码，返回 0 到 1 的归一化相关系数)
-    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCORR_NORMED, mask=mask)
+    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCORR_NORMED)
     
     # 获取最大匹配值和位置
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
@@ -285,6 +287,7 @@ def opencv找图(large_image_path, small_image_path, similarity=0.9, region=(0, 
     # 找到最匹配的位置
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
     # 检查是否达到相似度阈值
+    print(max_val)
     if max_val >= similarity:
         # 返回相对于整个大图的坐标（加上偏移量）
         return {"x": max_loc[0] + offset_x, "y": max_loc[1] + offset_y, 'w': w, 'h': h, 'similarity': max_val}
@@ -305,9 +308,11 @@ if __name__ == "__main__":
     
     if os.path.exists(test_image):
         result = color_filter_binarize(test_image, "D2C4B8-1C1923", output_image)
-        # aaa = color_match_template('9a8de478.png', '444.png', "D7CCC6-0E0E09", 0.8)
+        bbb = color_match_template('9a8de478.png', 'ccc.png', "D7CCC6-0E0E09", 0.8)
         aaa = opencv找图('9a8de478.png', 'ccc.png', 0.8)
         print(aaa,"==========")
+
+        print(bbb,"==========")
         print(f"二值化完成，输出图片: {output_image}")
         print(f"图片尺寸: {result.shape}")
         print(f"白色像素数: {np.sum(result == 255)}")
