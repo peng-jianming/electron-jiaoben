@@ -157,6 +157,103 @@ class DeviceController:
         
         return None
     
+    def opencv颜色偏色找图(self, large_image_path, small_image_path, color_tolerance, similarity=0.8, region=(0, 0, 0, 0)):
+        """
+        使用颜色偏色二值化后进行模板匹配找图
+        
+        :param large_image_path: 大图路径
+        :param small_image_path: 小图路径
+        :param color_tolerance: 颜色偏色字符串，格式如 "D7CCC6-0E0E09"
+                               其中D7CCC6为基准色(RGB)，0E0E09为RGB各通道的允许偏差
+        :param similarity: 相似度阈值，0-1之间，默认0.8
+        :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
+        :return: 找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
+        """
+        # 读取图像
+        large_img = Image.open(large_image_path).convert('RGB')
+        small_img = Image.open(small_image_path).convert('RGB')
+        
+        large_array = np.array(large_img)
+        small_array = np.array(small_img)
+        
+        if large_array is None or small_array is None:
+            return None
+        
+        # 获取大图尺寸
+        large_h, large_w = large_array.shape[:2]
+        small_h, small_w = small_array.shape[:2]
+        
+        # 解析检测区域
+        x, y, width, height = region
+        
+        # 判断是否指定了检测区域
+        if x == 0 and y == 0 and width == 0 and height == 0:
+            search_area = large_array
+            offset_x, offset_y = 0, 0
+        else:
+            # 确保区域在图像范围内
+            if x < 0: x = 0
+            if y < 0: y = 0
+            if width <= 0: width = large_w - x
+            if height <= 0: height = large_h - y
+            
+            crop_x = max(0, x)
+            crop_y = max(0, y)
+            crop_width = min(width, large_w - crop_x)
+            crop_height = min(height, large_h - crop_y)
+            
+            if crop_width <= 0 or crop_height <= 0:
+                return None
+            
+            search_area = large_array[crop_y:crop_y+crop_height, crop_x:crop_x+crop_width]
+            offset_x, offset_y = crop_x, crop_y
+        
+        # 检查小图是否大于检测区域
+        if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
+            return None
+        
+        # 解析颜色偏色字符串
+        base_color_hex, tolerance_hex = color_tolerance.split('-')
+        base_color = np.array([
+            int(base_color_hex[0:2], 16),
+            int(base_color_hex[2:4], 16),
+            int(base_color_hex[4:6], 16)
+        ], dtype=np.int16)
+        tolerance = np.array([
+            int(tolerance_hex[0:2], 16),
+            int(tolerance_hex[2:4], 16),
+            int(tolerance_hex[4:6], 16)
+        ], dtype=np.int16)
+        
+        # 二值化处理
+        search_int16 = search_area.astype(np.int16)
+        search_diff = np.abs(search_int16 - base_color)
+        search_mask = np.all(search_diff <= tolerance, axis=2)
+        search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+        
+        small_int16 = small_array.astype(np.int16)
+        small_diff = np.abs(small_int16 - base_color)
+        small_mask = np.all(small_diff <= tolerance, axis=2)
+        small_binary = np.where(small_mask, 255, 0).astype(np.uint8)
+        
+        # 使用模板匹配
+        result = cv2.matchTemplate(search_binary, small_binary, cv2.TM_CCOEFF_NORMED)
+        
+        # 找到最匹配的位置
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        
+        # 检查是否达到相似度阈值
+        if max_val >= similarity:
+            return {
+                "x": max_loc[0] + offset_x,
+                "y": max_loc[1] + offset_y,
+                "w": small_w,
+                "h": small_h,
+                "similarity": max_val
+            }
+        
+        return None
+    
     def opencv找透明图(self, large_img_path, small_img_path, tolerance=0, similarity=0.9, region=(0, 0, 0, 0)):
         """
         在大图的指定区域中查找小图（仅支持图片路径）
@@ -500,6 +597,7 @@ class Field:
         self.相似度 = config.get("相似度", 0.8)
         self.分类名 = config.get("分类名")
         self.模型路径 = config.get("模型路径")
+        self.颜色偏色 = config.get("颜色偏色")  # 格式如 "D7CCC6-0E0E09"
         self.查找区域 = config.get("查找区域", {"x": 0, "y": 0, "w": 0, "h": 0})
         self.x = 0
         self.y = 0
@@ -529,8 +627,8 @@ class Field:
                     self.y = result["y"]
                     self.w = result["w"]
                     self.h = result["h"]
-            elif self.方式 == "opencv找透明图2":
-                result = self.controller.opencv找透明图2(url, self.图片路径, self.相似度,
+            elif self.方式 == "opencv颜色偏色找图":
+                result = self.controller.opencv颜色偏色找图(url, self.图片路径, self.颜色偏色, self.相似度,
                                                         (self.查找区域["x"], self.查找区域["y"],
                                                          self.查找区域["w"], self.查找区域["h"]))
                 if result:

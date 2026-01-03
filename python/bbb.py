@@ -90,6 +90,7 @@ def color_match_template(
 ) -> Tuple[bool, Optional[Tuple[int, int]], float]:
     """
     使用颜色偏色二值化后进行模板匹配，判断小图是否在大图中
+    匹配时忽略黑色像素（只匹配白色像素区域）
     
     Args:
         big_image: 大图路径或numpy数组(RGB)
@@ -128,13 +129,19 @@ def color_match_template(
     # 对大图和小图进行二值化处理
     big_binary = _binarize_array(big_array, base_color, tolerance)
     small_binary = _binarize_array(small_array, base_color, tolerance)
-    
+    # cv2.imshow('big_binary', big_binary)
+    # cv2.imshow('small_binary', small_binary)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     # 检查小图尺寸是否合法
     if small_binary.shape[0] > big_binary.shape[0] or small_binary.shape[1] > big_binary.shape[1]:
         return False, None, 0.0
     
-    # 使用OpenCV模板匹配 (TM_CCOEFF_NORMED 返回 -1 到 1 的归一化相关系数)
-    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCOEFF_NORMED)
+    # 创建掩码：白色像素(255)参与匹配，黑色像素(0)被忽略
+    mask = small_binary.copy()
+    
+    # 使用带掩码的模板匹配 (TM_CCORR_NORMED 支持掩码，返回 0 到 1 的归一化相关系数)
+    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCORR_NORMED, mask=mask)
     
     # 获取最大匹配值和位置
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
@@ -154,6 +161,7 @@ def color_match_template_all(
 ) -> list:
     """
     使用颜色偏色二值化后进行模板匹配，查找所有匹配位置
+    匹配时忽略黑色像素（只匹配白色像素区域）
     
     Args:
         big_image: 大图路径或numpy数组(RGB)
@@ -194,9 +202,12 @@ def color_match_template_all(
     if small_binary.shape[0] > big_binary.shape[0] or small_binary.shape[1] > big_binary.shape[1]:
         return []
     
-    # 使用OpenCV模板匹配
-    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCOEFF_NORMED)
+    # 创建掩码：白色像素(255)参与匹配，黑色像素(0)被忽略
+    # mask = small_binary.copy()
     
+    # 使用带掩码的模板匹配 (TM_CCORR_NORMED 支持掩码)
+    result = cv2.matchTemplate(big_binary, small_binary, cv2.TM_CCORR_NORMED)
+
     # 找出所有超过阈值的位置
     locations = np.where(result >= similarity)
     
@@ -211,6 +222,76 @@ def color_match_template_all(
     return matches
 
 
+
+
+def opencv找图(large_image_path, small_image_path, similarity=0.9, region=(0, 0, 0, 0)):
+    """
+    在大图中查找小图
+    :param large_image_path: 大图路径
+    :param small_image_path: 小图路径
+    :param similarity: 相似度阈值，0-1之间
+    :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
+    :return: 找到的位置 {"x": x, "y": y} 或 None
+    """
+    # 读取图像
+    large_image = cv2.imread(large_image_path)
+    small_image = cv2.imread(small_image_path)
+    
+    if large_image is None or small_image is None:
+        return None
+    
+    # 获取大图尺寸
+    large_h, large_w = large_image.shape[:2]
+    
+    # 解析检测区域
+    x, y, width, height = region
+    
+    # 判断是否指定了检测区域
+    if x == 0 and y == 0 and width == 0 and height == 0:
+        # 检测整个大图
+        search_area = large_image
+        offset_x, offset_y = 0, 0
+    else:
+        # 确保区域在图像范围内
+        if x < 0: x = 0
+        if y < 0: y = 0
+        if width <= 0: width = large_w - x
+        if height <= 0: height = large_h - y
+        
+        # 计算实际裁剪区域
+        crop_x = max(0, x)
+        crop_y = max(0, y)
+        crop_width = min(width, large_w - crop_x)
+        crop_height = min(height, large_h - crop_y)
+        
+        # 确保裁剪区域有效
+        if crop_width <= 0 or crop_height <= 0:
+            return None
+            
+        # 裁剪检测区域
+        search_area = large_image[crop_y:crop_y+crop_height, crop_x:crop_x+crop_width]
+        offset_x, offset_y = crop_x, crop_y
+    
+    # 获取小图尺寸
+    h, w = small_image.shape[:2]
+    
+    # 检查小图是否大于检测区域
+    if h > search_area.shape[0] or w > search_area.shape[1]:
+        return None
+    
+    # 使用模板匹配
+    result = cv2.matchTemplate(search_area, small_image, cv2.TM_CCOEFF_NORMED)
+    
+    # 找到最匹配的位置
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    # 检查是否达到相似度阈值
+    if max_val >= similarity:
+        # 返回相对于整个大图的坐标（加上偏移量）
+        return {"x": max_loc[0] + offset_x, "y": max_loc[1] + offset_y, 'w': w, 'h': h, 'similarity': max_val}
+    
+    return None
+
+
 if __name__ == "__main__":
     # 测试示例
     import os
@@ -223,8 +304,9 @@ if __name__ == "__main__":
     output_image = os.path.join(script_dir, "output_binary_test.png")
     
     if os.path.exists(test_image):
-        result = color_filter_binarize(test_image, "D7CCC6-0E0E09", output_image)
-        aaa = color_match_template('9a8de478.png', '333.png', "D7CCC6-0E0E09", 0.8)
+        result = color_filter_binarize(test_image, "D2C4B8-1C1923", output_image)
+        # aaa = color_match_template('9a8de478.png', '444.png', "D7CCC6-0E0E09", 0.8)
+        aaa = opencv找图('9a8de478.png', 'ccc.png', 0.8)
         print(aaa,"==========")
         print(f"二值化完成，输出图片: {output_image}")
         print(f"图片尺寸: {result.shape}")
