@@ -27,6 +27,11 @@
         <el-tab-pane label="寻路测试" name="pathfinding">
           <PathfindingTab />
         </el-tab-pane>
+
+        <!-- 图片处理 Tab -->
+        <el-tab-pane label="图片处理" name="image-processor">
+          <ImageProcessorTab />
+        </el-tab-pane>
       </el-tabs>
 
       <!-- 处理状态指示器 -->
@@ -44,6 +49,7 @@
 import { ref } from "vue";
 import ColoringTab from './components/ColoringTab.vue';
 import PathfindingTab from './components/PathfindingTab.vue';
+import ImageProcessorTab from './components/ImageProcessorTab.vue';
 
 // Tab 切换
 const activeTab = ref('coloring');
