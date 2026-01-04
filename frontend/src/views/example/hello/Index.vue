@@ -12,18 +12,6 @@
           </div>
           <h1>OpenCV 图像处理工具</h1>
         </div>
-        <div class="header-actions">
-          <el-button 
-            v-if="activeTab === 'coloring'"
-            type="success" 
-            :icon="Download" 
-            :disabled="!coloringTabRef?.imageLoaded || coloringTabRef?.processing"
-            @click="handleSaveImage"
-            class="save-btn"
-          >
-            保存图片
-          </el-button>
-        </div>
       </div>
     </header>
 
@@ -54,7 +42,6 @@
 
 <script setup>
 import { ref } from "vue";
-import { Download } from '@element-plus/icons-vue';
 import ColoringTab from './components/ColoringTab.vue';
 import PathfindingTab from './components/PathfindingTab.vue';
 
@@ -63,11 +50,6 @@ const activeTab = ref('coloring');
 
 // 调色 Tab 的引用
 const coloringTabRef = ref(null);
-
-// 保存图片
-function handleSaveImage() {
-  coloringTabRef.value?.handleSaveImage();
-}
 </script>
 
 <style scoped>
@@ -145,17 +127,6 @@ function handleSaveImage() {
   background-clip: text;
 }
 
-.save-btn {
-  padding: 10px 20px !important;
-  font-weight: 500;
-  border-radius: 8px !important;
-  transition: all 0.3s ease;
-}
-
-.save-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-}
 
 /* 主内容区 */
 .main-content {
@@ -247,3 +218,5 @@ function handleSaveImage() {
   opacity: 0;
 }
 </style>
+
+

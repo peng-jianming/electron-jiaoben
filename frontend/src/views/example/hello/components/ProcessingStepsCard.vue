@@ -77,15 +77,25 @@
       >
         清空列表
       </el-button>
-      <el-button 
-        type="primary" 
-        :icon="VideoPlay"
-        @click="$emit('start-processing')"
-        :disabled="processing"
-        :loading="processing"
-      >
-        {{ processing ? '处理中...' : (processingSteps.length === 0 ? '显示原图' : '开始处理') }}
-      </el-button>
+      <div class="footer-actions">
+        <el-button 
+          type="success" 
+          :icon="Download"
+          @click="$emit('save-image')"
+          :disabled="processing"
+        >
+          保存图片
+        </el-button>
+        <el-button 
+          type="primary" 
+          :icon="VideoPlay"
+          @click="$emit('start-processing')"
+          :disabled="processing"
+          :loading="processing"
+        >
+          {{ processing ? '处理中...' : (processingSteps.length === 0 ? '显示原图' : '开始处理') }}
+        </el-button>
+      </div>
     </div>
   </section>
 </template>
@@ -93,7 +103,7 @@
 <script setup>
 import { 
   List, DocumentAdd, Rank, Check, Delete, VideoPlay,
-  Brush, MagicStick, Aim
+  Brush, MagicStick, Aim, Download
 } from '@element-plus/icons-vue';
 
 const props = defineProps({
@@ -111,7 +121,8 @@ const emit = defineEmits([
   'drag-over',
   'drag-end',
   'drop',
-  'show-flood-animation'
+  'show-flood-animation',
+  'save-image'
 ]);
 
 function handleDragStart(index, event) {
@@ -186,6 +197,12 @@ function handleDrop(index, event) {
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-actions {
+  display: flex;
   gap: 12px;
 }
 

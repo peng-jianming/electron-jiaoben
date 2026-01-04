@@ -49,6 +49,7 @@
         @drag-end="handleDragEnd"
         @drop="handleDrop"
         @show-flood-animation="showFloodFillAnimation"
+        @save-image="handleSaveImage"
       />
     </div>
   </div>
