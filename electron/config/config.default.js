@@ -12,8 +12,8 @@ module.exports = () => {
     singleLock: true,
     windowsOption: {
       title: 'electron-egg',
-      width: 980,
-      height: 650,
+      width: 1200,
+      height: 1080,
       minWidth: 400,
       minHeight: 300,
       webPreferences: {

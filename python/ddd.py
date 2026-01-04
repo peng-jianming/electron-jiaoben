@@ -259,4 +259,5 @@ if __name__ == "__main__":
     # cv2.imshow("Match Result", result)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-
+    #1. 透明图 + 遮罩  一般情况
+    #2. 原图 + 边缘  颜色不单一

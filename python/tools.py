@@ -338,7 +338,7 @@ class DeviceController:
             # 使用不同的匹配方法提高准确性
             methods = [
                 (cv2.TM_CCOEFF_NORMED, 1.0),  # 相关系数归一化
-                (cv2.TM_CCORR_NORMED, 1.0),   # 相关归一化
+                # (cv2.TM_CCORR_NORMED, 1.0),   # 相关归一化
             ]
             
             best_match = None
@@ -371,7 +371,7 @@ class DeviceController:
                     best_val = weighted_val
                     best_match = current_loc 
             # 9. 如果匹配度不足，直接返回
-
+            print(best_val)
             if best_val < similarity:
                 return None
             
