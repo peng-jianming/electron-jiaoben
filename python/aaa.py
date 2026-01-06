@@ -23,9 +23,10 @@ class ADBController:
     
     def _build_adb_prefix(self):
         """构建 ADB 命令前缀"""
+        adb_path = r"C:\platform-tools\adb.exe"
         if self.device_id:
-            return f"adb -s {self.device_id}"
-        return "adb"
+            return f'"{adb_path}" -s {self.device_id}'
+        return f'"{adb_path}"'
     
     def _run_command(self, command, shell=True):
         """
@@ -72,7 +73,8 @@ class ADBController:
         返回:
             设备ID列表
         """
-        success, output = self._run_command("adb devices")
+        adb_path = r"C:\platform-tools\adb.exe"
+        success, output = self._run_command(f'"{adb_path}" devices')
         if not success:
             return []
         
@@ -317,7 +319,7 @@ if __name__ == "__main__":
         print(f"屏幕分辨率: {resolution}")
         
         # 截图
-        screenshot_path = adb.截图()
+        screenshot_path = adb.截图到内存()
         if screenshot_path:
             print(f"截图已保存到: {screenshot_path}")
         
