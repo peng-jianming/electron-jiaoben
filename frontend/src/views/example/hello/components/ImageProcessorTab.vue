@@ -5,12 +5,6 @@
       <!-- 左侧：功能按钮区域 -->
       <div class="left-panel">
         <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <el-icon><Tools /></el-icon>
-            </div>
-            <h2>功能</h2>
-          </div>
           <div class="card-body">
             <el-button 
               type="primary" 
@@ -35,21 +29,14 @@
       <!-- 中间：图片显示区域 -->
       <div class="center-panel">
         <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <el-icon><Picture /></el-icon>
-            </div>
-            <h2>图片预览</h2>
-          </div>
           <div class="card-body image-container-wrapper">
             <!-- Tab 切换 -->
-            <div v-if="images.length > 0" class="image-tabs">
-              <el-tabs 
+            <el-tabs 
+              v-if="images.length >= 2"
                 v-model="currentImageIndex" 
                 type="card"
                 closable
                 @tab-remove="removeImage"
-                class="image-tabs-container"
               >
                 <el-tab-pane
                   v-for="(image, index) in images"
@@ -59,7 +46,6 @@
                 >
                 </el-tab-pane>
               </el-tabs>
-            </div>
             <div 
               class="image-container"
               ref="imageContainerRef"
@@ -104,12 +90,6 @@
       <div class="right-panel">
         <!-- 放大镜 -->
         <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <el-icon><ZoomIn /></el-icon>
-            </div>
-            <h2>放大镜</h2>
-          </div>
           <div class="card-body magnifier-container">
             <div 
               v-if="magnifierVisible && currentImage"
@@ -123,20 +103,19 @@
               <p>将鼠标移动到图片上查看</p>
             </div>
             <!-- 当前颜色值 -->
-            <div v-if="currentColor" class="current-color">
-              <div class="color-preview" :style="{ backgroundColor: currentColor.hex }"></div>
+            <div class="current-color">
               <div class="color-values">
                 <div class="color-value-item">
                   <span class="color-label">坐标:</span>
-                  <span class="color-value">({{ currentPosition.x }}, {{ currentPosition.y }})</span>
+                  <span class="color-value">({{ currentPosition ? currentPosition.x : '0' }}, {{ currentPosition ? currentPosition.y : '0' }})</span>
                 </div>
                 <div class="color-value-item">
                   <span class="color-label">RGB:</span>
-                  <span class="color-value">{{ currentColor.rgb }}</span>
+                  <span class="color-value">{{ currentColor ? currentColor.rgb: '--' }}</span>
                 </div>
                 <div class="color-value-item">
                   <span class="color-label">HEX:</span>
-                  <span class="color-value">{{ currentColor.hex }}</span>
+                  <span class="color-value">{{ currentColor ? currentColor.hex: '--' }}</span>
                 </div>
               </div>
             </div>
@@ -144,14 +123,7 @@
         </div>
 
         <!-- 选中颜色列表 -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">
-              <el-icon><Collection /></el-icon>
-            </div>
-            <h2>选中颜色</h2>
-            <span class="color-count">{{ currentSelectedColors.length }} 个</span>
-          </div>
+        <div class="card" style="flex: 1; overflow:auto">
           <div class="card-body selected-colors-container">
             <div v-if="currentSelectedColors.length === 0" class="empty-colors">
               <el-icon><Collection /></el-icon>
@@ -165,7 +137,7 @@
               >
                 <div class="color-preview-small" :style="{ backgroundColor: color.hex }"></div>
                 <div class="color-info-small">
-                  <div class="color-coord-small">坐标: ({{ color.x }}, {{ color.y }})</div>
+                  <div class="color-coord-small">坐标: {{ color.x }}, {{ color.y }}</div>
                   <div class="color-rgb-small">{{ color.rgb }}</div>
                   <div class="color-hex-small">{{ color.hex }}</div>
                 </div>

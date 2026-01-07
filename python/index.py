@@ -625,7 +625,119 @@ def send_to_electron(prop, message, method="controller/example/receiveProcessedI
         return None
 
 
+
+
+
+
+
+
+
+#================================================================
+import subprocess
+class ADBController:
+    """ADB 控制器类，封装截图和点击功能"""
+    
+    def __init__(self, device_id=None):
+        """
+        初始化 ADB 控制器
+        
+        参数:
+            device_id: 设备ID，如果有多个设备连接时需要指定
+                      可以通过 adb devices 命令查看设备ID
+        """
+        self.device_id = device_id
+        self._adb_prefix = self._build_adb_prefix()
+    
+    def _build_adb_prefix(self):
+        """构建 ADB 命令前缀"""
+        adb_path = r"C:\platform-tools\adb.exe"
+        if self.device_id:
+            return f'"{adb_path}" -s {self.device_id}'
+        return f'"{adb_path}"'
+    
+    def _run_command(self, command, shell=True):
+        """
+        执行命令并返回结果
+        
+        参数:
+            command: 要执行的命令
+            shell: 是否使用 shell 执行
+            
+        返回:
+            (success, output) - 成功标志和输出内容
+        """
+        try:
+            result = subprocess.run(
+                command,
+                shell=shell,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                return True, result.stdout.strip()
+            else:
+                return False, result.stderr.strip()
+        except subprocess.TimeoutExpired:
+            return False, "命令执行超时"
+        except Exception as e:
+            return False, str(e)
+    
+    def get_devices(self):
+        """
+        获取所有已连接的设备列表
+        
+        返回:
+            设备ID列表
+        """
+        adb_path = r"C:\platform-tools\adb.exe"
+        success, output = self._run_command(f'"{adb_path}" devices')
+        if not success:
+            return []
+        
+        devices = []
+        lines = output.strip().split('\n')
+        for line in lines[1:]:  # 跳过第一行 "List of devices attached"
+            if '\t' in line:
+                device_id = line.split('\t')[0]
+                devices.append(device_id)
+        return devices
+    
+    def 截图到内存(self):
+        """
+        截图并直接返回图像数据（不保存到文件）
+        
+        返回:
+            PNG 图像的字节数据，失败返回 None
+        """
+        try:
+            result = subprocess.run(
+                f"{self._adb_prefix} exec-out screencap -p",
+                shell=True,
+                capture_output=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                return result.stdout
+            return None
+        except Exception as e:
+            print(f"截图失败: {e}")
+            return None
+    
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
+    controller = ADBController()
+    devices = controller.get_devices()
+    print(devices)
+
     init_client()
     try:
         while True:
