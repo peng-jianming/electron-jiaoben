@@ -22,6 +22,29 @@
               style="display: none"
               @change="handleFileSelect"
             />
+
+            <div class="device-section">
+              <div class="device-current">
+                当前设备：<span>{{ currentDeviceId || '未连接' }}</span>
+              </div>
+              <el-button 
+                type="success" 
+                :icon="Tools"
+                class="action-btn device-btn"
+                @click="openDeviceDialog"
+              >
+                设备连接
+              </el-button>
+              <el-button 
+                type="primary" 
+                class="action-btn device-btn"
+                :loading="screenshotLoading"
+                :disabled="!currentDeviceId"
+                @click="captureScreenshot"
+              >
+                截图
+              </el-button>
+            </div>
           </div>
         </div>
       </div>
@@ -49,8 +72,13 @@
             <div 
               class="image-container"
               ref="imageContainerRef"
+              :style="{ cursor: containerCursor }"
               @mousemove="handleContainerMouseMove"
+              @mouseenter="handleMouseEnter"
               @mouseleave="handleMouseLeave"
+              @mousedown="handleMouseDown"
+              @mouseup="handleMouseUp"
+              @contextmenu.prevent="handleRightClick"
               @click="handleImageClick"
             >
               <div v-if="currentImage" class="image-wrapper">
@@ -61,6 +89,12 @@
                   @load="handleImageLoad"
                   draggable="false"
                 />
+                <!-- 圈选矩形高亮 -->
+                <div 
+                  v-if="selectionDisplay"
+                  class="selection-rect"
+                  :style="selectionStyle"
+                ></div>
               </div>
               <div v-else class="empty-placeholder">
                 <el-icon class="empty-icon"><Picture /></el-icon>
@@ -81,6 +115,13 @@
                 <span class="info-label">分辨率：</span>
                 <span class="info-value">{{ currentImage.info.width }} × {{ currentImage.info.height }}</span>
               </div>
+            </div>
+            <!-- 圈选区域信息 -->
+            <div v-if="selectionInfo" class="selection-info">
+              <span class="info-label">选区：</span>
+              <span class="info-value">
+                x={{ selectionInfo.x }}, y={{ selectionInfo.y }}, w={{ selectionInfo.w }}, h={{ selectionInfo.h }}
+              </span>
             </div>
           </div>
         </div>
@@ -165,6 +206,77 @@
         </div>
       </div>
     </div>
+
+    <!-- 设备连接弹框 -->
+    <el-dialog
+      v-model="deviceDialogVisible"
+      title="设备连接"
+      width="520px"
+    >
+      <el-tabs v-model="deviceTab">
+        <el-tab-pane label="手机" name="mobile">
+          <div class="device-toolbar">
+            <el-button 
+              size="small" 
+              type="primary" 
+              @click="refreshDevices" 
+              :loading="deviceLoading"
+            >
+              刷新设备
+            </el-button>
+            <span class="device-tip">请确保手机已通过 USB 或 WiFi 连接到 ADB</span>
+          </div>
+
+          <div v-if="!deviceLoading && deviceList.length === 0" class="device-empty">
+            <el-empty description="未发现设备，请点击刷新" />
+          </div>
+
+          <div v-else class="device-list-wrapper">
+            <el-radio-group v-model="selectedDeviceId" class="device-list">
+              <el-radio 
+                v-for="id in deviceList" 
+                :key="id" 
+                :label="id"
+              >
+                {{ id }}
+                <span 
+                  v-if="currentDeviceId === id" 
+                  class="device-tag"
+                >
+                  当前
+                </span>
+              </el-radio>
+            </el-radio-group>
+          </div>
+
+          <div class="device-footer">
+            <span class="device-footer-text">
+              当前连接设备：{{ currentDeviceId || '未连接' }}
+            </span>
+            <el-button 
+              type="primary" 
+              size="small" 
+              @click="connectSelectedDevice" 
+              :disabled="!selectedDeviceId"
+            >
+              连接设备
+            </el-button>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="电脑" name="pc">
+          <div class="device-placeholder">
+            电脑连接功能开发中...
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="虚拟机" name="vm">
+          <div class="device-placeholder">
+            虚拟机连接功能开发中...
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
@@ -172,6 +284,9 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { Upload, Picture, ZoomIn, Collection, Delete, Tools } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { ipc } from '@/utils/ipcRenderer';
+import { ipcApiRoute } from '@/api';
+import { io } from 'socket.io-client';
 
 // 文件输入引用
 const fileInputRef = ref(null);
@@ -212,12 +327,44 @@ const mousePosition = ref({ x: 0, y: 0 });
 const currentColor = ref(null);
 const currentPosition = ref({ x: 0, y: 0 }); // 当前鼠标位置的图片坐标
 
+// 圈选相关
+const isSelecting = ref(false);
+const isResizing = ref(false);      // 是否在拖拉边框
+const selectionStart = ref(null);   // { imageX, imageY, naturalX, naturalY }
+const selectionCurrent = ref(null); // { imageX, imageY, naturalX, naturalY }
+const selectionDisplay = ref(null); // 用于在页面上显示的矩形（基于图片显示尺寸坐标）
+const selectionRect = ref(null);    // 基于原始图片坐标的矩形 { x, y, w, h }
+const resizeHandle = ref(null);     // 当前拖动的边/角方向，例如 left/right/top/bottom/top-left 等
+const containerCursor = ref('crosshair'); // 容器鼠标样式
+
+// 对外显示的圈选信息
+const selectionInfo = computed(() => selectionRect.value);
+
 // 图片尺寸
 const imageNaturalSize = ref({ width: 0, height: 0 });
+
+// 设备连接相关
+const deviceDialogVisible = ref(false);
+const deviceTab = ref('mobile');
+const deviceList = ref([]);
+const deviceLoading = ref(false);
+const selectedDeviceId = ref('');
+const currentDeviceId = ref('');
+const screenshotLoading = ref(false);
+let deviceSocket = null;
 
 // 载入图片
 function handleLoadImage() {
   fileInputRef.value?.click();
+}
+
+// 打开设备连接弹框
+function openDeviceDialog() {
+  deviceDialogVisible.value = true;
+  if (!deviceSocket) {
+    initDeviceSocket();
+  }
+  refreshDevices();
 }
 
 // 处理文件选择
@@ -298,6 +445,140 @@ function handleImageLoad() {
   }
 }
 
+// ==================== 设备连接逻辑 ====================
+
+function initDeviceSocket() {
+  deviceSocket = io('ws://localhost:7070');
+
+  deviceSocket.on('connect', () => {
+    console.log('设备 Socket 连接成功');
+  });
+
+  deviceSocket.on('device-list', (data) => {
+    console.log('收到设备列表:', data);
+    handleDeviceList(data);
+  });
+
+  deviceSocket.on('device-selected', (data) => {
+    console.log('收到设备选择结果:', data);
+    handleDeviceSelected(data);
+  });
+
+   deviceSocket.on('device-screenshot', (data) => {
+    console.log('收到设备截图:', data);
+    handleDeviceScreenshot(data);
+  });
+}
+
+function handleDeviceList(data) {
+  deviceLoading.value = false;
+
+  if (!data || !data.success) {
+    ElMessage.error(data?.error || '获取设备列表失败');
+    deviceList.value = [];
+    return;
+  }
+
+  deviceList.value = data.devices || [];
+
+  if (data.currentDeviceId) {
+    currentDeviceId.value = data.currentDeviceId;
+    selectedDeviceId.value = data.currentDeviceId;
+  } else if (deviceList.value.length > 0 && !selectedDeviceId.value) {
+    selectedDeviceId.value = deviceList.value[0];
+  }
+}
+
+function handleDeviceSelected(data) {
+  if (!data || !data.success) {
+    ElMessage.error(data?.error || '连接设备失败');
+    return;
+  }
+
+  currentDeviceId.value = data.currentDeviceId || '';
+
+  if (currentDeviceId.value) {
+    selectedDeviceId.value = currentDeviceId.value;
+    ElMessage.success(`已连接设备: ${currentDeviceId.value}`);
+  } else {
+    ElMessage.info('已清除当前连接设备');
+  }
+}
+
+function handleDeviceScreenshot(data) {
+  screenshotLoading.value = false;
+
+  if (!data || !data.success || !data.image) {
+    ElMessage.error(data?.error || '获取截图失败');
+    return;
+  }
+
+  const url = `data:image/png;base64,${data.image}`;
+  const img = new Image();
+  img.onload = () => {
+    const imageData = {
+      name: `手机截图_${new Date().toLocaleTimeString()}.png`,
+      url,
+      file: null,
+      info: {
+        fileSize: '--',
+        format: 'PNG',
+        width: img.width,
+        height: img.height,
+      },
+      selectedColors: [],
+    };
+
+    images.value.push(imageData);
+    currentImageIndex.value = String(images.value.length - 1);
+  };
+  img.src = url;
+}
+
+async function refreshDevices() {
+  deviceLoading.value = true;
+  try {
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'get_devices'
+    });
+  } catch (error) {
+    console.error('刷新设备失败:', error);
+    ElMessage.error(`刷新设备失败: ${error.message || '未知错误'}`);
+    deviceLoading.value = false;
+  }
+}
+
+async function connectSelectedDevice() {
+  if (!selectedDeviceId.value) return;
+  try {
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'set_device',
+      deviceId: selectedDeviceId.value
+    });
+  } catch (error) {
+    console.error('连接设备失败:', error);
+    ElMessage.error(`连接设备失败: ${error.message || '未知错误'}`);
+  }
+}
+
+async function captureScreenshot() {
+  if (!currentDeviceId.value) {
+    ElMessage.warning('请先连接设备');
+    return;
+  }
+
+  screenshotLoading.value = true;
+  try {
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'capture_screenshot',
+    });
+  } catch (error) {
+    console.error('截图失败:', error);
+    ElMessage.error(`截图失败: ${error.message || '未知错误'}`);
+    screenshotLoading.value = false;
+  }
+}
+
 // 容器鼠标移动处理
 function handleContainerMouseMove(event) {
   if (!currentImage.value || !imageRef.value) {
@@ -345,6 +626,25 @@ function handleContainerMouseMove(event) {
       // 确保坐标在有效范围内
       if (naturalX >= 0 && naturalX < imageRef.value.naturalWidth &&
           naturalY >= 0 && naturalY < imageRef.value.naturalHeight) {
+        // 更新鼠标样式
+        updateCursorStyle(imageX, imageY);
+        
+        // 正在拖动边框调整大小
+        if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
+          updateSelectionRectsByResize(imageX, imageY, imageRect);
+        }
+
+        // 更新圈选时的矩形
+        if (isSelecting.value && selectionStart.value) {
+          selectionCurrent.value = {
+            imageX,
+            imageY,
+            naturalX,
+            naturalY,
+          };
+          updateSelectionRects();
+        }
+
         // 更新当前坐标
         currentPosition.value = {
           x: Math.floor(naturalX),
@@ -357,18 +657,372 @@ function handleContainerMouseMove(event) {
         magnifierVisible.value = false;
         currentColor.value = null;
         currentPosition.value = { x: 0, y: 0 };
+        containerCursor.value = 'crosshair';
       }
   } else {
     magnifierVisible.value = false;
     currentColor.value = null;
+    containerCursor.value = 'crosshair';
   }
 }
 
-// 鼠标离开
+// 鼠标进入容器
+function handleMouseEnter() {
+  // 鼠标进入时不做特殊处理，保持当前状态
+}
+
+// 鼠标离开容器
 function handleMouseLeave() {
+  // 只关闭放大镜与当前颜色显示，不修改已有圈选框
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
+  containerCursor.value = 'crosshair';
+
+  // 不清除 selectionDisplay / selectionRect，保证圈选框在滚动时仍然存在
+  // 也不强制修改 isSelecting / isResizing，避免与正在进行的其它操作冲突
+}
+
+// 鼠标按下开始圈选
+function handleMouseDown(event) {
+  if (!currentImage.value || !imageRef.value) return;
+
+  // 仅响应左键
+  if (event.button !== 0) return;
+
+  const imageRect = imageRef.value.getBoundingClientRect();
+  const imageX = event.clientX - imageRect.left;
+  const imageY = event.clientY - imageRect.top;
+
+  if (imageX < 0 || imageY < 0 || imageX >= imageRect.width || imageY >= imageRect.height) {
+    return;
+  }
+
+  // 如果已有选区，优先判断是否点击在边框附近，进入拖拉边框模式；
+  // 如果没有点在边框上，则不允许重新开始圈选（必须先右键清除）
+  if (selectionDisplay.value || selectionRect.value) {
+    const handle = selectionDisplay.value
+      ? getResizeHandleAtPoint(imageX, imageY, selectionDisplay.value)
+      : null;
+    if (handle) {
+      isResizing.value = true;
+      resizeHandle.value = handle;
+      isSelecting.value = false;
+      return;
+    }
+    // 有圈选但没点到边框上：禁止重新圈选
+    return;
+  }
+
+  const scaleX = imageRef.value.naturalWidth / imageRect.width;
+  const scaleY = imageRef.value.naturalHeight / imageRect.height;
+  const naturalX = imageX * scaleX;
+  const naturalY = imageY * scaleY;
+
+  isSelecting.value = true;
+  isResizing.value = false;
+  resizeHandle.value = null;
+  selectionStart.value = {
+    imageX,
+    imageY,
+    naturalX,
+    naturalY,
+  };
+  selectionCurrent.value = { ...selectionStart.value };
+}
+
+// 鼠标抬起结束圈选
+function handleMouseUp(event) {
+  if (!imageRef.value) return;
+
+  const imageRect = imageRef.value.getBoundingClientRect();
+  const imageX = event.clientX - imageRect.left;
+  const imageY = event.clientY - imageRect.top;
+
+  const clampedX = Math.min(Math.max(imageX, 0), imageRect.width);
+  const clampedY = Math.min(Math.max(imageY, 0), imageRect.height);
+
+  const scaleX = imageRef.value.naturalWidth / imageRect.width;
+  const scaleY = imageRef.value.naturalHeight / imageRect.height;
+  const naturalX = clampedX * scaleX;
+  const naturalY = clampedY * scaleY;
+
+  if (isSelecting.value && selectionStart.value) {
+    // 检查是否是真正的拖动（而不是点击）
+    const dragThreshold = 5; // 拖动阈值，像素
+    const dx = Math.abs(clampedX - selectionStart.value.imageX);
+    const dy = Math.abs(clampedY - selectionStart.value.imageY);
+    const dragDistance = Math.sqrt(dx * dx + dy * dy);
+
+    if (dragDistance >= dragThreshold) {
+      // 真正的拖动，且当前没有圈选框时，创建新的圈选框
+      if (selectionDisplay.value || selectionRect.value) {
+        // 已经有圈选框，则不再创建新的，直接返回
+        selectionStart.value = null;
+        selectionCurrent.value = null;
+        isSelecting.value = false;
+        return;
+      }
+
+      selectionCurrent.value = {
+        imageX: clampedX,
+        imageY: clampedY,
+        naturalX,
+        naturalY,
+      };
+      updateSelectionRects();
+    } else {
+      // 只是点击，不创建或清除圈选框，仅重置本次拖拽状态
+      selectionStart.value = null;
+      selectionCurrent.value = null;
+    }
+  }
+
+  if (isResizing.value && selectionDisplay.value && selectionRect.value) {
+    updateSelectionRectsByResize(clampedX, clampedY, imageRect);
+  }
+
+  isSelecting.value = false;
+  isResizing.value = false;
+  resizeHandle.value = null;
+}
+
+// 右键点击：清除圈选框
+function handleRightClick() {
+  if (selectionDisplay.value || selectionRect.value) {
+    selectionDisplay.value = null;
+    selectionRect.value = null;
+    // 同时重置与圈选相关的状态，避免残留影响
+    isSelecting.value = false;
+    isResizing.value = false;
+    selectionStart.value = null;
+    selectionCurrent.value = null;
+    resizeHandle.value = null;
+  }
+}
+
+// 根据开始点和当前点，更新显示和原始坐标矩形
+function updateSelectionRects() {
+  if (!selectionStart.value || !selectionCurrent.value) return;
+
+  const start = selectionStart.value;
+  const curr = selectionCurrent.value;
+
+  // 显示用矩形（基于图片显示尺寸）
+  const x1 = start.imageX;
+  const y1 = start.imageY;
+  const x2 = curr.imageX;
+  const y2 = curr.imageY;
+
+  const dispX = Math.min(x1, x2);
+  const dispY = Math.min(y1, y2);
+  const dispW = Math.abs(x2 - x1);
+  const dispH = Math.abs(y2 - y1);
+
+  // 检查拖动距离是否足够大（防止点击时出现很小的圈选框）
+  const dragThreshold = 5; // 拖动阈值，像素
+  const dragDistance = Math.sqrt(dispW * dispW + dispH * dispH);
+
+  if (dragDistance < dragThreshold) {
+    // 拖动距离太小，不更新圈选框（保留原有圈选）
+    return;
+  }
+
+  selectionDisplay.value = {
+    x: dispX,
+    y: dispY,
+    w: dispW,
+    h: dispH,
+  };
+
+  // 原始坐标矩形
+  const nX1 = start.naturalX;
+  const nY1 = start.naturalY;
+  const nX2 = curr.naturalX;
+  const nY2 = curr.naturalY;
+
+  const natX = Math.floor(Math.max(0, Math.min(nX1, nX2)));
+  const natY = Math.floor(Math.max(0, Math.min(nY1, nY2)));
+  const natW = Math.floor(Math.abs(nX2 - nX1));
+  const natH = Math.floor(Math.abs(nY2 - nY1));
+
+  // 忽略过小的区域（防止误点）
+  if (natW <= 0 || natH <= 0) {
+    selectionRect.value = null;
+    return;
+  }
+
+  selectionRect.value = {
+    x: natX,
+    y: natY,
+    w: natW,
+    h: natH,
+  };
+}
+
+// 圈选矩形样式（转换为 CSS 像素）
+const selectionStyle = computed(() => {
+  if (!selectionDisplay.value) return {};
+  const rect = selectionDisplay.value;
+  return {
+    left: rect.x + 'px',
+    top: rect.y + 'px',
+    width: rect.w + 'px',
+    height: rect.h + 'px',
+  };
+});
+
+// 判断某个点是否在选区边框附近，返回拖动方向
+function getResizeHandleAtPoint(x, y, rect) {
+  const margin = 6; // 判定边框的容差
+  const left = rect.x;
+  const top = rect.y;
+  const right = rect.x + rect.w;
+  const bottom = rect.y + rect.h;
+
+  const nearLeft = Math.abs(x - left) <= margin;
+  const nearRight = Math.abs(x - right) <= margin;
+  const nearTop = Math.abs(y - top) <= margin;
+  const nearBottom = Math.abs(y - bottom) <= margin;
+
+  // 先判断角
+  if (nearLeft && nearTop) return 'top-left';
+  if (nearRight && nearTop) return 'top-right';
+  if (nearLeft && nearBottom) return 'bottom-left';
+  if (nearRight && nearBottom) return 'bottom-right';
+
+  // 再判断边
+  const withinVertical = y >= top - margin && y <= bottom + margin;
+  const withinHorizontal = x >= left - margin && x <= right + margin;
+  if (nearLeft && withinVertical) return 'left';
+  if (nearRight && withinVertical) return 'right';
+  if (nearTop && withinHorizontal) return 'top';
+  if (nearBottom && withinHorizontal) return 'bottom';
+
+  return null;
+}
+
+// 更新鼠标样式
+function updateCursorStyle(imageX, imageY) {
+  // 如果正在拖动边框，保持相应的 cursor 样式
+  if (isResizing.value && resizeHandle.value) {
+    const cursorMap = {
+      'left': 'ew-resize',
+      'right': 'ew-resize',
+      'top': 'ns-resize',
+      'bottom': 'ns-resize',
+      'top-left': 'nw-resize',
+      'top-right': 'ne-resize',
+      'bottom-left': 'sw-resize',
+      'bottom-right': 'se-resize'
+    };
+    containerCursor.value = cursorMap[resizeHandle.value] || 'crosshair';
+    return;
+  }
+
+  // 如果正在圈选，使用 crosshair
+  if (isSelecting.value) {
+    containerCursor.value = 'crosshair';
+    return;
+  }
+
+  // 如果有选区，检测鼠标是否在边框附近
+  if (selectionDisplay.value) {
+    const handle = getResizeHandleAtPoint(imageX, imageY, selectionDisplay.value);
+    if (handle) {
+      const cursorMap = {
+        'left': 'ew-resize',
+        'right': 'ew-resize',
+        'top': 'ns-resize',
+        'bottom': 'ns-resize',
+        'top-left': 'nw-resize',
+        'top-right': 'ne-resize',
+        'bottom-left': 'sw-resize',
+        'bottom-right': 'se-resize'
+      };
+      containerCursor.value = cursorMap[handle] || 'crosshair';
+      return;
+    }
+  }
+
+  // 默认样式
+  containerCursor.value = 'crosshair';
+}
+
+// 根据拖动边框更新矩形（传入的是当前鼠标在图片显示坐标中的位置）
+function updateSelectionRectsByResize(imageX, imageY, imageRect) {
+  if (!selectionDisplay.value || !selectionRect.value || !imageRef.value || !resizeHandle.value) return;
+
+  const scaleX = imageRef.value.naturalWidth / imageRect.width;
+  const scaleY = imageRef.value.naturalHeight / imageRect.height;
+
+  const disp = { ...selectionDisplay.value };
+  const minSize = 3; // 最小宽高，避免为 0
+
+  let left = disp.x;
+  let top = disp.y;
+  let right = disp.x + disp.w;
+  let bottom = disp.y + disp.h;
+
+  const handle = resizeHandle.value;
+
+  // 限制拖动点在图片显示范围内
+  const clampX = Math.min(Math.max(imageX, 0), imageRect.width);
+  const clampY = Math.min(Math.max(imageY, 0), imageRect.height);
+
+  if (handle.includes('left')) {
+    left = Math.min(clampX, right - minSize);
+  } else if (handle.includes('right')) {
+    right = Math.max(clampX, left + minSize);
+  }
+
+  if (handle.includes('top')) {
+    top = Math.min(clampY, bottom - minSize);
+  } else if (handle.includes('bottom')) {
+    bottom = Math.max(clampY, top + minSize);
+  }
+
+  // 单独水平或垂直边（防止只含单词时遗漏）
+  if (handle === 'left') {
+    left = Math.min(clampX, right - minSize);
+  }
+  if (handle === 'right') {
+    right = Math.max(clampX, left + minSize);
+  }
+  if (handle === 'top') {
+    top = Math.min(clampY, bottom - minSize);
+  }
+  if (handle === 'bottom') {
+    bottom = Math.max(clampY, top + minSize);
+  }
+
+  const newW = right - left;
+  const newH = bottom - top;
+
+  selectionDisplay.value = {
+    x: left,
+    y: top,
+    w: newW,
+    h: newH,
+  };
+
+  // 转换为原始图片坐标
+  const natX = Math.floor(Math.max(0, left * scaleX));
+  const natY = Math.floor(Math.max(0, top * scaleY));
+  const natW = Math.floor(newW * scaleX);
+  const natH = Math.floor(newH * scaleY);
+
+  if (natW <= 0 || natH <= 0) {
+    selectionRect.value = null;
+    return;
+  }
+
+  selectionRect.value = {
+    x: natX,
+    y: natY,
+    w: natW,
+    h: natH,
+  };
 }
 
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
@@ -525,6 +1179,15 @@ function removeImage(index) {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
+  // 切换图片时清空圈选信息
+  isSelecting.value = false;
+  isResizing.value = false;
+  selectionStart.value = null;
+  selectionCurrent.value = null;
+  selectionDisplay.value = null;
+  selectionRect.value = null;
+  resizeHandle.value = null;
+  containerCursor.value = 'crosshair';
 }
 
 // 监听当前图片切换，重置放大镜和颜色
@@ -532,6 +1195,10 @@ watch(currentImageIndex, () => {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
+  isSelecting.value = false;
+  isResizing.value = false;
+  resizeHandle.value = null;
+  containerCursor.value = 'crosshair';
   
   if (currentImage.value) {
     nextTick(() => {
@@ -542,6 +1209,13 @@ watch(currentImageIndex, () => {
         };
       }
     });
+  }
+});
+
+onUnmounted(() => {
+  if (deviceSocket) {
+    deviceSocket.disconnect();
+    deviceSocket = null;
   }
 });
 </script>
@@ -782,7 +1456,6 @@ watch(currentImageIndex, () => {
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
   position: relative;
-  cursor: crosshair;
   user-select: none;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -791,6 +1464,16 @@ watch(currentImageIndex, () => {
 .image-wrapper {
   display: inline-block;
   position: relative;
+}
+
+/* 圈选矩形样式 */
+.selection-rect {
+  position: absolute;
+  border: 2px solid #22c55e;
+  background: rgba(34, 197, 94, 0.2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
 .image-wrapper img {

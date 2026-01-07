@@ -573,6 +573,9 @@ def init_client(url="http://127.0.0.1:7070"):
                 "process_steps": 处理步骤列表,
                 "save_image": 保存图片,
                 "flood_fill_animation": 洪水填充动画,
+                "get_devices": 获取设备列表,
+                "set_device": 设置当前设备,
+                "capture_screenshot": 截图当前设备,
             }
             
             handler = handlers.get(data.get("type"))
@@ -625,11 +628,137 @@ def send_to_electron(prop, message, method="controller/example/receiveProcessedI
         return None
 
 
+# ==================== 设备管理 ====================
+
+# 当前已连接的设备 ID（由前端选择）
+_current_device_id = None
 
 
+def 发送设备列表(devices=None, error=None):
+    """向 Electron 发送设备列表"""
+    message = {
+        "success": error is None,
+        "devices": devices or [],
+        "currentDeviceId": _current_device_id,
+    }
+    if error:
+        message["error"] = error
+
+    # prop 使用 device-list，Electron 再通过 socket 转发给前端
+    send_to_electron(
+        prop="device-list",
+        message=message,
+        wait_response=False,
+    )
 
 
+def 发送设备选择结果(error=None):
+    """向 Electron 发送当前设备选择结果"""
+    message = {
+        "success": error is None,
+        "currentDeviceId": _current_device_id,
+    }
+    if error:
+        message["error"] = error
 
+    send_to_electron(
+        prop="device-selected",
+        message=message,
+        wait_response=False,
+    )
+
+
+def 获取设备列表(data):
+    """获取当前已连接的 ADB 设备列表"""
+    try:
+        adb_path = r"C:\platform-tools\adb.exe"
+        # 直接调用 adb devices
+        result = subprocess.run(
+            f'"{adb_path}" devices',
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or "获取设备列表失败"
+            print(error_msg)
+            发送设备列表(devices=[], error=error_msg)
+            return
+
+        devices = []
+        lines = result.stdout.strip().splitlines()
+        # 第一行为 "List of devices attached"
+        for line in lines[1:]:
+            if "\t" in line:
+                device_id, status = line.split("\t", 1)
+                device_id = device_id.strip()
+                if device_id:
+                    devices.append(device_id)
+
+        print(f"已检测到设备: {devices}")
+        发送设备列表(devices=devices)
+    except Exception as e:
+        traceback.print_exc()
+        发送设备列表(devices=[], error=str(e))
+
+
+def 设置当前设备(data):
+    """设置当前使用的设备 ID"""
+    global _current_device_id
+    try:
+        device_id = data.get("deviceId") or data.get("device_id")
+        if device_id:
+            _current_device_id = str(device_id)
+            print(f"当前连接设备已设置为: {_current_device_id}")
+        else:
+            # 允许清空
+            _current_device_id = None
+            print("当前连接设备已清空")
+
+        发送设备选择结果()
+    except Exception as e:
+        traceback.print_exc()
+        发送设备选择结果(error=str(e))
+
+
+def 发送设备截图(image_bytes=None, error=None):
+    """向 Electron 发送设备截图（PNG base64）"""
+    message = {
+        "success": error is None and image_bytes is not None,
+        "currentDeviceId": _current_device_id,
+    }
+    if error or image_bytes is None:
+        message["error"] = error or "截图失败"
+    else:
+        message["image"] = base64.b64encode(image_bytes).decode("utf-8")
+
+    send_to_electron(
+        prop="device-screenshot",
+        message=message,
+        wait_response=False,
+    )
+
+
+def 截图当前设备(data):
+    """对当前连接的设备执行截图"""
+    try:
+        if not _current_device_id:
+            print("尚未选择当前设备，无法截图")
+            发送设备截图(image_bytes=None, error="未选择设备")
+            return
+
+        controller = ADBController(device_id=_current_device_id)
+        img_bytes = controller.截图到内存()
+        if not img_bytes:
+            发送设备截图(image_bytes=None, error="截图失败")
+            return
+
+        发送设备截图(image_bytes=img_bytes)
+    except Exception as e:
+        traceback.print_exc()
+        发送设备截图(image_bytes=None, error=str(e))
 
 
 #================================================================

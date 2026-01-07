@@ -24,6 +24,33 @@ class ExampleController {
       const prop = args.prop;
       const imageData = args.message;
       
+      // 设备列表事件
+      if (prop === 'device-list') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('device-list', imageData);
+        }
+        return { success: true, message: '设备列表已发送' };
+      }
+
+      // 设备选择事件
+      if (prop === 'device-selected') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('device-selected', imageData);
+        }
+        return { success: true, message: '设备选择结果已发送' };
+      }
+
+      // 设备截图事件
+      if (prop === 'device-screenshot') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('device-screenshot', imageData);
+        }
+        return { success: true, message: '设备截图已发送' };
+      }
+      
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {
         // 保存结果事件
