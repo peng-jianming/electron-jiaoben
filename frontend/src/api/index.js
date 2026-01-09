@@ -11,6 +11,7 @@ const ipcApiRoute = {
   sendToPython: 'controller/example/sendToPython',
   handleImageClick: 'controller/example/handleImageClick',
   openSaveDialog: 'controller/example/openSaveDialog',
+  saveBase64Image: 'controller/example/saveBase64Image',
   // 截图功能
   openCaptureWindow: 'controller/example/openCaptureWindow',
   closeCaptureWindow: 'controller/example/closeCaptureWindow',

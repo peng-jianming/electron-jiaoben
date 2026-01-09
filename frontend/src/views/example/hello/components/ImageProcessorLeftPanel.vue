@@ -1,0 +1,71 @@
+<template>
+  <div class="left-panel">
+    <div class="card">
+      <div class="card-body">
+        <el-button 
+          type="primary" 
+          :icon="Upload"
+          @click="$emit('load-image')"
+          class="action-btn"
+        >
+          载入图片
+        </el-button>
+
+        <div class="device-section">
+          <div class="device-current">
+            当前设备：<span>{{ currentDeviceId || '未连接' }}</span>
+          </div>
+          <el-button 
+            type="success" 
+            :icon="Tools"
+            class="action-btn device-btn"
+            @click="$emit('open-device-dialog')"
+          >
+            设备连接
+          </el-button>
+          <el-button 
+            type="primary" 
+            class="action-btn device-btn"
+            :loading="screenshotLoading"
+            :disabled="!currentDeviceId"
+            @click="$emit('capture-screenshot')"
+          >
+            截图
+          </el-button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { Upload, Tools } from '@element-plus/icons-vue';
+
+defineProps({
+  currentDeviceId: {
+    type: String,
+    default: ''
+  },
+  screenshotLoading: {
+    type: Boolean,
+    default: false
+  }
+});
+
+defineEmits(['load-image', 'open-device-dialog', 'capture-screenshot']);
+</script>
+
+<style scoped>
+.left-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+}
+</style>
+
+

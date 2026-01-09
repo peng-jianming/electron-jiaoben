@@ -162,6 +162,38 @@ class ExampleController {
   }
 
   /**
+   * 保存 base64 图片到文件
+   * @param {Object} args - 参数对象 { filePath, imageData }
+   * @param {Object} event - 事件对象
+   */
+  async saveBase64Image(args, event) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+
+      const { filePath, imageData } = args;
+      if (!filePath || !imageData) {
+        return { success: false, error: '缺少必要参数' };
+      }
+
+      // 确保目录存在
+      const saveDir = path.dirname(filePath);
+      if (saveDir && !fs.existsSync(saveDir)) {
+        fs.mkdirSync(saveDir, { recursive: true });
+      }
+
+      // 将 base64 转换为 Buffer 并写入文件
+      const buffer = Buffer.from(imageData, 'base64');
+      fs.writeFileSync(filePath, buffer);
+
+      return { success: true, path: filePath };
+    } catch (error) {
+      console.error('保存图片错误:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * 打开截图窗口
    */
   openCaptureWindow(args, event) {

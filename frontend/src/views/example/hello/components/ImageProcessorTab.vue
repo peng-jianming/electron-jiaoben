@@ -3,51 +3,22 @@
     <!-- 左中右布局 -->
     <div class="processor-layout">
       <!-- 左侧：功能按钮区域 -->
-      <div class="left-panel">
-        <div class="card">
-          <div class="card-body">
-            <el-button 
-              type="primary" 
-              :icon="Upload"
-              @click="handleLoadImage"
-              class="action-btn"
-            >
-              载入图片
-            </el-button>
-            <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/*"
-              multiple
-              style="display: none"
-              @change="handleFileSelect"
-            />
-
-            <div class="device-section">
-              <div class="device-current">
-                当前设备：<span>{{ currentDeviceId || '未连接' }}</span>
-              </div>
-              <el-button 
-                type="success" 
-                :icon="Tools"
-                class="action-btn device-btn"
-                @click="openDeviceDialog"
-              >
-                设备连接
-              </el-button>
-              <el-button 
-                type="primary" 
-                class="action-btn device-btn"
-                :loading="screenshotLoading"
-                :disabled="!currentDeviceId"
-                @click="captureScreenshot"
-              >
-                截图
-              </el-button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ImageProcessorLeftPanel
+        :current-device-id="currentDeviceId"
+        :screenshot-loading="screenshotLoading"
+        @load-image="handleLoadImage"
+        @open-device-dialog="openDeviceDialog"
+        @capture-screenshot="captureScreenshot"
+      />
+      <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept="image/*"
+        multiple
+        style="display: none"
+        @change="handleFileSelect"
+      />
 
       <!-- 中间：图片显示区域 -->
       <div class="center-panel">
@@ -101,200 +72,69 @@
                 <p>请载入图片</p>
               </div>
             </div>
-            <!-- 图片信息 -->
-            <div v-if="currentImage && currentImage.info" class="image-info">
-              <div class="info-item">
-                <span class="info-label">图片大小：</span>
-                <span class="info-value">{{ currentImage.info.fileSize }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">图片格式：</span>
-                <span class="info-value">{{ currentImage.info.format }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">分辨率：</span>
-                <span class="info-value">{{ currentImage.info.width }} × {{ currentImage.info.height }}</span>
-              </div>
-            </div>
-            <!-- 圈选区域信息 -->
-            <div v-if="selectionInfo" class="selection-info">
-              <span class="info-label">选区：</span>
-              <span class="info-value">
-                x={{ selectionInfo.x }}, y={{ selectionInfo.y }}, w={{ selectionInfo.w }}, h={{ selectionInfo.h }}
-              </span>
-            </div>
+            <ImageProcessorInfoPanel
+              :current-image="currentImage"
+              :selection-info="selectionInfo"
+            />
           </div>
         </div>
       </div>
 
       <!-- 右侧：放大镜和颜色信息 -->
       <div class="right-panel">
-        <!-- 放大镜 -->
-        <div class="card">
-          <div class="card-body magnifier-container">
-            <div 
-              v-if="magnifierVisible && currentImage"
-              class="magnifier"
-              ref="magnifierRef"
-            >
-              <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
-            </div>
-            <div v-else class="magnifier-placeholder">
-              <el-icon><ZoomIn /></el-icon>
-              <p>将鼠标移动到图片上查看</p>
-            </div>
-            <!-- 当前颜色值 -->
-            <div class="current-color">
-              <div class="color-values">
-                <div class="color-value-item">
-                  <span class="color-label">坐标:</span>
-                  <span class="color-value">({{ currentPosition ? currentPosition.x : '0' }}, {{ currentPosition ? currentPosition.y : '0' }})</span>
-                </div>
-                <div class="color-value-item">
-                  <span class="color-label">RGB:</span>
-                  <span class="color-value">{{ currentColor ? currentColor.rgb: '--' }}</span>
-                </div>
-                <div class="color-value-item">
-                  <span class="color-label">HEX:</span>
-                  <span class="color-value">{{ currentColor ? currentColor.hex: '--' }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 选中颜色列表 -->
-        <div class="card" style="flex: 1; overflow:auto">
-          <div class="card-body selected-colors-container">
-            <div v-if="currentSelectedColors.length === 0" class="empty-colors">
-              <el-icon><Collection /></el-icon>
-              <p>点击图片记录颜色</p>
-            </div>
-            <div v-else class="selected-colors-list">
-              <div
-                v-for="(color, index) in currentSelectedColors"
-                :key="index"
-                class="selected-color-item"
-              >
-                <div class="color-preview-small" :style="{ backgroundColor: color.hex }"></div>
-                <div class="color-info-small">
-                  <div class="color-coord-small">坐标: {{ color.x }}, {{ color.y }}</div>
-                  <div class="color-rgb-small">{{ color.rgb }}</div>
-                  <div class="color-hex-small">{{ color.hex }}</div>
-                </div>
-                <el-button
-                  type="danger"
-                  size="small"
-                  :icon="Delete"
-                  circle
-                  @click="removeColor(index)"
-                  class="remove-color-btn"
-                />
-              </div>
-            </div>
-            <el-button
-              v-if="currentSelectedColors.length > 0"
-              type="danger"
-              size="small"
-              :icon="Delete"
-              @click="clearAllColors"
-              class="clear-all-btn"
-            >
-              清空全部
-            </el-button>
-          </div>
-        </div>
+        <ImageProcessorRightPanel
+          :magnifier-visible="magnifierVisible"
+          :current-image="currentImage"
+          :current-position="currentPosition"
+          :current-color="currentColor"
+          :current-selected-colors="currentSelectedColors"
+          @remove-color="removeColor"
+          @clear-all-colors="clearAllColors"
+          ref="rightPanelRef"
+        />
       </div>
     </div>
 
     <!-- 设备连接弹框 -->
-    <el-dialog
-      v-model="deviceDialogVisible"
-      title="设备连接"
-      width="520px"
-    >
-      <el-tabs v-model="deviceTab">
-        <el-tab-pane label="手机" name="mobile">
-          <div class="device-toolbar">
-            <el-button 
-              size="small" 
-              type="primary" 
-              @click="refreshDevices" 
-              :loading="deviceLoading"
-            >
-              刷新设备
-            </el-button>
-            <span class="device-tip">请确保手机已通过 USB 或 WiFi 连接到 ADB</span>
-          </div>
+    <ImageProcessorDeviceDialog
+      v-model:visible="deviceDialogVisible"
+      v-model:tab="deviceTab"
+      :device-list="deviceList"
+      :device-loading="deviceLoading"
+      :selected-device-id="selectedDeviceId"
+      :current-device-id="currentDeviceId"
+      @update:selected-device-id="val => (selectedDeviceId = val)"
+      @refresh-devices="refreshDevices"
+      @connect-selected-device="connectSelectedDevice"
+    />
 
-          <div v-if="!deviceLoading && deviceList.length === 0" class="device-empty">
-            <el-empty description="未发现设备，请点击刷新" />
-          </div>
-
-          <div v-else class="device-list-wrapper">
-            <el-radio-group v-model="selectedDeviceId" class="device-list">
-              <el-radio 
-                v-for="id in deviceList" 
-                :key="id" 
-                :label="id"
-              >
-                {{ id }}
-                <span 
-                  v-if="currentDeviceId === id" 
-                  class="device-tag"
-                >
-                  当前
-                </span>
-              </el-radio>
-            </el-radio-group>
-          </div>
-
-          <div class="device-footer">
-            <span class="device-footer-text">
-              当前连接设备：{{ currentDeviceId || '未连接' }}
-            </span>
-            <el-button 
-              type="primary" 
-              size="small" 
-              @click="connectSelectedDevice" 
-              :disabled="!selectedDeviceId"
-            >
-              连接设备
-            </el-button>
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane label="电脑" name="pc">
-          <div class="device-placeholder">
-            电脑连接功能开发中...
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane label="虚拟机" name="vm">
-          <div class="device-placeholder">
-            虚拟机连接功能开发中...
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </el-dialog>
+    <!-- 圈选区域预览弹框 -->
+    <ImageProcessorSelectionDialog
+      v-model:visible="selectionDialogVisible"
+      :cropped-image-url="croppedImageUrl"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { Upload, Picture, ZoomIn, Collection, Delete, Tools } from '@element-plus/icons-vue';
+import { Picture, ZoomIn, Collection, Delete, Tools } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { ipc } from '@/utils/ipcRenderer';
 import { ipcApiRoute } from '@/api';
 import { io } from 'socket.io-client';
+import ImageProcessorLeftPanel from './ImageProcessorLeftPanel.vue';
+import ImageProcessorRightPanel from './ImageProcessorRightPanel.vue';
+import ImageProcessorDeviceDialog from './ImageProcessorDeviceDialog.vue';
+import ImageProcessorInfoPanel from './ImageProcessorInfoPanel.vue';
+import ImageProcessorSelectionDialog from './ImageProcessorSelectionDialog.vue';
 
 // 文件输入引用
 const fileInputRef = ref(null);
 const imageRef = ref(null);
 const imageContainerRef = ref(null);
 const imageWrapperRef = ref(null);
-const magnifierRef = ref(null);
-const magnifierCanvasRef = ref(null);
+const rightPanelRef = ref(null);
 
 // 图片数组
 const images = ref([]);
@@ -352,6 +192,10 @@ const selectedDeviceId = ref('');
 const currentDeviceId = ref('');
 const screenshotLoading = ref(false);
 let deviceSocket = null;
+
+// 圈选区域预览弹框相关
+const selectionDialogVisible = ref(false);
+const croppedImageUrl = ref(null);
 
 // 载入图片
 function handleLoadImage() {
@@ -579,7 +423,7 @@ async function captureScreenshot() {
   }
 }
 
-// 容器鼠标移动处理
+// 容器鼠标移动处理（在整个容器区域内都显示放大镜）
 function handleContainerMouseMove(event) {
   if (!currentImage.value || !imageRef.value) {
     magnifierVisible.value = false;
@@ -614,56 +458,58 @@ function handleContainerMouseMove(event) {
   const imageX = event.clientX - imageRect.left;
   const imageY = event.clientY - imageRect.top;
   
-  // 检查是否在图片显示区域内
-  if (imageX >= 0 && imageX < imageRect.width && 
-      imageY >= 0 && imageY < imageRect.height) {
-    // 转换为图片原始尺寸的坐标
-    const scaleX = imageRef.value.naturalWidth / imageRect.width;
-    const scaleY = imageRef.value.naturalHeight / imageRect.height;
-    const naturalX = imageX * scaleX;
-    const naturalY = imageY * scaleY;
+  // 转换为图片原始尺寸的坐标
+  const scaleX = imageRef.value.naturalWidth / imageRect.width;
+  const scaleY = imageRef.value.naturalHeight / imageRect.height;
+  
+  // 计算自然坐标，如果超出图片范围，则限制到边缘
+  let naturalX = imageX * scaleX;
+  let naturalY = imageY * scaleY;
+  
+  // 限制到图片范围内（边缘像素）
+  naturalX = Math.max(0, Math.min(naturalX, imageRef.value.naturalWidth - 1));
+  naturalY = Math.max(0, Math.min(naturalY, imageRef.value.naturalHeight - 1));
+
+  // 检查是否在图片显示区域内（用于圈选和鼠标样式）
+  const isOnImage = imageX >= 0 && imageX < imageRect.width && 
+                    imageY >= 0 && imageY < imageRect.height;
+
+  // 如果鼠标在图片上，处理圈选相关逻辑
+  if (isOnImage) {
+    // 更新鼠标样式
+    updateCursorStyle(imageX, imageY);
     
-      // 确保坐标在有效范围内
-      if (naturalX >= 0 && naturalX < imageRef.value.naturalWidth &&
-          naturalY >= 0 && naturalY < imageRef.value.naturalHeight) {
-        // 更新鼠标样式
-        updateCursorStyle(imageX, imageY);
-        
-        // 正在拖动边框调整大小
-        if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
-          updateSelectionRectsByResize(imageX, imageY, imageRect);
-        }
+    // 正在拖动边框调整大小
+    if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
+      updateSelectionRectsByResize(imageX, imageY, imageRect);
+    }
 
-        // 更新圈选时的矩形
-        if (isSelecting.value && selectionStart.value) {
-          selectionCurrent.value = {
-            imageX,
-            imageY,
-            naturalX,
-            naturalY,
-          };
-          updateSelectionRects();
-        }
-
-        // 更新当前坐标
-        currentPosition.value = {
-          x: Math.floor(naturalX),
-          y: Math.floor(naturalY)
-        };
-        magnifierVisible.value = true;
-        updateMagnifier(naturalX, naturalY);
-        updateCurrentColor(naturalX, naturalY);
-      } else {
-        magnifierVisible.value = false;
-        currentColor.value = null;
-        currentPosition.value = { x: 0, y: 0 };
-        containerCursor.value = 'crosshair';
-      }
+    // 更新圈选时的矩形
+    if (isSelecting.value && selectionStart.value) {
+      selectionCurrent.value = {
+        imageX,
+        imageY,
+        naturalX,
+        naturalY,
+      };
+      updateSelectionRects();
+    }
   } else {
-    magnifierVisible.value = false;
-    currentColor.value = null;
+    // 鼠标不在图片上，重置鼠标样式
     containerCursor.value = 'crosshair';
   }
+
+  // 更新当前坐标和放大镜（无论鼠标是否在图片上，都显示放大镜）
+  currentPosition.value = {
+    x: Math.floor(naturalX),
+    y: Math.floor(naturalY)
+  };
+  magnifierVisible.value = true;
+  // 使用 nextTick 确保 canvas 已渲染
+  nextTick(() => {
+    updateMagnifier(naturalX, naturalY);
+  });
+  updateCurrentColor(naturalX, naturalY);
 }
 
 // 鼠标进入容器
@@ -755,15 +601,7 @@ function handleMouseUp(event) {
     const dragDistance = Math.sqrt(dx * dx + dy * dy);
 
     if (dragDistance >= dragThreshold) {
-      // 真正的拖动，且当前没有圈选框时，创建新的圈选框
-      if (selectionDisplay.value || selectionRect.value) {
-        // 已经有圈选框，则不再创建新的，直接返回
-        selectionStart.value = null;
-        selectionCurrent.value = null;
-        isSelecting.value = false;
-        return;
-      }
-
+      // 真正的拖动，更新当前点并创建/更新圈选框
       selectionCurrent.value = {
         imageX: clampedX,
         imageY: clampedY,
@@ -1027,60 +865,133 @@ function updateSelectionRectsByResize(imageX, imageY, imageRect) {
 
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
 function updateMagnifier(x, y) {
-  if (!magnifierCanvasRef.value || !imageRef.value) return;
-
+  if (!rightPanelRef.value || !imageRef.value) return;
+  
   // 确保图片已加载
   if (imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) return;
+  
+  const canvas = rightPanelRef.value.getMagnifierCanvas?.();
+  if (!canvas) {
+    // 如果 canvas 还未渲染，延迟重试
+    setTimeout(() => {
+      const retryCanvas = rightPanelRef.value?.getMagnifierCanvas?.();
+      if (retryCanvas) {
+        drawMagnifier(retryCanvas, x, y);
+      }
+    }, 10);
+    return;
+  }
+  
+  drawMagnifier(canvas, x, y);
+}
 
-  const canvas = magnifierCanvasRef.value;
+// 绘制放大镜内容
+function drawMagnifier(canvas, x, y) {
+  if (!canvas || !imageRef.value) return;
+
   const ctx = canvas.getContext('2d');
   const scale = 10; // 放大倍数
   const size = 11; // 11x11像素
   const halfSize = Math.floor(size / 2);
 
+  const imgWidth = imageRef.value.naturalWidth;
+  const imgHeight = imageRef.value.naturalHeight;
+
+  // 鼠标位置对应的像素坐标（中心像素）
+  const centerPixelX = Math.floor(x);
+  const centerPixelY = Math.floor(y);
+
+  // 计算理想的源坐标（以鼠标位置为中心）
+  const idealSourceX = centerPixelX - halfSize;
+  const idealSourceY = centerPixelY - halfSize;
+
+  // 计算实际可用的源坐标（处理边界情况）
+  let sourceX = Math.max(0, Math.min(idealSourceX, imgWidth - size));
+  let sourceY = Math.max(0, Math.min(idealSourceY, imgHeight - size));
+
+  // 如果图片太小，无法显示完整的 size x size 区域
+  if (imgWidth < size) {
+    sourceX = 0;
+  }
+  if (imgHeight < size) {
+    sourceY = 0;
+  }
+
+  // 计算实际可用的尺寸
+  const sourceW = Math.min(size, imgWidth - sourceX);
+  const sourceH = Math.min(size, imgHeight - sourceY);
+
   canvas.width = size * scale;
   canvas.height = size * scale;
 
-  // 计算源图片坐标（确保在范围内）
-  const sourceX = Math.max(0, Math.min(imageRef.value.naturalWidth - size, Math.floor(x - halfSize)));
-  const sourceY = Math.max(0, Math.min(imageRef.value.naturalHeight - size, Math.floor(y - halfSize)));
+  // 先清除画布（用黑色背景）
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 计算中心像素在源区域中的偏移
+  const centerOffsetX = centerPixelX - sourceX;
+  const centerOffsetY = centerPixelY - sourceY;
+
+  // 计算绘制位置，使得中心像素显示在canvas中心
+  // canvas中心位置
+  const canvasCenterX = canvas.width / 2;
+  const canvasCenterY = canvas.height / 2;
+  
+  // 计算绘制起始位置，使得中心像素在canvas中心
+  const drawX = canvasCenterX - centerOffsetX * scale - scale / 2;
+  const drawY = canvasCenterY - centerOffsetY * scale - scale / 2;
 
   // 绘制放大区域
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     imageRef.value,
-    sourceX, sourceY, size, size,
-    0, 0, canvas.width, canvas.height
+    sourceX, sourceY, sourceW, sourceH,
+    drawX, drawY, sourceW * scale, sourceH * scale
   );
 
   // 绘制网格（每个像素一个格子）
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
   ctx.lineWidth = 1;
   ctx.lineCap = 'square';
-  for (let i = 0; i <= size; i++) {
-    const pos = i * scale;
-    // 垂直线
-    ctx.beginPath();
-    ctx.moveTo(pos + 0.5, 0);
-    ctx.lineTo(pos + 0.5, canvas.height);
-    ctx.stroke();
-    // 水平线
-    ctx.beginPath();
-    ctx.moveTo(0, pos + 0.5);
-    ctx.lineTo(canvas.width, pos + 0.5);
-    ctx.stroke();
+  
+  // 计算网格的起始位置（与图片对齐）
+  const gridStartX = drawX;
+  const gridStartY = drawY;
+  const gridEndX = drawX + sourceW * scale;
+  const gridEndY = drawY + sourceH * scale;
+  
+  // 绘制垂直线
+  for (let i = 0; i <= sourceW; i++) {
+    const pos = gridStartX + i * scale;
+    if (pos >= 0 && pos <= canvas.width) {
+      ctx.beginPath();
+      ctx.moveTo(pos + 0.5, Math.max(0, gridStartY));
+      ctx.lineTo(pos + 0.5, Math.min(canvas.height, gridEndY));
+      ctx.stroke();
+    }
+  }
+  
+  // 绘制水平线
+  for (let i = 0; i <= sourceH; i++) {
+    const pos = gridStartY + i * scale;
+    if (pos >= 0 && pos <= canvas.height) {
+      ctx.beginPath();
+      ctx.moveTo(Math.max(0, gridStartX), pos + 0.5);
+      ctx.lineTo(Math.min(canvas.width, gridEndX), pos + 0.5);
+      ctx.stroke();
+    }
   }
 
-  // 绘制中心十字线（红色，更粗）
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
+  // 中心十字线始终在canvas中心
   ctx.strokeStyle = '#ff0000';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(centerX - scale * halfSize, centerY);
-  ctx.lineTo(centerX + scale * halfSize, centerY);
-  ctx.moveTo(centerX, centerY - scale * halfSize);
-  ctx.lineTo(centerX, centerY + scale * halfSize);
+  // 水平线（从中心向两边延伸）
+  ctx.moveTo(canvasCenterX - scale * halfSize, canvasCenterY);
+  ctx.lineTo(canvasCenterX + scale * halfSize, canvasCenterY);
+  // 垂直线（从中心向上下延伸）
+  ctx.moveTo(canvasCenterX, canvasCenterY - scale * halfSize);
+  ctx.lineTo(canvasCenterX, canvasCenterY + scale * halfSize);
   ctx.stroke();
 }
 
@@ -1111,31 +1022,110 @@ function updateCurrentColor(x, y) {
 
 // 图片点击处理
 function handleImageClick(event) {
-  if (!currentImage.value || !imageRef.value || !currentColor.value) return;
+  if (!currentImage.value || !imageRef.value) return;
+
+  // 如果正在圈选或调整大小，不处理点击事件
+  if (isSelecting.value || isResizing.value) {
+    return;
+  }
+
+  // 只有在圈选完成后（有selectionDisplay和selectionRect）才处理点击
+  if (!selectionDisplay.value || !selectionRect.value) {
+    // 没有圈选区域，执行原有的颜色选择功能
+    const imageRect = imageRef.value.getBoundingClientRect();
+    const imageX = event.clientX - imageRect.left;
+    const imageY = event.clientY - imageRect.top;
+
+    if (imageX >= 0 && imageX < imageRect.width && imageY >= 0 && imageY < imageRect.height) {
+      if (currentColor.value) {
+        // 转换为图片原始尺寸的坐标
+        const scaleX = imageRef.value.naturalWidth / imageRect.width;
+        const scaleY = imageRef.value.naturalHeight / imageRect.height;
+        const naturalX = Math.floor(imageX * scaleX);
+        const naturalY = Math.floor(imageY * scaleY);
+        
+        // 确保当前图片有颜色数组
+        if (!currentImage.value.selectedColors) {
+          currentImage.value.selectedColors = [];
+        }
+        
+        // 记录颜色到当前图片
+        currentImage.value.selectedColors.push({
+          ...currentColor.value,
+          x: naturalX,
+          y: naturalY
+        });
+      }
+    }
+    return;
+  }
 
   const imageRect = imageRef.value.getBoundingClientRect();
   const imageX = event.clientX - imageRect.left;
   const imageY = event.clientY - imageRect.top;
 
   if (imageX >= 0 && imageX < imageRect.width && imageY >= 0 && imageY < imageRect.height) {
-    // 转换为图片原始尺寸的坐标
-    const scaleX = imageRef.value.naturalWidth / imageRect.width;
-    const scaleY = imageRef.value.naturalHeight / imageRect.height;
-    const naturalX = Math.floor(imageX * scaleX);
-    const naturalY = Math.floor(imageY * scaleY);
+    // 检查是否点击在圈选区域内（排除边框，边框用于调整大小）
+    const rect = selectionDisplay.value;
+    const borderMargin = 6; // 边框容差，与getResizeHandleAtPoint中的margin保持一致
     
-    // 确保当前图片有颜色数组
-    if (!currentImage.value.selectedColors) {
-      currentImage.value.selectedColors = [];
+    // 检查是否点击在边框上（用于调整大小）
+    const handle = getResizeHandleAtPoint(imageX, imageY, rect);
+    if (handle) {
+      // 点击在边框上，不打开弹框（边框用于调整大小）
+      return;
     }
     
-    // 记录颜色到当前图片
-    currentImage.value.selectedColors.push({
-      ...currentColor.value,
-      x: naturalX,
-      y: naturalY
-    });
+    // 检查是否点击在圈选区域内部（排除边框区域）
+    const innerX = rect.x + borderMargin;
+    const innerY = rect.y + borderMargin;
+    const innerW = rect.w - borderMargin * 2;
+    const innerH = rect.h - borderMargin * 2;
+    
+    if (imageX >= innerX && imageX <= innerX + innerW &&
+        imageY >= innerY && imageY <= innerY + innerH) {
+      // 点击在圈选区域内部，裁剪图片并显示弹框
+      cropSelectionArea();
+      return;
+    }
+
   }
+}
+
+// 裁剪圈选区域的图片
+function cropSelectionArea() {
+  if (!currentImage.value || !imageRef.value || !selectionRect.value) {
+    return;
+  }
+
+  const rect = selectionRect.value;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  // 设置canvas尺寸为圈选区域的尺寸
+  canvas.width = rect.w;
+  canvas.height = rect.h;
+  
+  // 创建临时图片对象用于裁剪
+  const img = new Image();
+  img.onload = () => {
+    // 裁剪图片
+    ctx.drawImage(
+      img,
+      rect.x, rect.y, rect.w, rect.h,  // 源图片的裁剪区域
+      0, 0, rect.w, rect.h               // 目标canvas的位置和尺寸
+    );
+    
+    // 转换为base64 URL
+    croppedImageUrl.value = canvas.toDataURL('image/png');
+    selectionDialogVisible.value = true;
+  };
+  
+  img.onerror = () => {
+    ElMessage.error('裁剪图片失败');
+  };
+  
+  img.src = currentImage.value.url;
 }
 
 // 移除颜色
@@ -1212,7 +1202,23 @@ watch(currentImageIndex, () => {
   }
 });
 
+// 全局鼠标事件，确保在容器外也能正确结束圈选
+function handleGlobalMouseUp(event) {
+  if (isSelecting.value || isResizing.value) {
+    // 如果正在圈选或调整大小，调用 handleMouseUp
+    handleMouseUp(event);
+  }
+}
+
+onMounted(() => {
+  // 添加全局鼠标抬起事件监听
+  document.addEventListener('mouseup', handleGlobalMouseUp);
+});
+
 onUnmounted(() => {
+  // 移除全局鼠标抬起事件监听
+  document.removeEventListener('mouseup', handleGlobalMouseUp);
+  
   if (deviceSocket) {
     deviceSocket.disconnect();
     deviceSocket = null;
