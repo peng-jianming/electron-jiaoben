@@ -62,6 +62,7 @@
               ref="imageContainerRef"
               @mousemove="handleContainerMouseMove"
               @mouseleave="handleMouseLeave"
+              @click="handleContainerClick"
             >
               <img
                 :src="croppedImageUrl"
@@ -113,6 +114,54 @@
                 </div>
               </div>
             </div>
+            <!-- 选中颜色列表 -->
+            <div class="selected-colors" v-if="selectedColors.length > 0">
+              <div class="selected-colors-header">
+                <span class="selected-colors-title">已选颜色 ({{ selectedColors.length }})</span>
+                <el-button
+                  type="text"
+                  size="small"
+                  @click="handleClearSelectedColors"
+                  class="clear-btn"
+                >
+                  清空
+                </el-button>
+              </div>
+              <div class="selected-colors-list">
+                <div
+                  v-for="(color, index) in selectedColors"
+                  :key="index"
+                  class="selected-color-item"
+                >
+                  <div
+                    class="color-preview"
+                    :style="{ backgroundColor: color.hex }"
+                  ></div>
+                  <div class="color-info">
+                    <div class="color-info-row">
+                      <span class="color-label-small">RGB:</span>
+                      <span class="color-value-small">{{ color.rgb }}</span>
+                    </div>
+                    <div class="color-info-row">
+                      <span class="color-label-small">HEX:</span>
+                      <span class="color-value-small">{{ color.hex }}</span>
+                    </div>
+                    <div class="color-info-row">
+                      <span class="color-label-small">坐标:</span>
+                      <span class="color-value-small">({{ color.x }}, {{ color.y }})</span>
+                    </div>
+                  </div>
+                  <el-button
+                    type="text"
+                    size="small"
+                    @click="handleRemoveColor(index)"
+                    class="remove-btn"
+                  >
+                    <el-icon><Close /></el-icon>
+                  </el-button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -125,7 +174,7 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue';
-import { Download, ZoomIn, ZoomOut } from '@element-plus/icons-vue';
+import { Download, ZoomIn, ZoomOut, Close } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { ipc } from '@/utils/ipcRenderer';
 import { ipcApiRoute } from '@/api';
@@ -157,6 +206,9 @@ const magnifierCanvasRef = ref(null);
 const magnifierVisible = ref(false);
 const currentColor = ref(null);
 const currentPosition = ref({ x: 0, y: 0 });
+
+// 选中颜色列表
+const selectedColors = ref([]);
 
 // 图片尺寸
 const imageNaturalSize = ref({ width: 0, height: 0 });
@@ -236,6 +288,85 @@ function handleMouseLeave() {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
+}
+
+// 容器点击处理（选中颜色）
+function handleContainerClick(event) {
+  if (!imageRef.value || !props.croppedImageUrl || !imageContainerRef.value) {
+    return;
+  }
+
+  // 确保图片已加载完成
+  if (!imageRef.value.complete || imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) {
+    return;
+  }
+
+  const imageRect = imageRef.value.getBoundingClientRect();
+  
+  // 计算鼠标相对于图片的位置
+  const imageX = event.clientX - imageRect.left;
+  const imageY = event.clientY - imageRect.top;
+
+  // 转换为图片原始尺寸的坐标
+  const scaleX = imageRef.value.naturalWidth / imageRect.width;
+  const scaleY = imageRef.value.naturalHeight / imageRect.height;
+  
+  // 计算自然坐标，如果超出图片范围，则限制到边缘
+  let naturalX = imageX * scaleX;
+  let naturalY = imageY * scaleY;
+  
+  // 限制到图片范围内（边缘像素）
+  naturalX = Math.max(0, Math.min(naturalX, imageRef.value.naturalWidth - 1));
+  naturalY = Math.max(0, Math.min(naturalY, imageRef.value.naturalHeight - 1));
+
+  // 获取该位置的颜色
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = imageRef.value.naturalWidth;
+  canvas.height = imageRef.value.naturalHeight;
+  ctx.drawImage(imageRef.value, 0, 0);
+
+  const pixelX = Math.floor(naturalX);
+  const pixelY = Math.floor(naturalY);
+
+  if (pixelX >= 0 && pixelX < canvas.width && pixelY >= 0 && pixelY < canvas.height) {
+    const imageData = ctx.getImageData(pixelX, pixelY, 1, 1);
+    const [r, g, b] = imageData.data;
+    const hex = `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
+
+    const colorInfo = {
+      rgb: `rgb(${r}, ${g}, ${b})`,
+      hex: hex.toUpperCase(),
+      x: pixelX,
+      y: pixelY,
+      r,
+      g,
+      b
+    };
+
+    // 检查是否已存在相同颜色（避免重复添加）
+    const exists = selectedColors.value.some(
+      c => c.x === colorInfo.x && c.y === colorInfo.y
+    );
+
+    if (!exists) {
+      selectedColors.value.push(colorInfo);
+      ElMessage.success(`已添加颜色: ${colorInfo.hex}`);
+    } else {
+      ElMessage.info('该颜色已存在');
+    }
+  }
+}
+
+// 移除选中的颜色
+function handleRemoveColor(index) {
+  selectedColors.value.splice(index, 1);
+}
+
+// 清空所有选中的颜色
+function handleClearSelectedColors() {
+  selectedColors.value = [];
+  ElMessage.success('已清空所有选中颜色');
 }
 
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
@@ -476,6 +607,7 @@ function handleDialogClosed() {
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
   zoomScale.value = 1.0;
+  selectedColors.value = [];
 }
 </script>
 
@@ -628,6 +760,8 @@ function handleDialogClosed() {
   align-items: center;
   gap: 16px;
   min-height: 200px;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .magnifier {
@@ -701,6 +835,128 @@ function handleDialogClosed() {
   color: var(--text-primary);
   font-weight: 500;
   font-family: 'Courier New', monospace;
+}
+
+.selected-colors {
+  width: 100%;
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(51, 65, 85, 0.3);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.selected-colors-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.selected-colors-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.clear-btn {
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.clear-btn:hover {
+  color: var(--primary-color);
+}
+
+.selected-colors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-color-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  background: rgba(26, 26, 46, 0.5);
+  border-radius: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  transition: all 0.2s ease;
+}
+
+.selected-color-item:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(26, 26, 46, 0.7);
+}
+
+.color-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.color-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.color-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.color-label-small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.color-value-small {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.remove-btn {
+  padding: 4px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.remove-btn:hover {
+  color: #f56c6c;
+}
+
+/* 选中颜色列表滚动条样式 */
+.selected-colors::-webkit-scrollbar {
+  width: 6px;
+}
+
+.selected-colors::-webkit-scrollbar-track {
+  background: rgba(26, 26, 46, 0.3);
+  border-radius: 3px;
+}
+
+.selected-colors::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.5);
+  border-radius: 3px;
+}
+
+.selected-colors::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.8);
 }
 
 .empty-preview {
