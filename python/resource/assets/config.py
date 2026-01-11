@@ -22,10 +22,12 @@ import os
         #     "模型路径": os.path.join(os.path.dirname(__file__), "best.pt"),
         # },
         '对话框第一个选项按钮': {
-            "方式": "opencv找透明图",
+            "方式": "opencv颜色偏色找图",
             '偏移点击区域': [28 ,118, 411 , 64],
+            # "查找区域": {"x": 1783, "y": 245, "w": 304, "h": 65},
             "相似度": 0.7,
-            "图片路径": os.path.join(os.path.dirname(__file__), "请选择要做的事.png"),
+            "颜色偏色": "C9C0B2-25211F",
+            "图片路径": os.path.join(os.path.dirname(__file__), "hhh.bmp"),
         },
         "使用": {
             "方式": "opencv找图",
