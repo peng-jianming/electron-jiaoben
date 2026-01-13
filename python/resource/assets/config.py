@@ -27,7 +27,7 @@ import os
             # "查找区域": {"x": 1783, "y": 245, "w": 304, "h": 65},
             "相似度": 0.7,
             "颜色偏色": "C9C0B2-25211F",
-            "图片路径": os.path.join(os.path.dirname(__file__), "hhh.bmp"),
+            "图片路径": os.path.join(os.path.dirname(__file__), "aaaa.png"),
         },
         "使用": {
             "方式": "opencv找图",
