@@ -2,13 +2,14 @@
 # IMAGE_DIR 需要处理的源图片文件夹
 # resultPath 处理后的图片, 如果文件不存在,则创建文件,如果存在,就作为上次的结果继续处理
 # CROP_CONFIG 源图片裁剪配置,
-# tolerance 处理时的容差值, 容差多少自己调试与找图无关,调试到把可能会变动的位置全部变为透明即可,,防止在找图的时候干扰到
+# color_tolerance 颜色容差参数, 格式: 'C9C0B2-203040', 其中C9C0B2为基准色(16进制RGB), 203040表示RGB的色偏分别是20 30 40(16进制)
+# 只有在这个颜色范围内的像素保留,其他的都设置为透明
 
 import os
 import time
 import glob
 from PIL import Image
-from index import 截图
+# from index import 截图
 
 # 配置路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +35,55 @@ is_processing = False
 file_mtimes = {}
 
 
+def parse_color_tolerance(color_tolerance_str):
+    """
+    解析颜色容差参数
+    格式: 'C9C0B2-203040'
+    返回: (base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b)
+    """
+    if not color_tolerance_str or '-' not in color_tolerance_str:
+        return None
+    
+    try:
+        parts = color_tolerance_str.split('-')
+        if len(parts) != 2:
+            return None
+        
+        base_color = parts[0].strip().upper()
+        tolerance_color = parts[1].strip().upper()
+        
+        # 解析基准色 (6位16进制)
+        if len(base_color) != 6:
+            return None
+        base_r = int(base_color[0:2], 16)
+        base_g = int(base_color[2:4], 16)
+        base_b = int(base_color[4:6], 16)
+        
+        # 解析容差 (6位16进制)
+        if len(tolerance_color) != 6:
+            return None
+        tolerance_r = int(tolerance_color[0:2], 16)
+        tolerance_g = int(tolerance_color[2:4], 16)
+        tolerance_b = int(tolerance_color[4:6], 16)
+        
+        return (base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b)
+    except (ValueError, IndexError) as e:
+        print(f'解析颜色容差参数失败: {color_tolerance_str}, 错误: {e}')
+        return None
+
+
+def is_color_in_range(r, g, b, base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b):
+    """
+    检查颜色是否在容差范围内
+    返回: True表示在范围内(保留), False表示不在范围内(设置为透明)
+    """
+    r_diff = abs(r - base_r)
+    g_diff = abs(g - base_g)
+    b_diff = abs(b - base_b)
+    
+    return r_diff <= tolerance_r and g_diff <= tolerance_g and b_diff <= tolerance_b
+
+
 def get_image_files():
     """获取文件夹内所有图片文件"""
     image_files = []
@@ -48,9 +98,20 @@ def get_image_files():
     return image_files
 
 
-def process_single_image(image_path, tolerance=0):
-    """处理单张图片"""
+def process_single_image(image_path, color_tolerance=None):
+    """
+    处理单张图片
+    color_tolerance: 颜色容差参数, 格式: 'C9C0B2-203040' 或 None(使用旧的对比逻辑)
+    """
     global base_image, file_mtimes
+    
+    # 解析颜色容差参数
+    color_tolerance_params = None
+    if color_tolerance:
+        color_tolerance_params = parse_color_tolerance(color_tolerance)
+        if color_tolerance_params is None:
+            print(f'颜色容差参数格式错误: {color_tolerance}, 将使用对比模式')
+            color_tolerance_params = None
 
     try:
         # 检查文件修改时间，避免重复处理同一张图片
@@ -111,30 +172,53 @@ def process_single_image(image_path, tolerance=0):
 
         diff_count = 0
 
-        # 遍历所有像素进行对比
-        for x in range(width):
-            for y in range(height):
-                # 获取基准图片像素 (r, g, b, a)
-                r1, g1, b1, a1 = base_pixels[x, y]
+        # 如果使用颜色容差模式
+        if color_tolerance_params:
+            base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b = color_tolerance_params
+            
+            # 遍历所有像素进行颜色容差检查
+            for x in range(width):
+                for y in range(height):
+                    # 获取基准图片像素 (r, g, b, a)
+                    r1, g1, b1, a1 = base_pixels[x, y]
 
-                # 如果基准图片这个点已经是透明的，就不用比了
-                if a1 == 0:
-                    continue
+                    # 如果基准图片这个点已经是透明的，就不用处理了
+                    if a1 == 0:
+                        continue
 
-                # 获取当前图片像素
-                r2, g2, b2, a2 = current_pixels[x, y]
+                    # 获取当前图片像素
+                    r2, g2, b2, a2 = current_pixels[x, y]
 
-                # 对比两个像素是否相同
-                r_diff = abs(r1 - r2)
-                g_diff = abs(g1 - g2)
-                b_diff = abs(b1 - b2)
-                a_diff = abs(a1 - a2)
+                    # 检查当前图片的像素是否在颜色容差范围内
+                    if not is_color_in_range(r2, g2, b2, base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b):
+                        # 不在范围内，设置为透明
+                        base_pixels[x, y] = (0, 0, 0, 0)
+                        diff_count += 1
+        else:
+            # 使用旧的对比模式（兼容旧代码）
+            # 遍历所有像素进行对比
+            for x in range(width):
+                for y in range(height):
+                    # 获取基准图片像素 (r, g, b, a)
+                    r1, g1, b1, a1 = base_pixels[x, y]
 
-                if r_diff > tolerance or g_diff > tolerance or b_diff > tolerance or a_diff > tolerance:
-                    # 不一样，设置为透明
-                    # Pillow中设置透明可以直接设 alpha=0, 也可以全0
-                    base_pixels[x, y] = (0, 0, 0, 0)
-                    diff_count += 1
+                    # 如果基准图片这个点已经是透明的，就不用比了
+                    if a1 == 0:
+                        continue
+
+                    # 获取当前图片像素
+                    r2, g2, b2, a2 = current_pixels[x, y]
+
+                    # 对比两个像素是否相同（使用简单的差值判断）
+                    r_diff = abs(r1 - r2)
+                    g_diff = abs(g1 - g2)
+                    b_diff = abs(b1 - b2)
+                    a_diff = abs(a1 - a2)
+
+                    if r_diff > 0 or g_diff > 0 or b_diff > 0 or a_diff > 0:
+                        # 不一样，设置为透明
+                        base_pixels[x, y] = (0, 0, 0, 0)
+                        diff_count += 1
 
         if diff_count > 0:
             print(f'[{os.path.basename(image_path)}] 发现 {diff_count} 个不同像素')
@@ -147,8 +231,11 @@ def process_single_image(image_path, tolerance=0):
         return False
 
 
-def process_all_images(tolerance=0):
-    """处理文件夹内所有图片"""
+def process_all_images(color_tolerance=None):
+    """
+    处理文件夹内所有图片
+    color_tolerance: 颜色容差参数, 格式: 'C9C0B2-203040' 或 None(使用旧的对比逻辑)
+    """
     global base_image, is_processing
 
     if is_processing:
@@ -170,7 +257,7 @@ def process_all_images(tolerance=0):
 
         updated = False
         for image_path in image_files:
-            if process_single_image(image_path, tolerance):
+            if process_single_image(image_path, color_tolerance):
                 updated = True
 
         # 如果有更新，保存结果
@@ -187,13 +274,22 @@ def process_all_images(tolerance=0):
 if __name__ == "__main__":
     # 每秒执行一次
     print(f'开始监控文件夹 {IMAGE_DIR} 的图片变化...')
-    tolerance_val = 20  # 设置容差值
+    # 设置颜色容差参数, 格式: '基准色-色偏', 例如: 'C9C0B2-203040'
+    # C9C0B2为基准色(16进制RGB), 203040表示RGB的色偏分别是20 30 40(16进制)
+    # 只有在这个颜色范围内的像素保留,其他的都设置为透明
+    color_tolerance_val = 'C9C0B2-25211F'  # 修改为你需要的颜色容差参数
 
     try:
         while True:
-            截图()
-            process_all_images(tolerance_val)
+            # 截图()
+            process_all_images(color_tolerance_val)
             time.sleep(1)
     except KeyboardInterrupt:
         print('程序已停止')
 
+
+
+
+
+#  让物体保持不变,其他保持变化, 可以清除变动的部分(清除物体不稳定因素和无关因素)
+#  让物体消失,其他保持不变,  使用去除不变,  可以将除了目标外的部分清除(清除物体无关因素)

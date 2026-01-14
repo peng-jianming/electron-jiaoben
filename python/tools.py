@@ -157,8 +157,7 @@ class DeviceController:
         
         return None
     
-
-    def opencv颜色偏色找图(self, large_image_path, small_image_path, color_tolerance, similarity=0.8, region=(0, 0, 0, 0)):
+    def opencv颜色偏色找图(self,large_image_path, small_image_path, color_tolerance, similarity=0.8, region=(0, 0, 0, 0)):
         """
         使用颜色偏色二值化后进行模板匹配找图
 
@@ -237,26 +236,34 @@ class DeviceController:
         small_mask = np.all(small_diff <= tolerance, axis=2)
         small_binary = np.where(small_mask, 255, 0).astype(np.uint8)
 
-        cv2.imshow('search_binary Image', search_binary)
-        cv2.imshow('small_binary Image', small_binary)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        # 使用模板匹配
-        result = cv2.matchTemplate(search_binary, small_binary, cv2.TM_CCOEFF_NORMED)
+        # 方案2：自定义“白点匹配率”相似度
+        # 只考虑小图中的白色像素，计算它们在大图中对应位置也是白色的比例
+        template_mask = (small_binary == 255).astype(np.uint8)
 
-        # 找到最匹配的位置
+        # 将大图二值结果也转换为 0/1 掩码
+        search_mask = (search_binary == 255).astype(np.uint8)
+        
+        # 使用 TM_CCORR 对两个 0/1 掩码做匹配
+        # 对于 0/1 掩码，TM_CCORR 的结果等于滑动窗口内 search_mask * template_mask 的和，
+        result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
+
+        # 找到重合白点最多的位置
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-        print(max_val, max_loc)
-        # 检查是否达到相似度阈值
-        if max_val >= similarity:
+        # 自定义相似度：重合白点数 / 模板白点总数，范围[0,1]
+        overlap_white = max_val
+        white_points = int(np.sum(template_mask))
+        custom_similarity = overlap_white / white_points
+
+        # print(f"自定义白点匹配率 - 重合白点: {overlap_white}, 相似度: {custom_similarity:.4f}, 位置: {max_loc}")
+
+        if custom_similarity >= similarity:
             return {
                 "x": max_loc[0] + offset_x,
                 "y": max_loc[1] + offset_y,
                 "w": small_w,
                 "h": small_h,
-                "similarity": max_val
+                "similarity": float(custom_similarity)
             }
-
         return None
 
     def opencv找透明图(self, large_img_path, small_img_path, tolerance=0, similarity=0.9, region=(0, 0, 0, 0)):
