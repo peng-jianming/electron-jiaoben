@@ -13,18 +13,18 @@
 
         <div class="device-section">
           <div class="device-current">
-            当前设备：<span>{{ currentDeviceId || '未连接' }}</span>
+            当前设备：<span>{{ currentDeviceId || "未连接" }}</span>
           </div>
-          <el-button 
-            type="success" 
+          <el-button
+            type="success"
             :icon="Tools"
             class="action-btn device-btn"
             @click="$emit('open-device-dialog')"
           >
             设备连接
           </el-button>
-          <el-button 
-            type="primary" 
+          <el-button
+            type="primary"
             class="action-btn device-btn"
             :loading="screenshotLoading"
             :disabled="!currentDeviceId"
@@ -39,8 +39,15 @@
           :type="selectionEnabled ? 'warning' : 'default'"
           @click="$emit('toggle-selection')"
         >
-          {{ selectionEnabled ? '取消圈选' : '启用圈选' }}
+          {{ selectionEnabled ? "取消圈选" : "启用圈选" }}
         </el-button>
+
+        <el-tag effect="plain">
+          {{ selectionInfo ? selectionInfo.x : 0 }},
+          {{ selectionInfo ? selectionInfo.y : 0 }},
+          {{ selectionInfo ? selectionInfo.w : 0 }},
+          {{ selectionInfo ? selectionInfo.h : 0 }}
+        </el-tag>
 
         <el-button
           class="action-btn"
@@ -51,11 +58,7 @@
           自适应缩放
         </el-button>
 
-        <el-button
-          class="action-btn"
-          type="info"
-          @click="$emit('reset-zoom')"
-        >
+        <el-button class="action-btn" type="info" @click="$emit('reset-zoom')">
           重置缩放
         </el-button>
       </div>
@@ -64,24 +67,35 @@
 </template>
 
 <script setup>
-import { Upload, Tools, ZoomIn } from '@element-plus/icons-vue';
+import { Upload, Tools, ZoomIn } from "@element-plus/icons-vue";
 
 defineProps({
   currentDeviceId: {
     type: String,
-    default: ''
+    default: "",
   },
   screenshotLoading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   selectionEnabled: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
+  selectionInfo: {
+    type: Object,
+    default: null,
+  },
 });
 
-defineEmits(['load-image', 'open-device-dialog', 'capture-screenshot', 'toggle-selection', 'fit-to-window', 'reset-zoom']);
+defineEmits([
+  "load-image",
+  "open-device-dialog",
+  "capture-screenshot",
+  "toggle-selection",
+  "fit-to-window",
+  "reset-zoom",
+]);
 </script>
 
 <style scoped>
@@ -96,5 +110,3 @@ defineEmits(['load-image', 'open-device-dialog', 'capture-screenshot', 'toggle-s
   font-size: 14px;
 }
 </style>
-
-

@@ -7,6 +7,7 @@
         :current-device-id="currentDeviceId"
         :screenshot-loading="screenshotLoading"
         :selection-enabled="selectionEnabled"
+        :selectionInfo="selectionInfo"
         @load-image="handleLoadImage"
         @open-device-dialog="openDeviceDialog"
         @capture-screenshot="captureScreenshot"
@@ -78,10 +79,10 @@
                 <p>请载入图片</p>
               </div>
             </div>
-            <ImageProcessorInfoPanel
+            <!-- <ImageProcessorInfoPanel
               :current-image="currentImage"
               :selection-info="selectionInfo"
-            />
+            /> -->
           </div>
         </div>
       </div>
@@ -1467,79 +1468,13 @@ onUnmounted(() => {
 
 <style scoped>
 .image-processor-tab {
-  width: 100%;
 }
 
 .processor-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr 300px;
-  gap: 24px;
-  min-height: calc(100vh - 200px);
-}
-
-/* 卡片通用样式 */
-.card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  overflow: hidden;
-  transition: all 0.3s ease;
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
 }
 
-.card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  flex: 1;
-}
-
-.card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-  color: white;
-}
-
-.card-body {
-  padding: 20px;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-width: 0;
-}
-
-/* 左侧面板 */
-.left-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-.action-btn {
-  width: 100%;
-  padding: 12px;
-  font-size: 14px;
-}
 
 /* 中间面板 */
 .center-panel {
@@ -1548,138 +1483,7 @@ onUnmounted(() => {
 }
 
 .image-container-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
   max-width: 800px;
-  overflow-x: hidden;
-}
-
-.image-tabs {
-  margin-bottom: 16px;
-  max-width: 800px;
-  overflow: hidden;
-}
-
-.image-tabs-container {
-  width: 100%;
-}
-
-.image-tabs-container :deep(.el-tabs__header) {
-  margin: 0;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0;
-}
-
-/* 隐藏左右滚动按钮 */
-.image-tabs-container :deep(.el-tabs__nav-prev),
-.image-tabs-container :deep(.el-tabs__nav-next) {
-  display: none !important;
-}
-
-.image-tabs-container :deep(.el-tabs__nav-wrap) {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
-  /* 固定高度，为滚动条预留空间 */
-  min-height: 42px;
-  height: 42px;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
-.image-tabs-container :deep(.el-tabs__nav-wrap::-webkit-scrollbar) {
-  height: 6px;
-}
-
-.image-tabs-container :deep(.el-tabs__nav-wrap::-webkit-scrollbar-track) {
-  background: transparent;
-}
-
-.image-tabs-container :deep(.el-tabs__nav-wrap::-webkit-scrollbar-thumb) {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 3px;
-}
-
-.image-tabs-container :deep(.el-tabs__nav-wrap::-webkit-scrollbar-thumb:hover) {
-  background: rgba(99, 102, 241, 0.5);
-}
-
-.image-tabs-container :deep(.el-tabs__nav-scroll) {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0;
-  height: 100%;
-}
-
-/* 确保 nav-wrap 有固定高度，避免滚动条影响布局 */
-.image-tabs-container :deep(.el-tabs__nav-wrap.is-scrollable) {
-  padding-bottom: 0;
-  margin-bottom: 0;
-  min-height: 42px;
-  height: 42px;
-}
-
-.image-tabs-container :deep(.el-tabs__nav) {
-  white-space: nowrap;
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  margin-bottom: 0;
-  padding-bottom: 0;
-  height: 36px;
-  box-sizing: border-box;
-}
-
-.image-tabs-container :deep(.el-tabs__item) {
-  padding: 0 16px;
-  height: 36px;
-  line-height: 36px;
-  font-size: 13px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  width: auto;
-  min-width: auto;
-  max-width: none;
-  overflow: visible;
-  text-overflow: clip;
-  margin-right: 0 !important;
-  margin-left: 0 !important;
-  border-radius: 4px 4px 0 0;
-  transition: all 0.2s ease;
-  position: relative;
-  display: inline-block;
-  border: 1px solid var(--border-color);
-  background: rgba(51, 65, 85, 0.3);
-}
-
-.image-tabs-container :deep(.el-tabs__item:hover) {
-  background: rgba(51, 65, 85, 0.5);
-}
-
-.image-tabs-container :deep(.el-tabs__active-bar) {
-  display: none;
-}
-
-.image-tabs-container :deep(.el-tabs__item.is-active) {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-  background: rgba(99, 102, 241, 0.1);
-  border-bottom-color: transparent;
-}
-
-.image-tabs-container :deep(.el-tabs__item .el-icon-close) {
-  margin-left: 8px;
-  font-size: 12px;
-  width: 14px;
-  height: 14px;
-  transition: color 0.2s ease;
-}
-
-.image-tabs-container :deep(.el-tabs__item .el-icon-close:hover) {
-  color: var(--primary-color);
 }
 
 .image-container {

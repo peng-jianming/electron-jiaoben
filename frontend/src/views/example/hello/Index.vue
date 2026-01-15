@@ -1,23 +1,6 @@
 <template>
   <div class="image-processor">
-    <!-- 顶部标题栏 -->
-    <header class="app-header">
-      <div class="header-content">
-        <div class="logo-section">
-          <div class="logo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path
-                d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-              />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
-          </div>
-          <h1>OpenCV 图像处理工具</h1>
-        </div>
-      </div>
-    </header>
-
-    <main class="main-content">
+    <main>
       <!-- Tab 切换 -->
       <el-tabs v-model="activeTab" class="main-tabs" type="card">
         <!-- 图片处理 Tab -->
@@ -133,13 +116,6 @@ const coloringTabRef = ref(null);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-/* 主内容区 */
-.main-content {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 24px;
 }
 
 /* Tab 样式 */
