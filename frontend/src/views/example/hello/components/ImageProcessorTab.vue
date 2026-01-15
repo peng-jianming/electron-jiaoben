@@ -6,9 +6,13 @@
       <ImageProcessorLeftPanel
         :current-device-id="currentDeviceId"
         :screenshot-loading="screenshotLoading"
+        :selection-enabled="selectionEnabled"
         @load-image="handleLoadImage"
         @open-device-dialog="openDeviceDialog"
         @capture-screenshot="captureScreenshot"
+        @toggle-selection="toggleSelectionMode"
+        @fit-to-window="fitToWindow"
+        @reset-zoom="resetZoom"
       />
       <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
       <input
@@ -43,7 +47,7 @@
             <div 
               class="image-container"
               ref="imageContainerRef"
-              :style="{ cursor: containerCursor }"
+              :style="{ cursor: isDragging ? 'grabbing' : containerCursor }"
               @mousemove="handleContainerMouseMove"
               @mouseenter="handleMouseEnter"
               @mouseleave="handleMouseLeave"
@@ -51,14 +55,16 @@
               @mouseup="handleMouseUp"
               @contextmenu.prevent="handleRightClick"
               @click="handleImageClick"
+              @wheel="handleWheel"
             >
-              <div v-if="currentImage" class="image-wrapper">
+              <div v-if="currentImage" class="image-wrapper" :style="imageWrapperStyle">
                 <img 
                   :src="currentImage.url" 
                   alt="预览图片"
                   ref="imageRef"
                   @load="handleImageLoad"
                   draggable="false"
+                  :style="imageStyle"
                 />
                 <!-- 圈选矩形高亮 -->
                 <div 
@@ -140,6 +146,9 @@ const rightPanelRef = ref(null);
 const images = ref([]);
 const currentImageIndex = ref('0');
 
+// 是否启用圈选功能
+const selectionEnabled = ref(false);
+
 // 当前图片的计算属性
 const currentImage = computed(() => {
   const index = typeof currentImageIndex.value === 'string' ? parseInt(currentImageIndex.value) : currentImageIndex.value;
@@ -175,13 +184,28 @@ const selectionCurrent = ref(null); // { imageX, imageY, naturalX, naturalY }
 const selectionDisplay = ref(null); // 用于在页面上显示的矩形（基于图片显示尺寸坐标）
 const selectionRect = ref(null);    // 基于原始图片坐标的矩形 { x, y, w, h }
 const resizeHandle = ref(null);     // 当前拖动的边/角方向，例如 left/right/top/bottom/top-left 等
-const containerCursor = ref('crosshair'); // 容器鼠标样式
+const containerCursor = ref('default'); // 容器鼠标样式
 
 // 对外显示的圈选信息
 const selectionInfo = computed(() => selectionRect.value);
 
 // 图片尺寸
 const imageNaturalSize = ref({ width: 0, height: 0 });
+
+// 图片缩放和位置状态
+const imageScale = ref(1); // 缩放比例
+const imageTranslateX = ref(0); // X轴偏移
+const imageTranslateY = ref(0); // Y轴偏移
+const initialScale = ref(1); // 初始缩放比例（用于重置）
+const initialTranslateX = ref(0); // 初始X偏移
+const initialTranslateY = ref(0); // 初始Y偏移
+
+// 拖动相关
+const isDragging = ref(false);
+const dragStartX = ref(0);
+const dragStartY = ref(0);
+const dragStartTranslateX = ref(0);
+const dragStartTranslateY = ref(0);
 
 // 设备连接相关
 const deviceDialogVisible = ref(false);
@@ -286,8 +310,57 @@ function handleImageLoad() {
       width: imageRef.value.naturalWidth, 
       height: imageRef.value.naturalHeight 
     };
+    // 图片加载后，计算初始缩放和位置（居中显示）
+    nextTick(() => {
+      calculateInitialTransform();
+    });
   }
 }
+
+// 计算初始变换（居中显示）
+function calculateInitialTransform() {
+  if (!imageRef.value || !imageContainerRef.value) return;
+  
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const imgWidth = imageRef.value.naturalWidth;
+  const imgHeight = imageRef.value.naturalHeight;
+  
+  // 计算适合容器的缩放比例（保持宽高比，最大边占满）
+  const scaleX = containerRect.width / imgWidth;
+  const scaleY = containerRect.height / imgHeight;
+  const scale = Math.min(scaleX, scaleY, 1); // 不超过原始大小
+  
+  imageScale.value = scale;
+  initialScale.value = scale;
+  
+  // 居中显示
+  const scaledWidth = imgWidth * scale;
+  const scaledHeight = imgHeight * scale;
+  imageTranslateX.value = (containerRect.width - scaledWidth) / 2;
+  imageTranslateY.value = (containerRect.height - scaledHeight) / 2;
+  initialTranslateX.value = imageTranslateX.value;
+  initialTranslateY.value = imageTranslateY.value;
+}
+
+// 图片包装器样式（用于定位）
+const imageWrapperStyle = computed(() => {
+  return {
+    transform: `translate(${imageTranslateX.value}px, ${imageTranslateY.value}px)`,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    cursor: isDragging.value ? 'grabbing' : (selectionEnabled.value ? containerCursor.value : 'default')
+  };
+});
+
+// 图片样式（用于缩放）
+const imageStyle = computed(() => {
+  return {
+    transform: `scale(${imageScale.value})`,
+    transformOrigin: 'top left',
+    display: 'block'
+  };
+});
 
 // ==================== 设备连接逻辑 ====================
 
@@ -430,6 +503,17 @@ function handleContainerMouseMove(event) {
     return;
   }
   
+  // 如果正在拖动图片
+  if (isDragging.value) {
+    const deltaX = event.clientX - dragStartX.value;
+    const deltaY = event.clientY - dragStartY.value;
+    imageTranslateX.value = dragStartTranslateX.value + deltaX;
+    imageTranslateY.value = dragStartTranslateY.value + deltaY;
+    // 拖动时设置鼠标样式为小手
+    containerCursor.value = 'grabbing';
+    return;
+  }
+  
   // 确保图片已加载完成
   if (!imageRef.value.complete || imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) {
     magnifierVisible.value = false;
@@ -451,37 +535,40 @@ function handleContainerMouseMove(event) {
 
   mousePosition.value = { x: containerX, y: containerY };
 
-  // 计算图片元素的位置
-  const imageRect = imageRef.value.getBoundingClientRect();
+  // 计算图片在容器中的实际显示位置（考虑缩放和偏移）
+  const imgNaturalWidth = imageRef.value.naturalWidth;
+  const imgNaturalHeight = imageRef.value.naturalHeight;
+  const imgDisplayWidth = imgNaturalWidth * imageScale.value;
+  const imgDisplayHeight = imgNaturalHeight * imageScale.value;
   
-  // 计算鼠标相对于图片元素的坐标
-  const imageX = event.clientX - imageRect.left;
-  const imageY = event.clientY - imageRect.top;
+  // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+  const imageX = containerX - imageTranslateX.value;
+  const imageY = containerY - imageTranslateY.value;
   
   // 转换为图片原始尺寸的坐标
-  const scaleX = imageRef.value.naturalWidth / imageRect.width;
-  const scaleY = imageRef.value.naturalHeight / imageRect.height;
-  
-  // 计算自然坐标，如果超出图片范围，则限制到边缘
-  let naturalX = imageX * scaleX;
-  let naturalY = imageY * scaleY;
+  const naturalX = imageX / imageScale.value;
+  const naturalY = imageY / imageScale.value;
   
   // 限制到图片范围内（边缘像素）
-  naturalX = Math.max(0, Math.min(naturalX, imageRef.value.naturalWidth - 1));
-  naturalY = Math.max(0, Math.min(naturalY, imageRef.value.naturalHeight - 1));
+  const clampedNaturalX = Math.max(0, Math.min(naturalX, imgNaturalWidth - 1));
+  const clampedNaturalY = Math.max(0, Math.min(naturalY, imgNaturalHeight - 1));
 
   // 检查是否在图片显示区域内（用于圈选和鼠标样式）
-  const isOnImage = imageX >= 0 && imageX < imageRect.width && 
-                    imageY >= 0 && imageY < imageRect.height;
+  const isOnImage = imageX >= 0 && imageX < imgDisplayWidth && 
+                    imageY >= 0 && imageY < imgDisplayHeight;
 
   // 如果鼠标在图片上，处理圈选相关逻辑
   if (isOnImage) {
-    // 更新鼠标样式
-    updateCursorStyle(imageX, imageY);
+    // 更新鼠标样式（仅在启用圈选时显示十字或缩放光标）
+    if (selectionEnabled.value) {
+      updateCursorStyle(imageX, imageY);
+    } else {
+      containerCursor.value = 'default';
+    }
     
     // 正在拖动边框调整大小
     if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
-      updateSelectionRectsByResize(imageX, imageY, imageRect);
+      updateSelectionRectsByResize(imageX, imageY);
     }
 
     // 更新圈选时的矩形
@@ -489,27 +576,27 @@ function handleContainerMouseMove(event) {
       selectionCurrent.value = {
         imageX,
         imageY,
-        naturalX,
-        naturalY,
+        naturalX: clampedNaturalX,
+        naturalY: clampedNaturalY,
       };
       updateSelectionRects();
     }
   } else {
-    // 鼠标不在图片上，重置鼠标样式
-    containerCursor.value = 'crosshair';
+    // 鼠标不在图片上，重置为默认样式
+    containerCursor.value = 'default';
   }
 
   // 更新当前坐标和放大镜（无论鼠标是否在图片上，都显示放大镜）
   currentPosition.value = {
-    x: Math.floor(naturalX),
-    y: Math.floor(naturalY)
+    x: Math.floor(clampedNaturalX),
+    y: Math.floor(clampedNaturalY)
   };
   magnifierVisible.value = true;
   // 使用 nextTick 确保 canvas 已渲染
   nextTick(() => {
-    updateMagnifier(naturalX, naturalY);
+    updateMagnifier(clampedNaturalX, clampedNaturalY);
   });
-  updateCurrentColor(naturalX, naturalY);
+  updateCurrentColor(clampedNaturalX, clampedNaturalY);
 }
 
 // 鼠标进入容器
@@ -523,24 +610,53 @@ function handleMouseLeave() {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
-  containerCursor.value = 'crosshair';
+  containerCursor.value = selectionEnabled.value ? 'crosshair' : 'default';
 
   // 不清除 selectionDisplay / selectionRect，保证圈选框在滚动时仍然存在
   // 也不强制修改 isSelecting / isResizing，避免与正在进行的其它操作冲突
 }
 
-// 鼠标按下开始圈选
+// 鼠标按下开始圈选或拖动
 function handleMouseDown(event) {
   if (!currentImage.value || !imageRef.value) return;
 
   // 仅响应左键
   if (event.button !== 0) return;
 
-  const imageRect = imageRef.value.getBoundingClientRect();
-  const imageX = event.clientX - imageRect.left;
-  const imageY = event.clientY - imageRect.top;
+  // 如果未启用圈选功能，则允许拖动图片
+  if (!selectionEnabled.value) {
+    // 检查是否按住了Ctrl键，如果是则允许拖动
+    if (event.ctrlKey || event.metaKey) {
+      isDragging.value = true;
+      dragStartX.value = event.clientX;
+      dragStartY.value = event.clientY;
+      dragStartTranslateX.value = imageTranslateX.value;
+      dragStartTranslateY.value = imageTranslateY.value;
+      event.preventDefault();
+      return;
+    }
+    // 如果没有按住Ctrl，也允许拖动（方便操作）
+    isDragging.value = true;
+    dragStartX.value = event.clientX;
+    dragStartY.value = event.clientY;
+    dragStartTranslateX.value = imageTranslateX.value;
+    dragStartTranslateY.value = imageTranslateY.value;
+    return;
+  }
 
-  if (imageX < 0 || imageY < 0 || imageX >= imageRect.width || imageY >= imageRect.height) {
+  // 启用圈选功能时，优先处理圈选
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const containerX = event.clientX - containerRect.left;
+  const containerY = event.clientY - containerRect.top;
+  
+  // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+  const imageX = containerX - imageTranslateX.value;
+  const imageY = containerY - imageTranslateY.value;
+  
+  const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+  const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
+
+  if (imageX < 0 || imageY < 0 || imageX >= imgDisplayWidth || imageY >= imgDisplayHeight) {
     return;
   }
 
@@ -560,10 +676,9 @@ function handleMouseDown(event) {
     return;
   }
 
-  const scaleX = imageRef.value.naturalWidth / imageRect.width;
-  const scaleY = imageRef.value.naturalHeight / imageRect.height;
-  const naturalX = imageX * scaleX;
-  const naturalY = imageY * scaleY;
+  // 转换为图片原始尺寸的坐标
+  const naturalX = imageX / imageScale.value;
+  const naturalY = imageY / imageScale.value;
 
   isSelecting.value = true;
   isResizing.value = false;
@@ -577,21 +692,36 @@ function handleMouseDown(event) {
   selectionCurrent.value = { ...selectionStart.value };
 }
 
-// 鼠标抬起结束圈选
+// 鼠标抬起结束圈选或拖动
 function handleMouseUp(event) {
-  if (!imageRef.value) return;
+  if (!imageRef.value || !imageContainerRef.value) return;
 
-  const imageRect = imageRef.value.getBoundingClientRect();
-  const imageX = event.clientX - imageRect.left;
-  const imageY = event.clientY - imageRect.top;
+  // 结束拖动
+  if (isDragging.value) {
+    isDragging.value = false;
+    // 如果只是拖动图片，不继续处理圈选逻辑
+    if (!selectionEnabled.value) {
+      return;
+    }
+  }
 
-  const clampedX = Math.min(Math.max(imageX, 0), imageRect.width);
-  const clampedY = Math.min(Math.max(imageY, 0), imageRect.height);
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const containerX = event.clientX - containerRect.left;
+  const containerY = event.clientY - containerRect.top;
+  
+  // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+  const imageX = containerX - imageTranslateX.value;
+  const imageY = containerY - imageTranslateY.value;
+  
+  const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+  const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-  const scaleX = imageRef.value.naturalWidth / imageRect.width;
-  const scaleY = imageRef.value.naturalHeight / imageRect.height;
-  const naturalX = clampedX * scaleX;
-  const naturalY = clampedY * scaleY;
+  const clampedX = Math.min(Math.max(imageX, 0), imgDisplayWidth);
+  const clampedY = Math.min(Math.max(imageY, 0), imgDisplayHeight);
+
+  // 转换为图片原始尺寸的坐标
+  const naturalX = clampedX / imageScale.value;
+  const naturalY = clampedY / imageScale.value;
 
   if (isSelecting.value && selectionStart.value) {
     // 检查是否是真正的拖动（而不是点击）
@@ -617,7 +747,7 @@ function handleMouseUp(event) {
   }
 
   if (isResizing.value && selectionDisplay.value && selectionRect.value) {
-    updateSelectionRectsByResize(clampedX, clampedY, imageRect);
+    updateSelectionRectsByResize(clampedX, clampedY);
   }
 
   isSelecting.value = false;
@@ -628,15 +758,19 @@ function handleMouseUp(event) {
 // 右键点击：清除圈选框
 function handleRightClick() {
   if (selectionDisplay.value || selectionRect.value) {
-    selectionDisplay.value = null;
-    selectionRect.value = null;
-    // 同时重置与圈选相关的状态，避免残留影响
-    isSelecting.value = false;
-    isResizing.value = false;
-    selectionStart.value = null;
-    selectionCurrent.value = null;
-    resizeHandle.value = null;
+    clearSelection();
   }
+}
+
+// 清空圈选相关状态
+function clearSelection() {
+  selectionDisplay.value = null;
+  selectionRect.value = null;
+  isSelecting.value = false;
+  isResizing.value = false;
+  selectionStart.value = null;
+  selectionCurrent.value = null;
+  resizeHandle.value = null;
 }
 
 // 根据开始点和当前点，更新显示和原始坐标矩形
@@ -765,7 +899,7 @@ function updateCursorStyle(imageX, imageY) {
   }
 
   // 如果有选区，检测鼠标是否在边框附近
-  if (selectionDisplay.value) {
+  if (selectionDisplay.value && selectionEnabled.value) {
     const handle = getResizeHandleAtPoint(imageX, imageY, selectionDisplay.value);
     if (handle) {
       const cursorMap = {
@@ -783,16 +917,13 @@ function updateCursorStyle(imageX, imageY) {
     }
   }
 
-  // 默认样式
-  containerCursor.value = 'crosshair';
+  // 默认样式（启用圈选时为十字，否则为默认）
+  containerCursor.value = selectionEnabled.value ? 'crosshair' : 'default';
 }
 
 // 根据拖动边框更新矩形（传入的是当前鼠标在图片显示坐标中的位置）
-function updateSelectionRectsByResize(imageX, imageY, imageRect) {
+function updateSelectionRectsByResize(imageX, imageY) {
   if (!selectionDisplay.value || !selectionRect.value || !imageRef.value || !resizeHandle.value) return;
-
-  const scaleX = imageRef.value.naturalWidth / imageRect.width;
-  const scaleY = imageRef.value.naturalHeight / imageRect.height;
 
   const disp = { ...selectionDisplay.value };
   const minSize = 3; // 最小宽高，避免为 0
@@ -803,10 +934,13 @@ function updateSelectionRectsByResize(imageX, imageY, imageRect) {
   let bottom = disp.y + disp.h;
 
   const handle = resizeHandle.value;
+  
+  const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+  const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
   // 限制拖动点在图片显示范围内
-  const clampX = Math.min(Math.max(imageX, 0), imageRect.width);
-  const clampY = Math.min(Math.max(imageY, 0), imageRect.height);
+  const clampX = Math.min(Math.max(imageX, 0), imgDisplayWidth);
+  const clampY = Math.min(Math.max(imageY, 0), imgDisplayHeight);
 
   if (handle.includes('left')) {
     left = Math.min(clampX, right - minSize);
@@ -845,10 +979,10 @@ function updateSelectionRectsByResize(imageX, imageY, imageRect) {
   };
 
   // 转换为原始图片坐标
-  const natX = Math.floor(Math.max(0, left * scaleX));
-  const natY = Math.floor(Math.max(0, top * scaleY));
-  const natW = Math.floor(newW * scaleX);
-  const natH = Math.floor(newH * scaleY);
+  const natX = Math.floor(Math.max(0, left / imageScale.value));
+  const natY = Math.floor(Math.max(0, top / imageScale.value));
+  const natW = Math.floor(newW / imageScale.value);
+  const natH = Math.floor(newH / imageScale.value);
 
   if (natW <= 0 || natH <= 0) {
     selectionRect.value = null;
@@ -1029,20 +1163,25 @@ function handleImageClick(event) {
     return;
   }
 
-  // 只有在圈选完成后（有selectionDisplay和selectionRect）才处理点击
-  if (!selectionDisplay.value || !selectionRect.value) {
+  // 只有在圈选功能开启且圈选完成后（有selectionDisplay和selectionRect）才处理点击
+  if (!selectionEnabled.value || !selectionDisplay.value || !selectionRect.value) {
     // 没有圈选区域，执行原有的颜色选择功能
-    const imageRect = imageRef.value.getBoundingClientRect();
-    const imageX = event.clientX - imageRect.left;
-    const imageY = event.clientY - imageRect.top;
+    const containerRect = imageContainerRef.value.getBoundingClientRect();
+    const containerX = event.clientX - containerRect.left;
+    const containerY = event.clientY - containerRect.top;
+    
+    // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+    const imageX = containerX - imageTranslateX.value;
+    const imageY = containerY - imageTranslateY.value;
+    
+    const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+    const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-    if (imageX >= 0 && imageX < imageRect.width && imageY >= 0 && imageY < imageRect.height) {
+    if (imageX >= 0 && imageX < imgDisplayWidth && imageY >= 0 && imageY < imgDisplayHeight) {
       if (currentColor.value) {
         // 转换为图片原始尺寸的坐标
-        const scaleX = imageRef.value.naturalWidth / imageRect.width;
-        const scaleY = imageRef.value.naturalHeight / imageRect.height;
-        const naturalX = Math.floor(imageX * scaleX);
-        const naturalY = Math.floor(imageY * scaleY);
+        const naturalX = Math.floor(imageX / imageScale.value);
+        const naturalY = Math.floor(imageY / imageScale.value);
         
         // 确保当前图片有颜色数组
         if (!currentImage.value.selectedColors) {
@@ -1060,11 +1199,18 @@ function handleImageClick(event) {
     return;
   }
 
-  const imageRect = imageRef.value.getBoundingClientRect();
-  const imageX = event.clientX - imageRect.left;
-  const imageY = event.clientY - imageRect.top;
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const containerX = event.clientX - containerRect.left;
+  const containerY = event.clientY - containerRect.top;
+  
+  // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+  const imageX = containerX - imageTranslateX.value;
+  const imageY = containerY - imageTranslateY.value;
+  
+  const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+  const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-  if (imageX >= 0 && imageX < imageRect.width && imageY >= 0 && imageY < imageRect.height) {
+  if (imageX >= 0 && imageX < imgDisplayWidth && imageY >= 0 && imageY < imgDisplayHeight) {
     // 检查是否点击在圈选区域内（排除边框，边框用于调整大小）
     const rect = selectionDisplay.value;
     const borderMargin = 6; // 边框容差，与getResizeHandleAtPoint中的margin保持一致
@@ -1170,14 +1316,98 @@ function removeImage(index) {
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
   // 切换图片时清空圈选信息
-  isSelecting.value = false;
-  isResizing.value = false;
-  selectionStart.value = null;
-  selectionCurrent.value = null;
-  selectionDisplay.value = null;
-  selectionRect.value = null;
-  resizeHandle.value = null;
+  clearSelection();
   containerCursor.value = 'crosshair';
+}
+
+// 切换圈选功能开关
+function toggleSelectionMode() {
+  selectionEnabled.value = !selectionEnabled.value;
+
+  // 关闭圈选功能时，清空已有圈选状态
+  if (!selectionEnabled.value) {
+    clearSelection();
+  }
+}
+
+// 处理滚轮缩放（Ctrl + 滚轮）
+function handleWheel(event) {
+  if (!currentImage.value || !imageRef.value || !imageContainerRef.value) return;
+  
+  // 检查是否按住了Ctrl键
+  if (!event.ctrlKey && !event.metaKey) {
+    return; // 没有按住Ctrl，不处理缩放
+  }
+  
+  event.preventDefault();
+  
+  // 获取容器和图片的位置信息
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const mouseX = event.clientX - containerRect.left;
+  const mouseY = event.clientY - containerRect.top;
+  
+  // 计算鼠标在图片上的相对位置（考虑当前缩放和偏移）
+  const imgRect = imageRef.value.getBoundingClientRect();
+  const imgX = (mouseX - imageTranslateX.value) / imageScale.value;
+  const imgY = (mouseY - imageTranslateY.value) / imageScale.value;
+  
+  // 计算缩放增量
+  const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.1, Math.min(10, imageScale.value * zoomFactor));
+  
+  // 计算新的偏移，使鼠标指向的图片位置保持不变
+  const newTranslateX = mouseX - imgX * newScale;
+  const newTranslateY = mouseY - imgY * newScale;
+  
+  imageScale.value = newScale;
+  imageTranslateX.value = newTranslateX;
+  imageTranslateY.value = newTranslateY;
+}
+
+// 自适应缩放（最大边占满，居中）
+function fitToWindow() {
+  if (!imageRef.value || !imageContainerRef.value || !currentImage.value) {
+    ElMessage.warning('请先载入图片');
+    return;
+  }
+  
+  const containerRect = imageContainerRef.value.getBoundingClientRect();
+  const imgWidth = imageRef.value.naturalWidth;
+  const imgHeight = imageRef.value.naturalHeight;
+  
+  if (imgWidth === 0 || imgHeight === 0) {
+    ElMessage.warning('图片尺寸无效');
+    return;
+  }
+  
+  // 计算适合容器的缩放比例（保持宽高比，最大边占满）
+  const scaleX = containerRect.width / imgWidth;
+  const scaleY = containerRect.height / imgHeight;
+  const scale = Math.min(scaleX, scaleY);
+  
+  imageScale.value = scale;
+  
+  // 居中显示
+  const scaledWidth = imgWidth * scale;
+  const scaledHeight = imgHeight * scale;
+  imageTranslateX.value = (containerRect.width - scaledWidth) / 2;
+  imageTranslateY.value = (containerRect.height - scaledHeight) / 2;
+  
+  ElMessage.success('已自适应缩放');
+}
+
+// 重置缩放
+function resetZoom() {
+  if (!currentImage.value) {
+    ElMessage.warning('请先载入图片');
+    return;
+  }
+  
+  imageScale.value = initialScale.value;
+  imageTranslateX.value = initialTranslateX.value;
+  imageTranslateY.value = initialTranslateY.value;
+  
+  ElMessage.success('已重置缩放');
 }
 
 // 监听当前图片切换，重置放大镜和颜色
@@ -1189,6 +1419,9 @@ watch(currentImageIndex, () => {
   isResizing.value = false;
   resizeHandle.value = null;
   containerCursor.value = 'crosshair';
+  isDragging.value = false;
+  // 切换图片时清空圈选信息
+  clearSelection();
   
   if (currentImage.value) {
     nextTick(() => {
@@ -1197,16 +1430,22 @@ watch(currentImageIndex, () => {
           width: imageRef.value.naturalWidth,
           height: imageRef.value.naturalHeight
         };
+        // 切换图片时重新计算初始变换
+        calculateInitialTransform();
       }
     });
   }
 });
 
-// 全局鼠标事件，确保在容器外也能正确结束圈选
+// 全局鼠标事件，确保在容器外也能正确结束圈选和拖动
 function handleGlobalMouseUp(event) {
   if (isSelecting.value || isResizing.value) {
     // 如果正在圈选或调整大小，调用 handleMouseUp
     handleMouseUp(event);
+  }
+  // 结束拖动
+  if (isDragging.value) {
+    isDragging.value = false;
   }
 }
 
@@ -1452,7 +1691,7 @@ onUnmounted(() => {
   max-height: 600px;
   border: 2px solid var(--border-color);
   border-radius: 0;
-  overflow: auto;
+  overflow: hidden;
   background: #1a1a2e;
   background-image: 
     linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
@@ -1470,6 +1709,7 @@ onUnmounted(() => {
 .image-wrapper {
   display: inline-block;
   position: relative;
+  user-select: none;
 }
 
 /* 圈选矩形样式 */

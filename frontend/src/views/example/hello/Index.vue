@@ -6,8 +6,10 @@
         <div class="logo-section">
           <div class="logo-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
+              <path
+                d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+              />
+              <circle cx="12" cy="13" r="4" />
             </svg>
           </div>
           <h1>OpenCV 图像处理工具</h1>
@@ -18,6 +20,11 @@
     <main class="main-content">
       <!-- Tab 切换 -->
       <el-tabs v-model="activeTab" class="main-tabs" type="card">
+        <!-- 图片处理 Tab -->
+        <el-tab-pane label="图片处理" name="image-processor">
+          <ImageProcessorTab />
+        </el-tab-pane>
+
         <!-- 调色 Tab -->
         <el-tab-pane label="调色" name="coloring">
           <ColoringTab ref="coloringTabRef" />
@@ -26,11 +33,6 @@
         <!-- 寻路测试 Tab -->
         <el-tab-pane label="寻路测试" name="pathfinding">
           <PathfindingTab />
-        </el-tab-pane>
-
-        <!-- 图片处理 Tab -->
-        <el-tab-pane label="图片处理" name="image-processor">
-          <ImageProcessorTab />
         </el-tab-pane>
       </el-tabs>
 
@@ -47,12 +49,12 @@
 
 <script setup>
 import { ref } from "vue";
-import ColoringTab from './components/ColoringTab.vue';
-import PathfindingTab from './components/PathfindingTab.vue';
-import ImageProcessorTab from './components/ImageProcessorTab.vue';
+import ImageProcessorTab from "./components/ImageProcessorTab.vue";
+import ColoringTab from "./components/ColoringTab.vue";
+import PathfindingTab from "./components/PathfindingTab.vue";
 
 // Tab 切换
-const activeTab = ref('coloring');
+const activeTab = ref("image-processor");
 
 // 调色 Tab 的引用
 const coloringTabRef = ref(null);
@@ -74,11 +76,11 @@ const coloringTabRef = ref(null);
   --text-secondary: #94a3b8;
   --border-color: #334155;
   --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.3);
-  
+
   min-height: 100vh;
   background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 50%, #16213e 100%);
   color: var(--text-primary);
-  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* 顶部标题栏 */
@@ -132,7 +134,6 @@ const coloringTabRef = ref(null);
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
 
 /* 主内容区 */
 .main-content {
@@ -210,7 +211,9 @@ const coloringTabRef = ref(null);
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 过渡动画 */
@@ -224,5 +227,3 @@ const coloringTabRef = ref(null);
   opacity: 0;
 }
 </style>
-
-

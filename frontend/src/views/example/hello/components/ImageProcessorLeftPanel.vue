@@ -2,8 +2,8 @@
   <div class="left-panel">
     <div class="card">
       <div class="card-body">
-        <el-button 
-          type="primary" 
+        <el-button
+          type="primary"
           :icon="Upload"
           @click="$emit('load-image')"
           class="action-btn"
@@ -33,13 +33,38 @@
             截图
           </el-button>
         </div>
+
+        <el-button
+          class="action-btn"
+          :type="selectionEnabled ? 'warning' : 'default'"
+          @click="$emit('toggle-selection')"
+        >
+          {{ selectionEnabled ? '取消圈选' : '启用圈选' }}
+        </el-button>
+
+        <el-button
+          class="action-btn"
+          type="info"
+          :icon="ZoomIn"
+          @click="$emit('fit-to-window')"
+        >
+          自适应缩放
+        </el-button>
+
+        <el-button
+          class="action-btn"
+          type="info"
+          @click="$emit('reset-zoom')"
+        >
+          重置缩放
+        </el-button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { Upload, Tools } from '@element-plus/icons-vue';
+import { Upload, Tools, ZoomIn } from '@element-plus/icons-vue';
 
 defineProps({
   currentDeviceId: {
@@ -49,10 +74,14 @@ defineProps({
   screenshotLoading: {
     type: Boolean,
     default: false
+  },
+  selectionEnabled: {
+    type: Boolean,
+    default: false
   }
 });
 
-defineEmits(['load-image', 'open-device-dialog', 'capture-screenshot']);
+defineEmits(['load-image', 'open-device-dialog', 'capture-screenshot', 'toggle-selection', 'fit-to-window', 'reset-zoom']);
 </script>
 
 <style scoped>
