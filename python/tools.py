@@ -163,8 +163,9 @@ class DeviceController:
 
         :param large_image_path: 大图路径
         :param small_image_path: 小图路径
-        :param color_tolerance: 颜色偏色字符串，格式如 "D7CCC6-0E0E09"
+        :param color_tolerance: 颜色偏色字符串或字符串数组，格式如 "D7CCC6-0E0E09" 或 ["D7CCC6-0E0E09", "FFFFFF-101010"]
                             其中D7CCC6为基准色(RGB)，0E0E09为RGB各通道的允许偏差
+                            支持多个颜色容差，会合并所有匹配的颜色区域
         :param similarity: 相似度阈值，0-1之间，默认0.8
         :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
         :return: 找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
@@ -212,37 +213,58 @@ class DeviceController:
         if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
             return None
 
-        # 解析颜色偏色字符串
-        base_color_hex, tolerance_hex = color_tolerance.split('-')
-        base_color = np.array([
-            int(base_color_hex[0:2], 16),
-            int(base_color_hex[2:4], 16),
-            int(base_color_hex[4:6], 16)
-        ], dtype=np.int16)
-        tolerance = np.array([
-            int(tolerance_hex[0:2], 16),
-            int(tolerance_hex[2:4], 16),
-            int(tolerance_hex[4:6], 16)
-        ], dtype=np.int16)
+        # 将 color_tolerance 转换为数组（支持单个字符串或数组）
+        if isinstance(color_tolerance, str):
+            color_tolerances = [color_tolerance]
+        elif isinstance(color_tolerance, (list, tuple)):
+            color_tolerances = list(color_tolerance)
+        else:
+            return None
 
-        # 二值化处理
-        search_int16 = search_area.astype(np.int16)
-        search_diff = np.abs(search_int16 - base_color)
-        search_mask = np.all(search_diff <= tolerance, axis=2)
-        search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+        # 初始化二值化结果
+        search_binary_combined = np.zeros((search_area.shape[0], search_area.shape[1]), dtype=np.uint8)
+        small_binary_combined = np.zeros((small_h, small_w), dtype=np.uint8)
 
-        small_int16 = small_array.astype(np.int16)
-        small_diff = np.abs(small_int16 - base_color)
-        small_mask = np.all(small_diff <= tolerance, axis=2)
-        small_binary = np.where(small_mask, 255, 0).astype(np.uint8)
+        # 对每个颜色容差进行二值化处理并合并
+        for color_tol in color_tolerances:
+            # 解析颜色偏色字符串
+            base_color_hex, tolerance_hex = color_tol.split('-')
+            base_color = np.array([
+                int(base_color_hex[0:2], 16),
+                int(base_color_hex[2:4], 16),
+                int(base_color_hex[4:6], 16)
+            ], dtype=np.int16)
+            tolerance = np.array([
+                int(tolerance_hex[0:2], 16),
+                int(tolerance_hex[2:4], 16),
+                int(tolerance_hex[4:6], 16)
+            ], dtype=np.int16)
 
-        # 方案2：自定义“白点匹配率”相似度
+            # 二值化处理
+            search_int16 = search_area.astype(np.int16)
+            search_diff = np.abs(search_int16 - base_color)
+            search_mask = np.all(search_diff <= tolerance, axis=2)
+            search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+
+            small_int16 = small_array.astype(np.int16)
+            small_diff = np.abs(small_int16 - base_color)
+            small_mask = np.all(small_diff <= tolerance, axis=2)
+            small_binary = np.where(small_mask, 255, 0).astype(np.uint8)
+
+            # 合并多个颜色容差的二值化结果（使用 OR 操作）
+            search_binary_combined = np.bitwise_or(search_binary_combined, search_binary)
+            small_binary_combined = np.bitwise_or(small_binary_combined, small_binary)
+
+        # 自定义"白点匹配率"相似度
         # 只考虑小图中的白色像素，计算它们在大图中对应位置也是白色的比例
-        template_mask = (small_binary == 255).astype(np.uint8)
+        template_mask = (small_binary_combined == 255).astype(np.uint8)
 
         # 将大图二值结果也转换为 0/1 掩码
-        search_mask = (search_binary == 255).astype(np.uint8)
-        
+        search_mask = (search_binary_combined == 255).astype(np.uint8)
+        # cv2.imshow('small_binary_combined Threshold', small_binary_combined)
+        # cv2.imshow('search_binary_combined Threshold', search_binary_combined)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
         # 使用 TM_CCORR 对两个 0/1 掩码做匹配
         # 对于 0/1 掩码，TM_CCORR 的结果等于滑动窗口内 search_mask * template_mask 的和，
         result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
@@ -252,10 +274,10 @@ class DeviceController:
         # 自定义相似度：重合白点数 / 模板白点总数，范围[0,1]
         overlap_white = max_val
         white_points = int(np.sum(template_mask))
-        custom_similarity = overlap_white / white_points
+        custom_similarity = overlap_white / white_points if white_points > 0 else 0
 
-        # print(f"自定义白点匹配率 - 重合白点: {overlap_white}, 相似度: {custom_similarity:.4f}, 位置: {max_loc}")
-
+        print(f"自定义白点匹配率 - 重合白点: {overlap_white}, 相似度: {custom_similarity:.4f}, 位置: {max_loc}")
+        
         if custom_similarity >= similarity:
             return {
                 "x": max_loc[0] + offset_x,
@@ -265,7 +287,29 @@ class DeviceController:
                 "similarity": float(custom_similarity)
             }
         return None
-
+    
+    def 找图(self, large_image_path, small_image_path, similarity=0.9, region=(0, 0, 0, 0), color_tolerance=None):
+        """
+        找图函数，根据是否传入颜色偏色参数自动选择找图方式
+        
+        参数:
+            large_image_path: 大图路径
+            small_image_path: 小图路径
+            similarity: 相似度阈值，0-1之间，默认0.9
+            region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
+            color_tolerance: 颜色偏色参数，格式如 "D7CCC6-0E0E09" 或 ["D7CCC6-0E0E09", "FFFFFF-101010"]
+                          如果传入此参数，则使用颜色偏色找图；如果不传入或为None，则使用普通找图
+        
+        返回:
+            找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
+        """
+        if color_tolerance is not None:
+            # 如果传入了颜色偏色参数，使用颜色偏色找图
+            return self.opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance, similarity, region)
+        else:
+            # 如果没有传入颜色偏色参数，使用普通找图
+            return self.opencv找图(large_image_path, small_image_path, similarity, region)
+    
     def opencv找透明图(self, large_img_path, small_img_path, tolerance=0, similarity=0.9, region=(0, 0, 0, 0)):
         """
         在大图的指定区域中查找小图（仅支持图片路径）
@@ -622,29 +666,20 @@ class Field:
         """查找字段"""
         url = self.大图路径 if self.大图路径 else self.controller.截图()
         if url:
-            if self.方式 == "opencv找图":
-                result = self.controller.opencv找图(url, self.图片路径, self.相似度, 
-                                                    (self.查找区域["x"], self.查找区域["y"],
-                                                     self.查找区域["w"], self.查找区域["h"]))
-                if result:
-                    self.x = result["x"]
-                    self.y = result["y"]
-                    self.w = result["w"]
-                    self.h = result["h"]
-            elif self.方式 == "opencv找透明图":
-                result = self.controller.opencv找透明图(url, self.图片路径, 50, self.相似度,
+            # elif self.方式 == "opencv找透明图":
+            #     result = self.controller.opencv找透明图(url, self.图片路径, 50, self.相似度,
+            #                                             (self.查找区域["x"], self.查找区域["y"],
+            #                                              self.查找区域["w"], self.查找区域["h"]))
+            #     # print(self.标识, result, "========")
+            #     if result['similarity'] >= self.相似度:
+            #         self.x = result["x"]
+            #         self.y = result["y"]
+            #         self.w = result["w"]
+            #         self.h = result["h"]
+            if self.方式 == "找图":
+                result = self.controller.找图(url, self.图片路径, self.相似度,
                                                         (self.查找区域["x"], self.查找区域["y"],
-                                                         self.查找区域["w"], self.查找区域["h"]))
-                # print(self.标识, result, "========")
-                if result['similarity'] >= self.相似度:
-                    self.x = result["x"]
-                    self.y = result["y"]
-                    self.w = result["w"]
-                    self.h = result["h"]
-            elif self.方式 == "opencv颜色偏色找图":
-                result = self.controller.opencv颜色偏色找图(url, self.图片路径, self.颜色偏色, self.相似度,
-                                                        (self.查找区域["x"], self.查找区域["y"],
-                                                         self.查找区域["w"], self.查找区域["h"]))
+                                                         self.查找区域["w"], self.查找区域["h"]), self.颜色偏色)
                 if result:
                     self.x = result["x"]
                     self.y = result["y"]

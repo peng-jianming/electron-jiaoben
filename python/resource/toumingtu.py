@@ -2,14 +2,16 @@
 # IMAGE_DIR 需要处理的源图片文件夹
 # resultPath 处理后的图片, 如果文件不存在,则创建文件,如果存在,就作为上次的结果继续处理
 # CROP_CONFIG 源图片裁剪配置,
-# color_tolerance 颜色容差参数, 格式: 'C9C0B2-203040', 其中C9C0B2为基准色(16进制RGB), 203040表示RGB的色偏分别是20 30 40(16进制)
-# 只有在这个颜色范围内的像素保留,其他的都设置为透明
+# color_tolerance 颜色容差参数, 可以是单个字符串或字符串数组
+#   格式: 'C9C0B2-203040', 其中C9C0B2为基准色(16进制RGB), 203040表示RGB的色偏分别是20 30 40(16进制)
+#   支持多个颜色容差: ['C9C0B2-203040', 'FFFFFF-101010']
+#   只要像素在任何一个颜色容差范围内就保留,其他的都设置为透明
 
 import os
 import time
 import glob
 from PIL import Image
-# from index import 截图
+from tools import DeviceController
 
 # 配置路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -101,17 +103,38 @@ def get_image_files():
 def process_single_image(image_path, color_tolerance=None):
     """
     处理单张图片
-    color_tolerance: 颜色容差参数, 格式: 'C9C0B2-203040' 或 None(使用旧的对比逻辑)
+    color_tolerance: 颜色容差参数, 可以是:
+        - None: 使用旧的对比逻辑
+        - 字符串: 'C9C0B2-203040' (单个颜色容差)
+        - 列表: ['C9C0B2-203040', 'FFFFFF-101010'] (多个颜色容差,只要像素在任何一个范围内就保留)
     """
     global base_image, file_mtimes
     
     # 解析颜色容差参数
-    color_tolerance_params = None
+    color_tolerance_params_list = None
     if color_tolerance:
-        color_tolerance_params = parse_color_tolerance(color_tolerance)
-        if color_tolerance_params is None:
-            print(f'颜色容差参数格式错误: {color_tolerance}, 将使用对比模式')
-            color_tolerance_params = None
+        # 如果是字符串，转换为列表
+        if isinstance(color_tolerance, str):
+            color_tolerance_list = [color_tolerance]
+        elif isinstance(color_tolerance, list):
+            color_tolerance_list = color_tolerance
+        else:
+            print(f'颜色容差参数类型错误: {type(color_tolerance)}, 将使用对比模式')
+            color_tolerance_params_list = None
+            color_tolerance_list = []
+        
+        if color_tolerance_list:
+            color_tolerance_params_list = []
+            for ct in color_tolerance_list:
+                params = parse_color_tolerance(ct)
+                if params is None:
+                    print(f'颜色容差参数格式错误: {ct}, 跳过该参数')
+                else:
+                    color_tolerance_params_list.append(params)
+            
+            if not color_tolerance_params_list:
+                print('所有颜色容差参数格式错误, 将使用对比模式')
+                color_tolerance_params_list = None
 
     try:
         # 检查文件修改时间，避免重复处理同一张图片
@@ -173,9 +196,7 @@ def process_single_image(image_path, color_tolerance=None):
         diff_count = 0
 
         # 如果使用颜色容差模式
-        if color_tolerance_params:
-            base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b = color_tolerance_params
-            
+        if color_tolerance_params_list:
             # 遍历所有像素进行颜色容差检查
             for x in range(width):
                 for y in range(height):
@@ -189,9 +210,15 @@ def process_single_image(image_path, color_tolerance=None):
                     # 获取当前图片像素
                     r2, g2, b2, a2 = current_pixels[x, y]
 
-                    # 检查当前图片的像素是否在颜色容差范围内
-                    if not is_color_in_range(r2, g2, b2, base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b):
-                        # 不在范围内，设置为透明
+                    # 检查当前图片的像素是否在任何一个颜色容差范围内
+                    in_range = False
+                    for base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b in color_tolerance_params_list:
+                        if is_color_in_range(r2, g2, b2, base_r, base_g, base_b, tolerance_r, tolerance_g, tolerance_b):
+                            in_range = True
+                            break
+                    
+                    # 如果不在任何一个范围内，设置为透明
+                    if not in_range:
                         base_pixels[x, y] = (0, 0, 0, 0)
                         diff_count += 1
         else:
@@ -234,7 +261,10 @@ def process_single_image(image_path, color_tolerance=None):
 def process_all_images(color_tolerance=None):
     """
     处理文件夹内所有图片
-    color_tolerance: 颜色容差参数, 格式: 'C9C0B2-203040' 或 None(使用旧的对比逻辑)
+    color_tolerance: 颜色容差参数, 可以是:
+        - None: 使用旧的对比逻辑
+        - 字符串: 'C9C0B2-203040' (单个颜色容差)
+        - 列表: ['C9C0B2-203040', 'FFFFFF-101010'] (多个颜色容差,只要像素在任何一个范围内就保留)
     """
     global base_image, is_processing
 
@@ -274,19 +304,21 @@ def process_all_images(color_tolerance=None):
 if __name__ == "__main__":
     # 每秒执行一次
     print(f'开始监控文件夹 {IMAGE_DIR} 的图片变化...')
-    # 设置颜色容差参数, 格式: '基准色-色偏', 例如: 'C9C0B2-203040'
+    # 设置颜色容差参数, 支持单个或多个颜色容差
+    # 格式: '基准色-色偏', 例如: 'C9C0B2-203040'
     # C9C0B2为基准色(16进制RGB), 203040表示RGB的色偏分别是20 30 40(16进制)
     # 只有在这个颜色范围内的像素保留,其他的都设置为透明
-    color_tolerance_val = 'C9C0B2-25211F'  # 修改为你需要的颜色容差参数
+    # 可以设置为单个字符串或字符串数组,如果像素在任何一个颜色容差范围内就保留
+    color_tolerance_val = ['CC8367-214340']  # 修改为你需要的颜色容差参数,支持多个: ['C9C0B2-25211F', 'FFFFFF-101010']
 
     try:
         while True:
-            # 截图()
+            # controller = DeviceController('9a8de478')
+            # controller.截图()
             process_all_images(color_tolerance_val)
             time.sleep(1)
     except KeyboardInterrupt:
         print('程序已停止')
-
 
 
 
