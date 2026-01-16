@@ -67,6 +67,7 @@
               type="primary"
               size="small"
               class="clear-all-btn"
+              @click="calculateDeviation"
             >
               计算偏色
             </el-button>
@@ -98,9 +99,9 @@
                   style="display: flex; flex-direction: column; gap: 5px"
                 >
                   <el-checkbox
-                    v-for="item in 6"
-                    :key="item"
-                    label="111111-111111"
+                    v-for="(item, index) in deviationColors"
+                    :key="index"
+                    :label="item"
                     border
                   ></el-checkbox>
                 </el-checkbox-group>
@@ -110,6 +111,7 @@
               type="primary"
               size="small"
               class="clear-all-btn"
+              @click="clearDeviationColors"
             >
               清空偏色
             </el-button>
@@ -135,8 +137,9 @@
 <script setup>
 import { ref } from "vue";
 import { ZoomIn, Collection, Delete } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 
-defineProps({
+const props = defineProps({
   magnifierVisible: {
     type: Boolean,
     default: false,
@@ -162,6 +165,8 @@ defineProps({
 defineEmits(["remove-color", "clear-all-colors"]);
 
 const magnifierCanvasRef = ref(null);
+const deviationColors = ref([]);
+const checkboxGroup2 = ref([]);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -186,6 +191,99 @@ const isLightColor = (hex) => {
 
   // 如果亮度大于 186（约 73%），则认为偏白，使用黑色字体
   return luminance > 186;
+};
+
+// HEX 转 RGB
+const hexToRgb = (hex) => {
+  // 移除 # 号
+  hex = hex.replace("#", "");
+
+  // 如果是3位hex，转换为6位
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  return {
+    r: parseInt(hex.substring(0, 2), 16),
+    g: parseInt(hex.substring(2, 4), 16),
+    b: parseInt(hex.substring(4, 6), 16),
+  };
+};
+
+// 数字转 HEX（两位，大写）
+const numToHex = (num) => {
+  const hex = Math.max(0, Math.min(255, Math.floor(num))).toString(16).toUpperCase();
+  return hex.length === 1 ? "0" + hex : hex;
+};
+
+// 计算偏色
+const calculateDeviation = () => {
+  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
+    ElMessage.warning("请先选取颜色");
+    return;
+  }
+
+  // 1. 将所有颜色转换为 RGB
+  const rgbColors = props.currentSelectedColors.map((color) => {
+    return hexToRgb(color.hex);
+  });
+
+  // 2. 确定每个通道的最小值和最大值
+  let minR = 255,
+    maxR = 0;
+  let minG = 255,
+    maxG = 0;
+  let minB = 255,
+    maxB = 0;
+
+  rgbColors.forEach((rgb) => {
+    minR = Math.min(minR, rgb.r);
+    maxR = Math.max(maxR, rgb.r);
+    minG = Math.min(minG, rgb.g);
+    maxG = Math.max(maxG, rgb.g);
+    minB = Math.min(minB, rgb.b);
+    maxB = Math.max(maxB, rgb.b);
+  });
+
+  // 3. 计算基准色（取最小值和最大值的平均值，向下取整）
+  const baseR = Math.floor((minR + maxR) / 2);
+  const baseG = Math.floor((minG + maxG) / 2);
+  const baseB = Math.floor((minB + maxB) / 2);
+
+  // 4. 计算偏色（最大值减基准色）
+  const deviationR = maxR - baseR;
+  const deviationG = maxG - baseG;
+  const deviationB = maxB - baseB;
+
+  // 5. 格式化为 HEX 字符串
+  const baseHex = numToHex(baseR) + numToHex(baseG) + numToHex(baseB);
+  const deviationHex = numToHex(deviationR) + numToHex(deviationG) + numToHex(deviationB);
+
+  // 6. 组合结果
+  const result = `${baseHex}-${deviationHex}`;
+  
+  // 7. 检查偏色列表中是否已存在相同的偏色
+  const existingIndex = deviationColors.value.findIndex((item) => item === result);
+  if (existingIndex !== -1) {
+    ElMessage.warning(`偏色 ${result} 已存在于列表中（第 ${existingIndex + 1} 项）`);
+    return;
+  }
+
+  // 8. 添加到偏色列表并默认勾选
+  deviationColors.value.push(result);
+  checkboxGroup2.value.push(result);
+  
+  ElMessage.success("偏色计算完成");
+};
+
+// 清空偏色列表
+const clearDeviationColors = () => {
+  deviationColors.value = [];
+  checkboxGroup2.value = [];
+  ElMessage.success("已清空偏色列表");
 };
 
 // 暴露放大镜 canvas 给父组件，用于绘制
