@@ -139,6 +139,8 @@ const currentImageIndex = ref("0");
 
 // 是否启用圈选功能
 const selectionEnabled = ref(false);
+// 是否启用颜色选择功能（仅在启动圈选且没有圈选范围时启用）
+const colorSelectionEnabled = ref(false);
 
 // 当前图片的计算属性
 const currentImage = computed(() => {
@@ -778,7 +780,7 @@ function handleRightClick() {
   }
 }
 
-// 清空圈选相关状态
+  // 清空圈选相关状态
 function clearSelection() {
   selectionDisplay.value = null;
   selectionRect.value = null;
@@ -787,6 +789,10 @@ function clearSelection() {
   selectionStart.value = null;
   selectionCurrent.value = null;
   resizeHandle.value = null;
+  // 清空圈选后，如果圈选功能已启用，则启用颜色选择模式
+  if (selectionEnabled.value) {
+    colorSelectionEnabled.value = true;
+  }
 }
 
 // 根据开始点和当前点，更新显示和原始坐标矩形
@@ -846,6 +852,9 @@ function updateSelectionRects() {
     w: natW,
     h: natH,
   };
+
+  // 成功创建圈选范围后，禁用颜色选择模式
+  colorSelectionEnabled.value = false;
 }
 
 // 圈选矩形样式（转换为 CSS 像素）
@@ -1191,9 +1200,8 @@ function handleImageClick(event) {
     return;
   }
 
-  // 只有在圈选功能开启且圈选完成后（有selectionDisplay和selectionRect）才处理点击
-  if (!selectionEnabled.value || !selectionDisplay.value || !selectionRect.value) {
-    // 没有圈选区域，执行原有的颜色选择功能
+  // 如果启用了颜色选择功能，执行颜色选择
+  if (colorSelectionEnabled.value) {
     const containerRect = imageContainerRef.value.getBoundingClientRect();
     const containerX = event.clientX - containerRect.left;
     const containerY = event.clientY - containerRect.top;
@@ -1237,6 +1245,12 @@ function handleImageClick(event) {
         });
       }
     }
+    return;
+  }
+
+  // 只有在圈选功能开启且圈选完成后（有selectionDisplay和selectionRect）才处理点击
+  if (!selectionEnabled.value || !selectionDisplay.value || !selectionRect.value) {
+    // 默认不执行任何操作
     return;
   }
 
@@ -1380,11 +1394,25 @@ function removeImage(index) {
 
 // 切换圈选功能开关
 function toggleSelectionMode() {
+  const wasEnabled = selectionEnabled.value;
   selectionEnabled.value = !selectionEnabled.value;
 
-  // 关闭圈选功能时，清空已有圈选状态
+  // 关闭圈选功能时，清空已有圈选状态和颜色选择状态
   if (!selectionEnabled.value) {
     clearSelection();
+    colorSelectionEnabled.value = false;
+    return;
+  }
+
+  // 启动圈选功能时
+  if (selectionEnabled.value && !wasEnabled) {
+    // 如果没有圈选范围，启用颜色选择模式
+    if (!selectionDisplay.value && !selectionRect.value) {
+      colorSelectionEnabled.value = true;
+    } else {
+      // 如果有圈选范围，禁用颜色选择，进行圈选
+      colorSelectionEnabled.value = false;
+    }
   }
 }
 

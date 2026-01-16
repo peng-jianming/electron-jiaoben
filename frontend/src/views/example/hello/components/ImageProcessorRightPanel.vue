@@ -22,53 +22,112 @@
     </div>
 
     <!-- 选中颜色列表 -->
-    <el-tabs type="border-card">
+    <el-tabs type="border-card" size="mini">
       <el-tab-pane label="颜色">
-        <el-table
-          :data="currentSelectedColors"
-          height="490"
-          border
-          style="width: 100%"
-          size="mini"
-        >
-          <el-table-column type="index"> </el-table-column>
-          <el-table-column label="坐标">
-            <template #default="scope"> {{ scope.row.x }}, {{ scope.row.y }} </template>
-          </el-table-column>
-          <el-table-column prop="hex" label="hex">
-            <template #default="scope">
-              <div
-                :style="{
-                  'background-color': scope.row.hex,
-                  color: isLightColor(scope.row.hex) ? '#000000' : '#ffffff',
-                }"
-              >
-                {{ scope.row.hex }}
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作">
-            <template #default="scope">
-              <el-button
-                type="danger"
-                size="small"
-                @click="$emit('remove-color', scope.$index)"
-                >删除</el-button
-              >
-            </template>
-          </el-table-column>
-        </el-table>
-        <el-button
-          v-if="currentSelectedColors.length > 0"
-          type="danger"
-          size="small"
-          @click="$emit('clear-all-colors')"
-          class="clear-all-btn"
-        >
-          清空全部
-        </el-button>
+        <div style="display: flex">
+          <div>
+            <el-table
+              :data="currentSelectedColors"
+              height="205"
+              border
+              style="width: 250px"
+              size="small"
+              empty-text="等待选取颜色"
+            >
+              <el-table-column type="index"> </el-table-column>
+              <el-table-column label="坐标" width="60">
+                <template #default="scope">
+                  {{ scope.row.x }}, {{ scope.row.y }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="hex" label="hex" width="80">
+                <template #default="scope">
+                  <div
+                    :style="{
+                      'background-color': scope.row.hex,
+                      color: isLightColor(scope.row.hex) ? '#000000' : '#ffffff',
+                    }"
+                  >
+                    {{ scope.row.hex }}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="70">
+                <template #default="scope">
+                  <el-button
+                    type="text"
+                    size="small"
+                    @click="$emit('remove-color', scope.$index)"
+                    >删除</el-button
+                  >
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-button
+              type="primary"
+              size="small"
+              class="clear-all-btn"
+            >
+              计算偏色
+            </el-button>
+            <el-button
+              type="danger"
+              size="small"
+              @click="$emit('clear-all-colors')"
+              class="clear-all-btn"
+            >
+              清空全部
+            </el-button>
+          </div>
+          <div
+            style="
+              color: #909399;
+              border: 1px solid #dcdfe6;
+              margin-left: 5px;
+              width: 130px;
+            "
+          >
+            <div style="font-size: 14px;  padding: 5px; border-bottom: 1px solid #dcdfe6;">
+              偏色列表
+            </div>
+            <div>
+              <el-scrollbar height="162px" style="padding: 5px;">
+                <el-checkbox-group
+                  v-model="checkboxGroup2"
+                  size="small"
+                  style="display: flex; flex-direction: column; gap: 5px"
+                >
+                  <el-checkbox
+                    v-for="item in 6"
+                    :key="item"
+                    label="111111-111111"
+                    border
+                  ></el-checkbox>
+                </el-checkbox-group>
+              </el-scrollbar>
+            </div>
+            <el-button
+              type="primary"
+              size="small"
+              class="clear-all-btn"
+            >
+              清空偏色
+            </el-button>
+            <el-button
+              type="primary"
+              size="small"
+              class="clear-all-btn"
+            >
+              重新渲染
+            </el-button>
+          </div>
+        </div>
+
+        <div style="height: 250px; display: flex">
+          <div>1</div>
+        </div>
       </el-tab-pane>
-      <el-tab-pane label="图片">配置管理</el-tab-pane>
+      <el-tab-pane label="图片">等待实现</el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -136,6 +195,12 @@ defineExpose({
 </script>
 
 <style scoped>
+.el-button + .el-button {
+  margin-left: 0;
+}
+.el-checkbox {
+  margin-right: 0;
+}
 .right-panel {
   display: flex;
   flex-direction: column;

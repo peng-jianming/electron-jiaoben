@@ -25,7 +25,7 @@
       :type="selectionEnabled ? 'warning' : 'primary'"
       @click="$emit('toggle-selection')"
     >
-      {{ selectionEnabled ? "取消圈选" : "启用圈选" }}
+      {{ selectionEnabled ? "取消选取" : "启用选取(颜色|范围)" }}
     </el-button>
 
     <el-tag effect="plain">
