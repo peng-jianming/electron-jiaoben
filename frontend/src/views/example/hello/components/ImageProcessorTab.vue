@@ -86,6 +86,8 @@
           :current-position="currentPosition"
           :current-color="currentColor"
           :current-selected-colors="currentSelectedColors"
+          :selection-rect="selectionRect"
+          :image-ref="imageRef"
           @remove-color="removeColor"
           @clear-all-colors="clearAllColors"
           ref="rightPanelRef"

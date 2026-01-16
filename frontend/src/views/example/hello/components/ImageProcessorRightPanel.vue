@@ -119,14 +119,23 @@
               type="primary"
               size="small"
               class="clear-all-btn"
+              @click="handleRerender"
             >
               重新渲染
             </el-button>
           </div>
         </div>
-
-        <div style="height: 250px; display: flex">
-          <div>1</div>
+        <!-- 显示渲染后的图片区域 -->
+        <div style="margin-top: 5px; height: 250px; border: 1px solid #dcdfe6; border-radius: 4px; overflow: hidden; background: #f5f5f5; display: flex; align-items: center; justify-content: center;">
+          <img
+            v-if="processedImageUrl"
+            :src="processedImageUrl"
+            alt="处理后的图片"
+            style="max-width: 100%; max-height: 100%; object-fit: contain;"
+          />
+          <div v-else style="color: #909399; font-size: 12px;">
+            偏色二值化后的图片将显示在此处
+          </div>
         </div>
       </el-tab-pane>
       <el-tab-pane label="图片">等待实现</el-tab-pane>
@@ -135,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, nextTick } from "vue";
 import { ZoomIn, Collection, Delete } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 
@@ -160,6 +169,14 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  selectionRect: {
+    type: Object,
+    default: null,
+  },
+  imageRef: {
+    type: Object,
+    default: null,
+  },
 });
 
 defineEmits(["remove-color", "clear-all-colors"]);
@@ -167,6 +184,7 @@ defineEmits(["remove-color", "clear-all-colors"]);
 const magnifierCanvasRef = ref(null);
 const deviationColors = ref([]);
 const checkboxGroup2 = ref([]);
+const processedImageUrl = ref(null);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -277,13 +295,170 @@ const calculateDeviation = () => {
   checkboxGroup2.value.push(result);
   
   ElMessage.success("偏色计算完成");
+  
+  // 9. 自动执行一次二值化渲染
+  // 使用 nextTick 确保 checkboxGroup2 已更新
+  nextTick(() => {
+    handleRerender();
+  });
 };
 
 // 清空偏色列表
 const clearDeviationColors = () => {
   deviationColors.value = [];
   checkboxGroup2.value = [];
+  processedImageUrl.value = null;
   ElMessage.success("已清空偏色列表");
+};
+
+// 解析偏色字符串（如 "D7CCC6-0E0E09"）
+const parseDeviation = (deviationStr) => {
+  const [baseHex, deviationHex] = deviationStr.split("-");
+  if (!baseHex || !deviationHex || baseHex.length !== 6 || deviationHex.length !== 6) {
+    return null;
+  }
+
+  const baseR = parseInt(baseHex.substring(0, 2), 16);
+  const baseG = parseInt(baseHex.substring(2, 4), 16);
+  const baseB = parseInt(baseHex.substring(4, 6), 16);
+
+  const deviationR = parseInt(deviationHex.substring(0, 2), 16);
+  const deviationG = parseInt(deviationHex.substring(2, 4), 16);
+  const deviationB = parseInt(deviationHex.substring(4, 6), 16);
+
+  return {
+    base: { r: baseR, g: baseG, b: baseB },
+    deviation: { r: deviationR, g: deviationG, b: deviationB },
+  };
+};
+
+// 检查颜色是否在偏色范围内
+const isColorInDeviationRange = (r, g, b, deviationData) => {
+  const { base, deviation } = deviationData;
+
+  // 计算每个通道的范围
+  const minR = Math.max(0, base.r - deviation.r);
+  const maxR = Math.min(255, base.r + deviation.r);
+  const minG = Math.max(0, base.g - deviation.g);
+  const maxG = Math.min(255, base.g + deviation.g);
+  const minB = Math.max(0, base.b - deviation.b);
+  const maxB = Math.min(255, base.b + deviation.b);
+
+  // 检查颜色是否在所有通道的范围内
+  return (
+    r >= minR &&
+    r <= maxR &&
+    g >= minG &&
+    g <= maxG &&
+    b >= minB &&
+    b <= maxB
+  );
+};
+
+// 处理图片二值化
+const handleRerender = () => {
+  if (!props.currentImage || !props.currentImage.url) {
+    ElMessage.warning("请先载入图片");
+    return;
+  }
+
+  // 获取选中的偏色列表
+  const selectedDeviations = checkboxGroup2.value;
+  if (selectedDeviations.length === 0) {
+    ElMessage.warning("请先选择偏色项");
+    return;
+  }
+
+  // 解析所有选中的偏色
+  const deviationDataList = selectedDeviations
+    .map((dev) => parseDeviation(dev))
+    .filter((data) => data !== null);
+
+  if (deviationDataList.length === 0) {
+    ElMessage.error("偏色数据格式错误");
+    return;
+  }
+
+  // 创建图片对象
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      // 创建 canvas 用于处理
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // 确定处理区域
+      let startX = 0;
+      let startY = 0;
+      let width = img.width;
+      let height = img.height;
+
+      if (props.selectionRect && props.selectionRect.w > 0 && props.selectionRect.h > 0) {
+        // 使用圈选范围
+        startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
+        startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
+        width = Math.min(props.selectionRect.w, img.width - startX);
+        height = Math.min(props.selectionRect.h, img.height - startY);
+      }
+
+      // 设置 canvas 尺寸
+      canvas.width = width;
+      canvas.height = height;
+
+      // 绘制原始图片区域到 canvas
+      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
+
+      // 获取像素数据
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      // 遍历每个像素进行二值化处理
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // 检查是否在任何一个偏色范围内
+        let inRange = false;
+        for (const deviationData of deviationDataList) {
+          if (isColorInDeviationRange(r, g, b, deviationData)) {
+            inRange = true;
+            break;
+          }
+        }
+
+        // 在范围内设置为白色，否则设置为黑色
+        if (inRange) {
+          data[i] = 255; // R
+          data[i + 1] = 255; // G
+          data[i + 2] = 255; // B
+          data[i + 3] = 255; // A
+        } else {
+          data[i] = 0; // R
+          data[i + 1] = 0; // G
+          data[i + 2] = 0; // B
+          data[i + 3] = 255; // A
+        }
+      }
+
+      // 将处理后的数据写回 canvas
+      ctx.putImageData(imageData, 0, 0);
+
+      // 转换为图片 URL
+      processedImageUrl.value = canvas.toDataURL("image/png");
+      ElMessage.success("图片处理完成");
+    } catch (error) {
+      console.error("处理图片时出错:", error);
+      ElMessage.error("处理图片失败");
+    }
+  };
+
+  img.onerror = () => {
+    ElMessage.error("加载图片失败");
+  };
+
+  img.src = props.currentImage.url;
 };
 
 // 暴露放大镜 canvas 给父组件，用于绘制
