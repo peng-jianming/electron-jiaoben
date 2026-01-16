@@ -88,11 +88,11 @@
               width: 130px;
             "
           >
-            <div style="font-size: 14px;  padding: 5px; border-bottom: 1px solid #dcdfe6;">
+            <div style="font-size: 14px; padding: 5px; border-bottom: 1px solid #dcdfe6">
               偏色列表
             </div>
             <div>
-              <el-scrollbar height="162px" style="padding: 5px;">
+              <el-scrollbar height="162px" style="padding: 5px">
                 <el-checkbox-group
                   v-model="checkboxGroup2"
                   size="small"
@@ -126,19 +126,100 @@
           </div>
         </div>
         <!-- 显示渲染后的图片区域 -->
-        <div style="margin-top: 5px; height: 250px; border: 1px solid #dcdfe6; border-radius: 4px; overflow: hidden; background: #f5f5f5; display: flex; align-items: center; justify-content: center;">
+        <div
+          style="
+            margin-top: 5px;
+            height: 250px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          "
+        >
           <img
             v-if="processedImageUrl"
             :src="processedImageUrl"
             alt="处理后的图片"
-            style="max-width: 100%; max-height: 100%; object-fit: contain;"
+            style="max-width: 100%; max-height: 100%; object-fit: contain"
           />
-          <div v-else style="color: #909399; font-size: 12px;">
+          <div v-else style="color: #909399; font-size: 12px">
             偏色二值化后的图片将显示在此处
           </div>
         </div>
       </el-tab-pane>
-      <el-tab-pane label="图片">等待实现</el-tab-pane>
+      <el-tab-pane label="图片">
+        <div>
+          <!-- 隐藏的文件选择框 -->
+          <input
+            ref="imageFileInputRef"
+            type="file"
+            accept="image/*"
+            multiple
+            style="display: none"
+            @change="handleImageFileSelect"
+          />
+          <el-table
+            :data="uploadedImages"
+            height="205"
+            border
+            style="width: 100%"
+            size="small"
+            empty-text="等待上传图片"
+          >
+            <el-table-column type="index" label="#" width="50"> </el-table-column>
+            <el-table-column label="缩略图">
+              <template #default="scope">
+                <div class="thumbnail-container">
+                  <el-image
+                    :src="scope.row.url"
+                    :preview-src-list="getPreviewSrcList()"
+                    :initial-index="scope.$index"
+                    fit="contain"
+                    preview-teleported
+                    class="thumbnail-image"
+                  />
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="scope">
+                <el-button
+                  type="text"
+                  size="small"
+                  @click="removeImage(scope.$index)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="display: flex; justify-content: space-between; margin-top: 10px">
+            <el-button
+              type="primary"
+              size="small"
+              style="width: 48%"
+              @click="handleUploadClick"
+            >
+              上传
+            </el-button>
+            <el-button type="primary" size="small" style="width: 48%">
+              截图
+            </el-button>
+          </div>
+          <el-button
+            type="danger"
+            size="small"
+            class="clear-all-btn"
+            @click="clearAllImages"
+          >
+            清空全部
+          </el-button>
+        </div>
+        <div></div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -185,6 +266,8 @@ const magnifierCanvasRef = ref(null);
 const deviationColors = ref([]);
 const checkboxGroup2 = ref([]);
 const processedImageUrl = ref(null);
+const imageFileInputRef = ref(null);
+const uploadedImages = ref([]);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -233,7 +316,9 @@ const hexToRgb = (hex) => {
 
 // 数字转 HEX（两位，大写）
 const numToHex = (num) => {
-  const hex = Math.max(0, Math.min(255, Math.floor(num))).toString(16).toUpperCase();
+  const hex = Math.max(0, Math.min(255, Math.floor(num)))
+    .toString(16)
+    .toUpperCase();
   return hex.length === 1 ? "0" + hex : hex;
 };
 
@@ -282,7 +367,7 @@ const calculateDeviation = () => {
 
   // 6. 组合结果
   const result = `${baseHex}-${deviationHex}`;
-  
+
   // 7. 检查偏色列表中是否已存在相同的偏色
   const existingIndex = deviationColors.value.findIndex((item) => item === result);
   if (existingIndex !== -1) {
@@ -293,9 +378,9 @@ const calculateDeviation = () => {
   // 8. 添加到偏色列表并默认勾选
   deviationColors.value.push(result);
   checkboxGroup2.value.push(result);
-  
+
   ElMessage.success("偏色计算完成");
-  
+
   // 9. 自动执行一次二值化渲染
   // 使用 nextTick 确保 checkboxGroup2 已更新
   nextTick(() => {
@@ -345,14 +430,7 @@ const isColorInDeviationRange = (r, g, b, deviationData) => {
   const maxB = Math.min(255, base.b + deviation.b);
 
   // 检查颜色是否在所有通道的范围内
-  return (
-    r >= minR &&
-    r <= maxR &&
-    g >= minG &&
-    g <= maxG &&
-    b >= minB &&
-    b <= maxB
-  );
+  return r >= minR && r <= maxR && g >= minG && g <= maxG && b >= minB && b <= maxB;
 };
 
 // 处理图片二值化
@@ -459,6 +537,105 @@ const handleRerender = () => {
   };
 
   img.src = props.currentImage.url;
+};
+
+// 处理上传按钮点击
+const handleUploadClick = () => {
+  imageFileInputRef.value?.click();
+};
+
+// 处理图片文件选择
+const handleImageFileSelect = (event) => {
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+
+  // 过滤出图片文件
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
+  if (imageFiles.length === 0) {
+    ElMessage.error("请选择图片文件");
+    return;
+  }
+
+  // 处理每个图片文件
+  imageFiles.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const url = e.target.result;
+
+      // 创建缩略图
+      const img = new Image();
+      img.onload = () => {
+        // 创建缩略图 canvas
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const maxSize = 100; // 缩略图最大尺寸
+
+        // 计算缩略图尺寸
+        let thumbWidth = img.width;
+        let thumbHeight = img.height;
+        if (thumbWidth > thumbHeight) {
+          if (thumbWidth > maxSize) {
+            thumbHeight = (thumbHeight * maxSize) / thumbWidth;
+            thumbWidth = maxSize;
+          }
+        } else {
+          if (thumbHeight > maxSize) {
+            thumbWidth = (thumbWidth * maxSize) / thumbHeight;
+            thumbHeight = maxSize;
+          }
+        }
+
+        canvas.width = thumbWidth;
+        canvas.height = thumbHeight;
+        ctx.drawImage(img, 0, 0, thumbWidth, thumbHeight);
+
+        const thumbnail = canvas.toDataURL("image/png");
+
+        // 添加到列表
+        uploadedImages.value.push({
+          id: Date.now() + Math.random(), // 生成唯一ID
+          url: url,
+          thumbnail: thumbnail,
+          file: file, // 保存原始文件对象
+        });
+
+        ElMessage.success("图片上传成功");
+      };
+      img.onerror = () => {
+        ElMessage.error("图片加载失败");
+      };
+      img.src = url;
+    };
+    reader.onerror = () => {
+      ElMessage.error("读取文件失败");
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // 清空文件选择，以便可以重复选择同一文件
+  event.target.value = "";
+};
+
+// 删除图片
+const removeImage = (index) => {
+  uploadedImages.value.splice(index, 1);
+  ElMessage.success("图片已删除");
+};
+
+// 清空所有图片
+const clearAllImages = () => {
+  if (uploadedImages.value.length === 0) {
+    ElMessage.warning("列表已为空");
+    return;
+  }
+  uploadedImages.value = [];
+  ElMessage.success("已清空所有图片");
+};
+
+// 获取预览图片列表
+const getPreviewSrcList = () => {
+  return uploadedImages.value.map((img) => img.url);
 };
 
 // 暴露放大镜 canvas 给父组件，用于绘制
@@ -672,5 +849,30 @@ defineExpose({
 
 .clear-all-btn {
   width: 100%;
+  margin-top: 10px;
+}
+
+.thumbnail-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 60px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f5f5f5;
+  transition: all 0.2s ease;
+}
+
+.thumbnail-container:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  transform: scale(1.05);
+}
+
+.thumbnail-image {
+  width: 100%;
+  height: 100%;
 }
 </style>
