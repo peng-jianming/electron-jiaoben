@@ -3,10 +3,7 @@
     <!-- 放大镜 -->
     <div class="card">
       <div class="card-body magnifier-container">
-        <div 
-          v-if="magnifierVisible && currentImage"
-          class="magnifier"
-        >
+        <div v-if="magnifierVisible && currentImage" class="magnifier">
           <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
         </div>
         <div v-else class="magnifier-placeholder">
@@ -15,105 +12,126 @@
         </div>
         <!-- 当前颜色值 -->
         <div class="current-color">
-          <div class="color-values">
-            <div class="color-value-item">
-              <span class="color-label">坐标:</span>
-              <span class="color-value">
-                ({{ currentPosition ? currentPosition.x : '0' }}, 
-                {{ currentPosition ? currentPosition.y : '0' }})
-              </span>
-            </div>
-            <div class="color-value-item">
-              <span class="color-label">RGB:</span>
-              <span class="color-value">{{ currentColor ? currentColor.rgb : '--' }}</span>
-            </div>
-            <div class="color-value-item">
-              <span class="color-label">HEX:</span>
-              <span class="color-value">{{ currentColor ? currentColor.hex : '--' }}</span>
-            </div>
+          <div style="display: flex; gap: 12px">
+            <div>x: {{ currentPosition ? currentPosition.x : "0" }}</div>
+            <div>y: {{ currentPosition ? currentPosition.y : "0" }}</div>
           </div>
+          <div>HEX: {{ currentColor ? currentColor.hex : "#000000" }}</div>
         </div>
       </div>
     </div>
 
     <!-- 选中颜色列表 -->
-    <div class="card" style="flex: 1; overflow:auto">
-      <div class="card-body selected-colors-container">
-        <div v-if="currentSelectedColors.length === 0" class="empty-colors">
-          <el-icon><Collection /></el-icon>
-          <p>点击图片记录颜色</p>
-        </div>
-        <div v-else class="selected-colors-list">
-          <div
-            v-for="(color, index) in currentSelectedColors"
-            :key="index"
-            class="selected-color-item"
-          >
-            <div class="color-preview-small" :style="{ backgroundColor: color.hex }"></div>
-            <div class="color-info-small">
-              <div class="color-coord-small">坐标: {{ color.x }}, {{ color.y }}</div>
-              <div class="color-rgb-small">{{ color.rgb }}</div>
-              <div class="color-hex-small">{{ color.hex }}</div>
-            </div>
-            <el-button
-              type="danger"
-              size="small"
-              :icon="Delete"
-              circle
-              @click="$emit('remove-color', index)"
-              class="remove-color-btn"
-            />
-          </div>
-        </div>
+    <el-tabs type="border-card">
+      <el-tab-pane label="颜色">
+        <el-table
+          :data="currentSelectedColors"
+          height="490"
+          border
+          style="width: 100%"
+          size="mini"
+        >
+          <el-table-column type="index"> </el-table-column>
+          <el-table-column label="坐标">
+            <template #default="scope"> {{ scope.row.x }}, {{ scope.row.y }} </template>
+          </el-table-column>
+          <el-table-column prop="hex" label="hex">
+            <template #default="scope">
+              <div
+                :style="{
+                  'background-color': scope.row.hex,
+                  color: isLightColor(scope.row.hex) ? '#000000' : '#ffffff',
+                }"
+              >
+                {{ scope.row.hex }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作">
+            <template #default="scope">
+              <el-button
+                type="danger"
+                size="small"
+                @click="$emit('remove-color', scope.$index)"
+                >删除</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
         <el-button
           v-if="currentSelectedColors.length > 0"
           type="danger"
           size="small"
-          :icon="Delete"
           @click="$emit('clear-all-colors')"
           class="clear-all-btn"
         >
           清空全部
         </el-button>
-      </div>
-    </div>
+      </el-tab-pane>
+      <el-tab-pane label="图片">配置管理</el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { ZoomIn, Collection, Delete } from '@element-plus/icons-vue';
+import { ref } from "vue";
+import { ZoomIn, Collection, Delete } from "@element-plus/icons-vue";
 
 defineProps({
   magnifierVisible: {
     type: Boolean,
-    default: false
+    default: false,
   },
   currentImage: {
     type: Object,
-    default: null
+    default: null,
   },
   currentPosition: {
     type: Object,
-    default: () => ({ x: 0, y: 0 })
+    default: () => ({ x: 0, y: 0 }),
   },
   currentColor: {
     type: Object,
-    default: null
+    default: null,
   },
   currentSelectedColors: {
     type: Array,
-    default: () => []
-  }
+    default: () => [],
+  },
 });
 
-defineEmits(['remove-color', 'clear-all-colors']);
+defineEmits(["remove-color", "clear-all-colors"]);
 
 const magnifierCanvasRef = ref(null);
 
+// 判断颜色是否偏白（根据亮度计算）
+const isLightColor = (hex) => {
+  // 移除 # 号
+  hex = hex.replace("#", "");
+
+  // 如果是3位hex，转换为6位
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  // 转换为 RGB
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // 计算相对亮度（W3C 标准公式）
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+  // 如果亮度大于 186（约 73%），则认为偏白，使用黑色字体
+  return luminance > 186;
+};
+
 // 暴露放大镜 canvas 给父组件，用于绘制
 defineExpose({
-  getMagnifierCanvas: () => magnifierCanvasRef.value
+  getMagnifierCanvas: () => magnifierCanvasRef.value,
 });
 </script>
 
@@ -121,7 +139,8 @@ defineExpose({
 .right-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 15px;
+  padding: 0 10px;
 }
 
 .card {
@@ -130,8 +149,6 @@ defineExpose({
   border: 1px solid var(--border-color);
   overflow: hidden;
   transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
 }
 
 .card:hover {
@@ -140,7 +157,7 @@ defineExpose({
 }
 
 .card-body {
-  padding: 20px;
+  padding: 10px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -149,7 +166,6 @@ defineExpose({
 
 .magnifier-container {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 16px;
   min-height: 200px;
@@ -195,14 +211,11 @@ defineExpose({
 }
 
 .current-color {
-  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 12px;
-  padding: 16px;
-  background: rgba(51, 65, 85, 0.3);
-  border-radius: 8px;
+  width: 120px;
+  text-align: left;
 }
 
 .color-values {
@@ -225,7 +238,7 @@ defineExpose({
 .color-value {
   color: var(--text-primary);
   font-weight: 500;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .selected-colors-container {
@@ -296,7 +309,7 @@ defineExpose({
 .color-hex-small {
   font-size: 12px;
   color: var(--text-primary);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .color-hex-small {
@@ -321,8 +334,5 @@ defineExpose({
 
 .clear-all-btn {
   width: 100%;
-  margin-top: 8px;
 }
 </style>
-
-

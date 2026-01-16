@@ -27,62 +27,53 @@
 
       <!-- 中间：图片显示区域 -->
       <div class="center-panel">
-        <div class="card">
-          <div class="card-body image-container-wrapper">
-            <!-- Tab 切换 -->
-            <el-tabs 
-              v-if="images.length >= 2"
-                v-model="currentImageIndex" 
-                type="card"
-                closable
-                @tab-remove="removeImage"
-              >
-                <el-tab-pane
-                  v-for="(image, index) in images"
-                  :key="index"
-                  :label="image.name"
-                  :name="String(index)"
-                >
-                </el-tab-pane>
-              </el-tabs>
-            <div 
-              class="image-container"
-              ref="imageContainerRef"
-              :style="{ cursor: isDragging ? 'grabbing' : containerCursor }"
-              @mousemove="handleContainerMouseMove"
-              @mouseenter="handleMouseEnter"
-              @mouseleave="handleMouseLeave"
-              @mousedown="handleMouseDown"
-              @mouseup="handleMouseUp"
-              @contextmenu.prevent="handleRightClick"
-              @click="handleImageClick"
-              @wheel="handleWheel"
-            >
-              <div v-if="currentImage" class="image-wrapper" :style="imageWrapperStyle">
-                <img 
-                  :src="currentImage.url" 
-                  alt="预览图片"
-                  ref="imageRef"
-                  @load="handleImageLoad"
-                  draggable="false"
-                  :style="imageStyle"
-                />
-                <!-- 圈选矩形高亮 -->
-                <div 
-                  v-if="selectionDisplay"
-                  class="selection-rect"
-                  :style="selectionStyle"
-                ></div>
-              </div>
-              <div v-else class="empty-placeholder">
-                <el-icon class="empty-icon"><Picture /></el-icon>
-                <p>请载入图片</p>
-              </div>
-            </div>
-            <!-- <ImageProcessorInfoPanel
-              :current-image="currentImage"
-              :selection-info="selectionInfo"
-            /> -->
+        <el-tabs
+          v-if="images.length >= 1"
+          v-model="currentImageIndex"
+          type="border-card"
+          closable
+          @tab-remove="removeImage"
+        >
+          <el-tab-pane
+            v-for="(image, index) in images"
+            :key="index"
+            :label="image.name"
+            :name="String(index)"
+          >
+          </el-tab-pane>
+        </el-tabs>
+        <div
+          class="image-container"
+          ref="imageContainerRef"
+          :style="{ cursor: isDragging ? 'grabbing' : containerCursor }"
+          @mousemove="handleContainerMouseMove"
+          @mouseenter="handleMouseEnter"
+          @mouseleave="handleMouseLeave"
+          @mousedown="handleMouseDown"
+          @mouseup="handleMouseUp"
+          @contextmenu.prevent="handleRightClick"
+          @click="handleImageClick"
+          @wheel="handleWheel"
+        >
+          <div v-if="currentImage" class="image-wrapper" :style="imageWrapperStyle">
+            <img
+              :src="currentImage.url"
+              alt="预览图片"
+              ref="imageRef"
+              @load="handleImageLoad"
+              draggable="false"
+              :style="imageStyle"
+            />
+            <!-- 圈选矩形高亮 -->
+            <div
+              v-if="selectionDisplay"
+              class="selection-rect"
+              :style="selectionStyle"
+            ></div>
+          </div>
+          <div v-else class="empty-placeholder">
+            <el-icon class="empty-icon"><Picture /></el-icon>
+            <p>请载入图片</p>
           </div>
         </div>
       </div>
@@ -110,7 +101,7 @@
       :device-loading="deviceLoading"
       :selected-device-id="selectedDeviceId"
       :current-device-id="currentDeviceId"
-      @update:selected-device-id="val => (selectedDeviceId = val)"
+      @update:selected-device-id="(val) => (selectedDeviceId = val)"
       @refresh-devices="refreshDevices"
       @connect-selected-device="connectSelectedDevice"
     />
@@ -124,17 +115,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { Picture, ZoomIn, Collection, Delete, Tools } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
-import { ipc } from '@/utils/ipcRenderer';
-import { ipcApiRoute } from '@/api';
-import { io } from 'socket.io-client';
-import ImageProcessorLeftPanel from './ImageProcessorLeftPanel.vue';
-import ImageProcessorRightPanel from './ImageProcessorRightPanel.vue';
-import ImageProcessorDeviceDialog from './ImageProcessorDeviceDialog.vue';
-import ImageProcessorInfoPanel from './ImageProcessorInfoPanel.vue';
-import ImageProcessorSelectionDialog from './ImageProcessorSelectionDialog.vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { Picture, ZoomIn, Collection, Delete, Tools } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
+import { ipc } from "@/utils/ipcRenderer";
+import { ipcApiRoute } from "@/api";
+import { io } from "socket.io-client";
+import ImageProcessorLeftPanel from "./ImageProcessorLeftPanel.vue";
+import ImageProcessorRightPanel from "./ImageProcessorRightPanel.vue";
+import ImageProcessorDeviceDialog from "./ImageProcessorDeviceDialog.vue";
+import ImageProcessorSelectionDialog from "./ImageProcessorSelectionDialog.vue";
 
 // 文件输入引用
 const fileInputRef = ref(null);
@@ -145,15 +135,23 @@ const rightPanelRef = ref(null);
 
 // 图片数组
 const images = ref([]);
-const currentImageIndex = ref('0');
+const currentImageIndex = ref("0");
 
 // 是否启用圈选功能
 const selectionEnabled = ref(false);
 
 // 当前图片的计算属性
 const currentImage = computed(() => {
-  const index = typeof currentImageIndex.value === 'string' ? parseInt(currentImageIndex.value) : currentImageIndex.value;
-  if (images.value.length === 0 || isNaN(index) || index < 0 || index >= images.value.length) {
+  const index =
+    typeof currentImageIndex.value === "string"
+      ? parseInt(currentImageIndex.value)
+      : currentImageIndex.value;
+  if (
+    images.value.length === 0 ||
+    isNaN(index) ||
+    index < 0 ||
+    index >= images.value.length
+  ) {
     return null;
   }
   return images.value[index];
@@ -179,13 +177,13 @@ const currentPosition = ref({ x: 0, y: 0 }); // 当前鼠标位置的图片坐�
 
 // 圈选相关
 const isSelecting = ref(false);
-const isResizing = ref(false);      // 是否在拖拉边框
-const selectionStart = ref(null);   // { imageX, imageY, naturalX, naturalY }
+const isResizing = ref(false); // 是否在拖拉边框
+const selectionStart = ref(null); // { imageX, imageY, naturalX, naturalY }
 const selectionCurrent = ref(null); // { imageX, imageY, naturalX, naturalY }
 const selectionDisplay = ref(null); // 用于在页面上显示的矩形（基于图片显示尺寸坐标）
-const selectionRect = ref(null);    // 基于原始图片坐标的矩形 { x, y, w, h }
-const resizeHandle = ref(null);     // 当前拖动的边/角方向，例如 left/right/top/bottom/top-left 等
-const containerCursor = ref('default'); // 容器鼠标样式
+const selectionRect = ref(null); // 基于原始图片坐标的矩形 { x, y, w, h }
+const resizeHandle = ref(null); // 当前拖动的边/角方向，例如 left/right/top/bottom/top-left 等
+const containerCursor = ref("default"); // 容器鼠标样式
 
 // 对外显示的圈选信息
 const selectionInfo = computed(() => selectionRect.value);
@@ -210,11 +208,11 @@ const dragStartTranslateY = ref(0);
 
 // 设备连接相关
 const deviceDialogVisible = ref(false);
-const deviceTab = ref('mobile');
+const deviceTab = ref("mobile");
 const deviceList = ref([]);
 const deviceLoading = ref(false);
-const selectedDeviceId = ref('');
-const currentDeviceId = ref('');
+const selectedDeviceId = ref("");
+const currentDeviceId = ref("");
 const screenshotLoading = ref(false);
 let deviceSocket = null;
 
@@ -242,19 +240,19 @@ function handleFileSelect(event) {
   if (files.length === 0) return;
 
   // 过滤出图片文件
-  const imageFiles = files.filter(file => file.type.startsWith('image/'));
-  
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
   if (imageFiles.length === 0) {
-    ElMessage.error('请选择图片文件');
+    ElMessage.error("请选择图片文件");
     return;
   }
 
   // 处理每个图片文件
-  imageFiles.forEach(file => {
+  imageFiles.forEach((file) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const url = e.target.result;
-      
+
       // 获取图片信息
       const img = new Image();
       img.onload = () => {
@@ -264,23 +262,23 @@ function handleFileSelect(event) {
           file: file,
           info: {
             fileSize: formatFileSize(file.size),
-            format: file.type.split('/')[1].toUpperCase(),
+            format: file.type.split("/")[1].toUpperCase(),
             width: img.width,
-            height: img.height
+            height: img.height,
           },
-          selectedColors: []
+          selectedColors: [],
         };
-        
+
         images.value.push(imageData);
-        
+
         // 如果是第一张图片，自动选中
         if (images.value.length === 1) {
-          currentImageIndex.value = '0';
+          currentImageIndex.value = "0";
         } else {
           // 切换到新添加的图片
           currentImageIndex.value = String(images.value.length - 1);
         }
-        
+
         // 更新图片尺寸
         if (currentImageIndex.value === images.value.length - 1) {
           imageNaturalSize.value = { width: img.width, height: img.height };
@@ -292,24 +290,24 @@ function handleFileSelect(event) {
   });
 
   // 清空文件输入，以便可以再次选择相同文件
-  event.target.value = '';
+  event.target.value = "";
 }
 
 // 格式化文件大小
 function formatFileSize(bytes) {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 }
 
 // 图片加载完成
 function handleImageLoad() {
   if (imageRef.value) {
-    imageNaturalSize.value = { 
-      width: imageRef.value.naturalWidth, 
-      height: imageRef.value.naturalHeight 
+    imageNaturalSize.value = {
+      width: imageRef.value.naturalWidth,
+      height: imageRef.value.naturalHeight,
     };
     // 图片加载后，计算初始缩放和位置（居中显示）
     nextTick(() => {
@@ -321,19 +319,19 @@ function handleImageLoad() {
 // 计算初始变换（居中显示）
 function calculateInitialTransform() {
   if (!imageRef.value || !imageContainerRef.value) return;
-  
+
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const imgWidth = imageRef.value.naturalWidth;
   const imgHeight = imageRef.value.naturalHeight;
-  
+
   // 计算适合容器的缩放比例（保持宽高比，最大边占满）
   const scaleX = containerRect.width / imgWidth;
   const scaleY = containerRect.height / imgHeight;
   const scale = Math.min(scaleX, scaleY, 1); // 不超过原始大小
-  
+
   imageScale.value = scale;
   initialScale.value = scale;
-  
+
   // 居中显示
   const scaledWidth = imgWidth * scale;
   const scaledHeight = imgHeight * scale;
@@ -347,10 +345,14 @@ function calculateInitialTransform() {
 const imageWrapperStyle = computed(() => {
   return {
     transform: `translate(${imageTranslateX.value}px, ${imageTranslateY.value}px)`,
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
-    cursor: isDragging.value ? 'grabbing' : (selectionEnabled.value ? containerCursor.value : 'default')
+    cursor: isDragging.value
+      ? "grabbing"
+      : selectionEnabled.value
+      ? containerCursor.value
+      : "default",
   };
 });
 
@@ -358,32 +360,32 @@ const imageWrapperStyle = computed(() => {
 const imageStyle = computed(() => {
   return {
     transform: `scale(${imageScale.value})`,
-    transformOrigin: 'top left',
-    display: 'block'
+    transformOrigin: "top left",
+    display: "block",
   };
 });
 
 // ==================== 设备连接逻辑 ====================
 
 function initDeviceSocket() {
-  deviceSocket = io('ws://localhost:7070');
+  deviceSocket = io("ws://localhost:7070");
 
-  deviceSocket.on('connect', () => {
-    console.log('设备 Socket 连接成功');
+  deviceSocket.on("connect", () => {
+    console.log("设备 Socket 连接成功");
   });
 
-  deviceSocket.on('device-list', (data) => {
-    console.log('收到设备列表:', data);
+  deviceSocket.on("device-list", (data) => {
+    console.log("收到设备列表:", data);
     handleDeviceList(data);
   });
 
-  deviceSocket.on('device-selected', (data) => {
-    console.log('收到设备选择结果:', data);
+  deviceSocket.on("device-selected", (data) => {
+    console.log("收到设备选择结果:", data);
     handleDeviceSelected(data);
   });
 
-   deviceSocket.on('device-screenshot', (data) => {
-    console.log('收到设备截图:', data);
+  deviceSocket.on("device-screenshot", (data) => {
+    console.log("收到设备截图:", data);
     handleDeviceScreenshot(data);
   });
 }
@@ -392,7 +394,7 @@ function handleDeviceList(data) {
   deviceLoading.value = false;
 
   if (!data || !data.success) {
-    ElMessage.error(data?.error || '获取设备列表失败');
+    ElMessage.error(data?.error || "获取设备列表失败");
     deviceList.value = [];
     return;
   }
@@ -409,17 +411,17 @@ function handleDeviceList(data) {
 
 function handleDeviceSelected(data) {
   if (!data || !data.success) {
-    ElMessage.error(data?.error || '连接设备失败');
+    ElMessage.error(data?.error || "连接设备失败");
     return;
   }
 
-  currentDeviceId.value = data.currentDeviceId || '';
+  currentDeviceId.value = data.currentDeviceId || "";
 
   if (currentDeviceId.value) {
     selectedDeviceId.value = currentDeviceId.value;
     ElMessage.success(`已连接设备: ${currentDeviceId.value}`);
   } else {
-    ElMessage.info('已清除当前连接设备');
+    ElMessage.info("已清除当前连接设备");
   }
 }
 
@@ -427,7 +429,7 @@ function handleDeviceScreenshot(data) {
   screenshotLoading.value = false;
 
   if (!data || !data.success || !data.image) {
-    ElMessage.error(data?.error || '获取截图失败');
+    ElMessage.error(data?.error || "获取截图失败");
     return;
   }
 
@@ -439,8 +441,8 @@ function handleDeviceScreenshot(data) {
       url,
       file: null,
       info: {
-        fileSize: '--',
-        format: 'PNG',
+        fileSize: "--",
+        format: "PNG",
         width: img.width,
         height: img.height,
       },
@@ -457,11 +459,11 @@ async function refreshDevices() {
   deviceLoading.value = true;
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
-      type: 'get_devices'
+      type: "get_devices",
     });
   } catch (error) {
-    console.error('刷新设备失败:', error);
-    ElMessage.error(`刷新设备失败: ${error.message || '未知错误'}`);
+    console.error("刷新设备失败:", error);
+    ElMessage.error(`刷新设备失败: ${error.message || "未知错误"}`);
     deviceLoading.value = false;
   }
 }
@@ -470,29 +472,29 @@ async function connectSelectedDevice() {
   if (!selectedDeviceId.value) return;
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
-      type: 'set_device',
-      deviceId: selectedDeviceId.value
+      type: "set_device",
+      deviceId: selectedDeviceId.value,
     });
   } catch (error) {
-    console.error('连接设备失败:', error);
-    ElMessage.error(`连接设备失败: ${error.message || '未知错误'}`);
+    console.error("连接设备失败:", error);
+    ElMessage.error(`连接设备失败: ${error.message || "未知错误"}`);
   }
 }
 
 async function captureScreenshot() {
   if (!currentDeviceId.value) {
-    ElMessage.warning('请先连接设备');
+    ElMessage.warning("请先连接设备");
     return;
   }
 
   screenshotLoading.value = true;
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
-      type: 'capture_screenshot',
+      type: "capture_screenshot",
     });
   } catch (error) {
-    console.error('截图失败:', error);
-    ElMessage.error(`截图失败: ${error.message || '未知错误'}`);
+    console.error("截图失败:", error);
+    ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
     screenshotLoading.value = false;
   }
 }
@@ -503,7 +505,7 @@ function handleContainerMouseMove(event) {
     magnifierVisible.value = false;
     return;
   }
-  
+
   // 如果正在拖动图片
   if (isDragging.value) {
     const deltaX = event.clientX - dragStartX.value;
@@ -511,12 +513,16 @@ function handleContainerMouseMove(event) {
     imageTranslateX.value = dragStartTranslateX.value + deltaX;
     imageTranslateY.value = dragStartTranslateY.value + deltaY;
     // 拖动时设置鼠标样式为小手
-    containerCursor.value = 'grabbing';
+    containerCursor.value = "grabbing";
     return;
   }
-  
+
   // 确保图片已加载完成
-  if (!imageRef.value.complete || imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) {
+  if (
+    !imageRef.value.complete ||
+    imageRef.value.naturalWidth === 0 ||
+    imageRef.value.naturalHeight === 0
+  ) {
     magnifierVisible.value = false;
     return;
   }
@@ -527,8 +533,12 @@ function handleContainerMouseMove(event) {
   const containerY = event.clientY - containerRect.top;
 
   // 检查鼠标是否在容器内
-  if (containerX < 0 || containerX >= containerRect.width || 
-      containerY < 0 || containerY >= containerRect.height) {
+  if (
+    containerX < 0 ||
+    containerX >= containerRect.width ||
+    containerY < 0 ||
+    containerY >= containerRect.height
+  ) {
     magnifierVisible.value = false;
     currentColor.value = null;
     return;
@@ -541,22 +551,22 @@ function handleContainerMouseMove(event) {
   const imgNaturalHeight = imageRef.value.naturalHeight;
   const imgDisplayWidth = imgNaturalWidth * imageScale.value;
   const imgDisplayHeight = imgNaturalHeight * imageScale.value;
-  
+
   // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
   const imageX = containerX - imageTranslateX.value;
   const imageY = containerY - imageTranslateY.value;
-  
+
   // 转换为图片原始尺寸的坐标
   const naturalX = imageX / imageScale.value;
   const naturalY = imageY / imageScale.value;
-  
+
   // 限制到图片范围内（边缘像素）
   const clampedNaturalX = Math.max(0, Math.min(naturalX, imgNaturalWidth - 1));
   const clampedNaturalY = Math.max(0, Math.min(naturalY, imgNaturalHeight - 1));
 
   // 检查是否在图片显示区域内（用于圈选和鼠标样式）
-  const isOnImage = imageX >= 0 && imageX < imgDisplayWidth && 
-                    imageY >= 0 && imageY < imgDisplayHeight;
+  const isOnImage =
+    imageX >= 0 && imageX < imgDisplayWidth && imageY >= 0 && imageY < imgDisplayHeight;
 
   // 如果鼠标在图片上，处理圈选相关逻辑
   if (isOnImage) {
@@ -564,9 +574,9 @@ function handleContainerMouseMove(event) {
     if (selectionEnabled.value) {
       updateCursorStyle(imageX, imageY);
     } else {
-      containerCursor.value = 'default';
+      containerCursor.value = "default";
     }
-    
+
     // 正在拖动边框调整大小
     if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
       updateSelectionRectsByResize(imageX, imageY);
@@ -584,13 +594,13 @@ function handleContainerMouseMove(event) {
     }
   } else {
     // 鼠标不在图片上，重置为默认样式
-    containerCursor.value = 'default';
+    containerCursor.value = "default";
   }
 
   // 更新当前坐标和放大镜（无论鼠标是否在图片上，都显示放大镜）
   currentPosition.value = {
     x: Math.floor(clampedNaturalX),
-    y: Math.floor(clampedNaturalY)
+    y: Math.floor(clampedNaturalY),
   };
   magnifierVisible.value = true;
   // 使用 nextTick 确保 canvas 已渲染
@@ -611,7 +621,7 @@ function handleMouseLeave() {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
-  containerCursor.value = selectionEnabled.value ? 'crosshair' : 'default';
+  containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
 
   // 不清除 selectionDisplay / selectionRect，保证圈选框在滚动时仍然存在
   // 也不强制修改 isSelecting / isResizing，避免与正在进行的其它操作冲突
@@ -649,15 +659,20 @@ function handleMouseDown(event) {
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const containerX = event.clientX - containerRect.left;
   const containerY = event.clientY - containerRect.top;
-  
+
   // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
   const imageX = containerX - imageTranslateX.value;
   const imageY = containerY - imageTranslateY.value;
-  
+
   const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
   const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-  if (imageX < 0 || imageY < 0 || imageX >= imgDisplayWidth || imageY >= imgDisplayHeight) {
+  if (
+    imageX < 0 ||
+    imageY < 0 ||
+    imageX >= imgDisplayWidth ||
+    imageY >= imgDisplayHeight
+  ) {
     return;
   }
 
@@ -709,11 +724,11 @@ function handleMouseUp(event) {
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const containerX = event.clientX - containerRect.left;
   const containerY = event.clientY - containerRect.top;
-  
+
   // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
   const imageX = containerX - imageTranslateX.value;
   const imageY = containerY - imageTranslateY.value;
-  
+
   const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
   const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
@@ -838,10 +853,10 @@ const selectionStyle = computed(() => {
   if (!selectionDisplay.value) return {};
   const rect = selectionDisplay.value;
   return {
-    left: rect.x + 'px',
-    top: rect.y + 'px',
-    width: rect.w + 'px',
-    height: rect.h + 'px',
+    left: rect.x + "px",
+    top: rect.y + "px",
+    width: rect.w + "px",
+    height: rect.h + "px",
   };
 });
 
@@ -859,18 +874,18 @@ function getResizeHandleAtPoint(x, y, rect) {
   const nearBottom = Math.abs(y - bottom) <= margin;
 
   // 先判断角
-  if (nearLeft && nearTop) return 'top-left';
-  if (nearRight && nearTop) return 'top-right';
-  if (nearLeft && nearBottom) return 'bottom-left';
-  if (nearRight && nearBottom) return 'bottom-right';
+  if (nearLeft && nearTop) return "top-left";
+  if (nearRight && nearTop) return "top-right";
+  if (nearLeft && nearBottom) return "bottom-left";
+  if (nearRight && nearBottom) return "bottom-right";
 
   // 再判断边
   const withinVertical = y >= top - margin && y <= bottom + margin;
   const withinHorizontal = x >= left - margin && x <= right + margin;
-  if (nearLeft && withinVertical) return 'left';
-  if (nearRight && withinVertical) return 'right';
-  if (nearTop && withinHorizontal) return 'top';
-  if (nearBottom && withinHorizontal) return 'bottom';
+  if (nearLeft && withinVertical) return "left";
+  if (nearRight && withinVertical) return "right";
+  if (nearTop && withinHorizontal) return "top";
+  if (nearBottom && withinHorizontal) return "bottom";
 
   return null;
 }
@@ -880,22 +895,22 @@ function updateCursorStyle(imageX, imageY) {
   // 如果正在拖动边框，保持相应的 cursor 样式
   if (isResizing.value && resizeHandle.value) {
     const cursorMap = {
-      'left': 'ew-resize',
-      'right': 'ew-resize',
-      'top': 'ns-resize',
-      'bottom': 'ns-resize',
-      'top-left': 'nw-resize',
-      'top-right': 'ne-resize',
-      'bottom-left': 'sw-resize',
-      'bottom-right': 'se-resize'
+      left: "ew-resize",
+      right: "ew-resize",
+      top: "ns-resize",
+      bottom: "ns-resize",
+      "top-left": "nw-resize",
+      "top-right": "ne-resize",
+      "bottom-left": "sw-resize",
+      "bottom-right": "se-resize",
     };
-    containerCursor.value = cursorMap[resizeHandle.value] || 'crosshair';
+    containerCursor.value = cursorMap[resizeHandle.value] || "crosshair";
     return;
   }
 
   // 如果正在圈选，使用 crosshair
   if (isSelecting.value) {
-    containerCursor.value = 'crosshair';
+    containerCursor.value = "crosshair";
     return;
   }
 
@@ -904,27 +919,33 @@ function updateCursorStyle(imageX, imageY) {
     const handle = getResizeHandleAtPoint(imageX, imageY, selectionDisplay.value);
     if (handle) {
       const cursorMap = {
-        'left': 'ew-resize',
-        'right': 'ew-resize',
-        'top': 'ns-resize',
-        'bottom': 'ns-resize',
-        'top-left': 'nw-resize',
-        'top-right': 'ne-resize',
-        'bottom-left': 'sw-resize',
-        'bottom-right': 'se-resize'
+        left: "ew-resize",
+        right: "ew-resize",
+        top: "ns-resize",
+        bottom: "ns-resize",
+        "top-left": "nw-resize",
+        "top-right": "ne-resize",
+        "bottom-left": "sw-resize",
+        "bottom-right": "se-resize",
       };
-      containerCursor.value = cursorMap[handle] || 'crosshair';
+      containerCursor.value = cursorMap[handle] || "crosshair";
       return;
     }
   }
 
   // 默认样式（启用圈选时为十字，否则为默认）
-  containerCursor.value = selectionEnabled.value ? 'crosshair' : 'default';
+  containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
 }
 
 // 根据拖动边框更新矩形（传入的是当前鼠标在图片显示坐标中的位置）
 function updateSelectionRectsByResize(imageX, imageY) {
-  if (!selectionDisplay.value || !selectionRect.value || !imageRef.value || !resizeHandle.value) return;
+  if (
+    !selectionDisplay.value ||
+    !selectionRect.value ||
+    !imageRef.value ||
+    !resizeHandle.value
+  )
+    return;
 
   const disp = { ...selectionDisplay.value };
   const minSize = 3; // 最小宽高，避免为 0
@@ -935,7 +956,7 @@ function updateSelectionRectsByResize(imageX, imageY) {
   let bottom = disp.y + disp.h;
 
   const handle = resizeHandle.value;
-  
+
   const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
   const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
@@ -943,29 +964,29 @@ function updateSelectionRectsByResize(imageX, imageY) {
   const clampX = Math.min(Math.max(imageX, 0), imgDisplayWidth);
   const clampY = Math.min(Math.max(imageY, 0), imgDisplayHeight);
 
-  if (handle.includes('left')) {
+  if (handle.includes("left")) {
     left = Math.min(clampX, right - minSize);
-  } else if (handle.includes('right')) {
+  } else if (handle.includes("right")) {
     right = Math.max(clampX, left + minSize);
   }
 
-  if (handle.includes('top')) {
+  if (handle.includes("top")) {
     top = Math.min(clampY, bottom - minSize);
-  } else if (handle.includes('bottom')) {
+  } else if (handle.includes("bottom")) {
     bottom = Math.max(clampY, top + minSize);
   }
 
   // 单独水平或垂直边（防止只含单词时遗漏）
-  if (handle === 'left') {
+  if (handle === "left") {
     left = Math.min(clampX, right - minSize);
   }
-  if (handle === 'right') {
+  if (handle === "right") {
     right = Math.max(clampX, left + minSize);
   }
-  if (handle === 'top') {
+  if (handle === "top") {
     top = Math.min(clampY, bottom - minSize);
   }
-  if (handle === 'bottom') {
+  if (handle === "bottom") {
     bottom = Math.max(clampY, top + minSize);
   }
 
@@ -1001,10 +1022,10 @@ function updateSelectionRectsByResize(imageX, imageY) {
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
 function updateMagnifier(x, y) {
   if (!rightPanelRef.value || !imageRef.value) return;
-  
+
   // 确保图片已加载
   if (imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) return;
-  
+
   const canvas = rightPanelRef.value.getMagnifierCanvas?.();
   if (!canvas) {
     // 如果 canvas 还未渲染，延迟重试
@@ -1016,7 +1037,7 @@ function updateMagnifier(x, y) {
     }, 10);
     return;
   }
-  
+
   drawMagnifier(canvas, x, y);
 }
 
@@ -1024,7 +1045,7 @@ function updateMagnifier(x, y) {
 function drawMagnifier(canvas, x, y) {
   if (!canvas || !imageRef.value) return;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   const scale = 10; // 放大倍数
   const size = 11; // 11x11像素
   const halfSize = Math.floor(size / 2);
@@ -1060,7 +1081,7 @@ function drawMagnifier(canvas, x, y) {
   canvas.height = size * scale;
 
   // 先清除画布（用黑色背景）
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // 计算中心像素在源区域中的偏移
@@ -1071,7 +1092,7 @@ function drawMagnifier(canvas, x, y) {
   // canvas中心位置
   const canvasCenterX = canvas.width / 2;
   const canvasCenterY = canvas.height / 2;
-  
+
   // 计算绘制起始位置，使得中心像素在canvas中心
   const drawX = canvasCenterX - centerOffsetX * scale - scale / 2;
   const drawY = canvasCenterY - centerOffsetY * scale - scale / 2;
@@ -1080,21 +1101,27 @@ function drawMagnifier(canvas, x, y) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     imageRef.value,
-    sourceX, sourceY, sourceW, sourceH,
-    drawX, drawY, sourceW * scale, sourceH * scale
+    sourceX,
+    sourceY,
+    sourceW,
+    sourceH,
+    drawX,
+    drawY,
+    sourceW * scale,
+    sourceH * scale
   );
 
   // 绘制网格（每个像素一个格子）
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
   ctx.lineWidth = 1;
-  ctx.lineCap = 'square';
-  
+  ctx.lineCap = "square";
+
   // 计算网格的起始位置（与图片对齐）
   const gridStartX = drawX;
   const gridStartY = drawY;
   const gridEndX = drawX + sourceW * scale;
   const gridEndY = drawY + sourceH * scale;
-  
+
   // 绘制垂直线
   for (let i = 0; i <= sourceW; i++) {
     const pos = gridStartX + i * scale;
@@ -1105,7 +1132,7 @@ function drawMagnifier(canvas, x, y) {
       ctx.stroke();
     }
   }
-  
+
   // 绘制水平线
   for (let i = 0; i <= sourceH; i++) {
     const pos = gridStartY + i * scale;
@@ -1118,7 +1145,7 @@ function drawMagnifier(canvas, x, y) {
   }
 
   // 中心十字线始终在canvas中心
-  ctx.strokeStyle = '#ff0000';
+  ctx.strokeStyle = "#ff0000";
   ctx.lineWidth = 2;
   ctx.beginPath();
   // 水平线（从中心向两边延伸）
@@ -1134,8 +1161,8 @@ function drawMagnifier(canvas, x, y) {
 function updateCurrentColor(x, y) {
   if (!imageRef.value) return;
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
   canvas.width = imageRef.value.naturalWidth;
   canvas.height = imageRef.value.naturalHeight;
   ctx.drawImage(imageRef.value, 0, 0);
@@ -1146,11 +1173,11 @@ function updateCurrentColor(x, y) {
   if (imageX >= 0 && imageX < canvas.width && imageY >= 0 && imageY < canvas.height) {
     const imageData = ctx.getImageData(imageX, imageY, 1, 1);
     const [r, g, b] = imageData.data;
-    const hex = `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
-    
+    const hex = `#${[r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+
     currentColor.value = {
       rgb: `rgb(${r}, ${g}, ${b})`,
-      hex: hex.toUpperCase()
+      hex: hex.toUpperCase(),
     };
   }
 }
@@ -1170,30 +1197,43 @@ function handleImageClick(event) {
     const containerRect = imageContainerRef.value.getBoundingClientRect();
     const containerX = event.clientX - containerRect.left;
     const containerY = event.clientY - containerRect.top;
-    
+
     // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
     const imageX = containerX - imageTranslateX.value;
     const imageY = containerY - imageTranslateY.value;
-    
+
     const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
     const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-    if (imageX >= 0 && imageX < imgDisplayWidth && imageY >= 0 && imageY < imgDisplayHeight) {
+    if (
+      imageX >= 0 &&
+      imageX < imgDisplayWidth &&
+      imageY >= 0 &&
+      imageY < imgDisplayHeight
+    ) {
       if (currentColor.value) {
         // 转换为图片原始尺寸的坐标
         const naturalX = Math.floor(imageX / imageScale.value);
         const naturalY = Math.floor(imageY / imageScale.value);
-        
+
         // 确保当前图片有颜色数组
         if (!currentImage.value.selectedColors) {
           currentImage.value.selectedColors = [];
+        }
+
+        // 检查是否相同坐标点
+        const exists = currentImage.value.selectedColors.some(
+          c => c.x === naturalX && c.y === naturalY
+        );
+        if (exists) {
+          return;
         }
         
         // 记录颜色到当前图片
         currentImage.value.selectedColors.push({
           ...currentColor.value,
           x: naturalX,
-          y: naturalY
+          y: naturalY,
         });
       }
     }
@@ -1203,39 +1243,47 @@ function handleImageClick(event) {
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const containerX = event.clientX - containerRect.left;
   const containerY = event.clientY - containerRect.top;
-  
+
   // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
   const imageX = containerX - imageTranslateX.value;
   const imageY = containerY - imageTranslateY.value;
-  
+
   const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
   const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
-  if (imageX >= 0 && imageX < imgDisplayWidth && imageY >= 0 && imageY < imgDisplayHeight) {
+  if (
+    imageX >= 0 &&
+    imageX < imgDisplayWidth &&
+    imageY >= 0 &&
+    imageY < imgDisplayHeight
+  ) {
     // 检查是否点击在圈选区域内（排除边框，边框用于调整大小）
     const rect = selectionDisplay.value;
     const borderMargin = 6; // 边框容差，与getResizeHandleAtPoint中的margin保持一致
-    
+
     // 检查是否点击在边框上（用于调整大小）
     const handle = getResizeHandleAtPoint(imageX, imageY, rect);
     if (handle) {
       // 点击在边框上，不打开弹框（边框用于调整大小）
       return;
     }
-    
+
     // 检查是否点击在圈选区域内部（排除边框区域）
     const innerX = rect.x + borderMargin;
     const innerY = rect.y + borderMargin;
     const innerW = rect.w - borderMargin * 2;
     const innerH = rect.h - borderMargin * 2;
-    
-    if (imageX >= innerX && imageX <= innerX + innerW &&
-        imageY >= innerY && imageY <= innerY + innerH) {
+
+    if (
+      imageX >= innerX &&
+      imageX <= innerX + innerW &&
+      imageY >= innerY &&
+      imageY <= innerY + innerH
+    ) {
       // 点击在圈选区域内部，裁剪图片并显示弹框
       cropSelectionArea();
       return;
     }
-
   }
 }
 
@@ -1246,32 +1294,38 @@ function cropSelectionArea() {
   }
 
   const rect = selectionRect.value;
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
   // 设置canvas尺寸为圈选区域的尺寸
   canvas.width = rect.w;
   canvas.height = rect.h;
-  
+
   // 创建临时图片对象用于裁剪
   const img = new Image();
   img.onload = () => {
     // 裁剪图片
     ctx.drawImage(
       img,
-      rect.x, rect.y, rect.w, rect.h,  // 源图片的裁剪区域
-      0, 0, rect.w, rect.h               // 目标canvas的位置和尺寸
+      rect.x,
+      rect.y,
+      rect.w,
+      rect.h, // 源图片的裁剪区域
+      0,
+      0,
+      rect.w,
+      rect.h // 目标canvas的位置和尺寸
     );
-    
+
     // 转换为base64 URL
-    croppedImageUrl.value = canvas.toDataURL('image/png');
+    croppedImageUrl.value = canvas.toDataURL("image/png");
     selectionDialogVisible.value = true;
   };
-  
+
   img.onerror = () => {
-    ElMessage.error('裁剪图片失败');
+    ElMessage.error("裁剪图片失败");
   };
-  
+
   img.src = currentImage.value.url;
 }
 
@@ -1291,18 +1345,21 @@ function clearAllColors() {
 
 // 移除图片
 function removeImage(index) {
-  const removeIndex = typeof index === 'string' ? parseInt(index) : index;
-  
+  const removeIndex = typeof index === "string" ? parseInt(index) : index;
+
   if (images.value.length <= 1) {
-    ElMessage.warning('至少需要保留一张图片');
+    ElMessage.warning("至少需要保留一张图片");
     return;
   }
-  
+
   images.value.splice(removeIndex, 1);
-  
+
   // 调整当前索引
-  const currentIndex = typeof currentImageIndex.value === 'string' ? parseInt(currentImageIndex.value) : currentImageIndex.value;
-  
+  const currentIndex =
+    typeof currentImageIndex.value === "string"
+      ? parseInt(currentImageIndex.value)
+      : currentImageIndex.value;
+
   if (currentIndex >= images.value.length) {
     currentImageIndex.value = String(images.value.length - 1);
   } else if (currentIndex > removeIndex) {
@@ -1311,14 +1368,14 @@ function removeImage(index) {
     // 如果删除的是当前图片，切换到前一张或后一张
     currentImageIndex.value = String(Math.min(removeIndex, images.value.length - 1));
   }
-  
+
   // 重置放大镜和颜色
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
   // 切换图片时清空圈选信息
   clearSelection();
-  containerCursor.value = 'crosshair';
+  containerCursor.value = "crosshair";
 }
 
 // 切换圈选功能开关
@@ -1334,32 +1391,32 @@ function toggleSelectionMode() {
 // 处理滚轮缩放（Ctrl + 滚轮）
 function handleWheel(event) {
   if (!currentImage.value || !imageRef.value || !imageContainerRef.value) return;
-  
+
   // 检查是否按住了Ctrl键
   if (!event.ctrlKey && !event.metaKey) {
     return; // 没有按住Ctrl，不处理缩放
   }
-  
+
   event.preventDefault();
-  
+
   // 获取容器和图片的位置信息
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const mouseX = event.clientX - containerRect.left;
   const mouseY = event.clientY - containerRect.top;
-  
+
   // 计算鼠标在图片上的相对位置（考虑当前缩放和偏移）
   const imgRect = imageRef.value.getBoundingClientRect();
   const imgX = (mouseX - imageTranslateX.value) / imageScale.value;
   const imgY = (mouseY - imageTranslateY.value) / imageScale.value;
-  
+
   // 计算缩放增量
   const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
   const newScale = Math.max(0.1, Math.min(10, imageScale.value * zoomFactor));
-  
+
   // 计算新的偏移，使鼠标指向的图片位置保持不变
   const newTranslateX = mouseX - imgX * newScale;
   const newTranslateY = mouseY - imgY * newScale;
-  
+
   imageScale.value = newScale;
   imageTranslateX.value = newTranslateX;
   imageTranslateY.value = newTranslateY;
@@ -1368,47 +1425,47 @@ function handleWheel(event) {
 // 自适应缩放（最大边占满，居中）
 function fitToWindow() {
   if (!imageRef.value || !imageContainerRef.value || !currentImage.value) {
-    ElMessage.warning('请先载入图片');
+    ElMessage.warning("请先载入图片");
     return;
   }
-  
+
   const containerRect = imageContainerRef.value.getBoundingClientRect();
   const imgWidth = imageRef.value.naturalWidth;
   const imgHeight = imageRef.value.naturalHeight;
-  
+
   if (imgWidth === 0 || imgHeight === 0) {
-    ElMessage.warning('图片尺寸无效');
+    ElMessage.warning("图片尺寸无效");
     return;
   }
-  
+
   // 计算适合容器的缩放比例（保持宽高比，最大边占满）
   const scaleX = containerRect.width / imgWidth;
   const scaleY = containerRect.height / imgHeight;
   const scale = Math.min(scaleX, scaleY);
-  
+
   imageScale.value = scale;
-  
+
   // 居中显示
   const scaledWidth = imgWidth * scale;
   const scaledHeight = imgHeight * scale;
   imageTranslateX.value = (containerRect.width - scaledWidth) / 2;
   imageTranslateY.value = (containerRect.height - scaledHeight) / 2;
-  
-  ElMessage.success('已自适应缩放');
+
+  ElMessage.success("已自适应缩放");
 }
 
 // 重置缩放
 function resetZoom() {
   if (!currentImage.value) {
-    ElMessage.warning('请先载入图片');
+    ElMessage.warning("请先载入图片");
     return;
   }
-  
+
   imageScale.value = initialScale.value;
   imageTranslateX.value = initialTranslateX.value;
   imageTranslateY.value = initialTranslateY.value;
-  
-  ElMessage.success('已重置缩放');
+
+  ElMessage.success("已重置缩放");
 }
 
 // 监听当前图片切换，重置放大镜和颜色
@@ -1419,17 +1476,17 @@ watch(currentImageIndex, () => {
   isSelecting.value = false;
   isResizing.value = false;
   resizeHandle.value = null;
-  containerCursor.value = 'crosshair';
+  containerCursor.value = "crosshair";
   isDragging.value = false;
   // 切换图片时清空圈选信息
   clearSelection();
-  
+
   if (currentImage.value) {
     nextTick(() => {
       if (imageRef.value) {
         imageNaturalSize.value = {
           width: imageRef.value.naturalWidth,
-          height: imageRef.value.naturalHeight
+          height: imageRef.value.naturalHeight,
         };
         // 切换图片时重新计算初始变换
         calculateInitialTransform();
@@ -1452,13 +1509,13 @@ function handleGlobalMouseUp(event) {
 
 onMounted(() => {
   // 添加全局鼠标抬起事件监听
-  document.addEventListener('mouseup', handleGlobalMouseUp);
+  document.addEventListener("mouseup", handleGlobalMouseUp);
 });
 
 onUnmounted(() => {
   // 移除全局鼠标抬起事件监听
-  document.removeEventListener('mouseup', handleGlobalMouseUp);
-  
+  document.removeEventListener("mouseup", handleGlobalMouseUp);
+
   if (deviceSocket) {
     deviceSocket.disconnect();
     deviceSocket = null;
@@ -1467,14 +1524,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
 .image-processor-tab {
+  height: 824px;
 }
 
 .processor-layout {
   display: flex;
-  justify-content: space-between;
+  height: 100%;
+  /* justify-content: space-between; */
 }
-
 
 /* 中间面板 */
 .center-panel {
@@ -1488,17 +1547,15 @@ onUnmounted(() => {
 
 .image-container {
   width: 800px;
-  height: 600px;
+  flex: 1;
+  overflow: hidden;
   min-width: 800px;
-  min-height: 600px;
   max-width: 800px;
-  max-height: 600px;
   border: 2px solid var(--border-color);
   border-radius: 0;
   overflow: hidden;
   background: #1a1a2e;
-  background-image: 
-    linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
+  background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
     linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
     linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
@@ -1674,7 +1731,7 @@ onUnmounted(() => {
 .color-value {
   color: var(--text-primary);
   font-weight: 500;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .color-count {
@@ -1753,7 +1810,7 @@ onUnmounted(() => {
 .color-hex-small {
   font-size: 12px;
   color: var(--text-primary);
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
 }
 
 .color-hex-small {
@@ -1792,11 +1849,10 @@ onUnmounted(() => {
   .processor-layout {
     grid-template-columns: 1fr;
   }
-  
+
   .right-panel {
     display: grid;
     grid-template-columns: 1fr 1fr;
   }
 }
 </style>
-

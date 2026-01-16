@@ -1,32 +1,30 @@
 <template>
   <div class="image-processor">
-    <main>
-      <!-- Tab 切换 -->
-      <el-tabs v-model="activeTab" class="main-tabs" type="card">
-        <!-- 图片处理 Tab -->
-        <el-tab-pane label="图片处理" name="image-processor">
-          <ImageProcessorTab />
-        </el-tab-pane>
+    <!-- Tab 切换 -->
+    <el-tabs v-model="activeTab"  type="border-card">
+      <!-- 图片处理 Tab -->
+      <el-tab-pane label="图片处理" name="image-processor">
+        <ImageProcessorTab />
+      </el-tab-pane>
 
-        <!-- 调色 Tab -->
-        <el-tab-pane label="调色" name="coloring">
-          <ColoringTab ref="coloringTabRef" />
-        </el-tab-pane>
+      <!-- 调色 Tab -->
+      <el-tab-pane label="调色" name="coloring">
+        <ColoringTab ref="coloringTabRef" />
+      </el-tab-pane>
 
-        <!-- 寻路测试 Tab -->
-        <el-tab-pane label="寻路测试" name="pathfinding">
-          <PathfindingTab />
-        </el-tab-pane>
-      </el-tabs>
+      <!-- 寻路测试 Tab -->
+      <el-tab-pane label="寻路测试" name="pathfinding">
+        <PathfindingTab />
+      </el-tab-pane>
+    </el-tabs>
 
-      <!-- 处理状态指示器 -->
-      <transition name="fade">
-        <div v-if="coloringTabRef?.processing" class="processing-indicator">
-          <div class="spinner"></div>
-          <span>处理中...</span>
-        </div>
-      </transition>
-    </main>
+    <!-- 处理状态指示器 -->
+    <transition name="fade">
+      <div v-if="coloringTabRef?.processing" class="processing-indicator">
+        <div class="spinner"></div>
+        <span>处理中...</span>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -60,7 +58,7 @@ const coloringTabRef = ref(null);
   --border-color: #334155;
   --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.3);
 
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 50%, #16213e 100%);
   color: var(--text-primary);
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -118,48 +116,11 @@ const coloringTabRef = ref(null);
   background-clip: text;
 }
 
-/* Tab 样式 */
-.main-tabs {
-  margin-bottom: 0;
+/deep/.el-tabs__content {
+  padding: 2px
 }
 
-.main-tabs :deep(.el-tabs__header) {
-  margin-bottom: 20px;
-  border-bottom: none;
-}
 
-.main-tabs :deep(.el-tabs__nav) {
-  border: none;
-  border-radius: 12px;
-  background: rgba(51, 65, 85, 0.5);
-  padding: 4px;
-}
-
-.main-tabs :deep(.el-tabs__item) {
-  border: none !important;
-  border-radius: 8px;
-  padding: 10px 24px !important;
-  height: auto;
-  line-height: 1.5;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.3s ease;
-}
-
-.main-tabs :deep(.el-tabs__item:hover) {
-  color: var(--text-primary);
-}
-
-.main-tabs :deep(.el-tabs__item.is-active) {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-  color: white;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.main-tabs :deep(.el-tabs__content) {
-  overflow: visible;
-}
 
 /* 处理状态指示器 */
 .processing-indicator {
