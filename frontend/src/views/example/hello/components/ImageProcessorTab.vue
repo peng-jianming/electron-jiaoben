@@ -106,11 +106,6 @@
       @connect-selected-device="connectSelectedDevice"
     />
 
-    <!-- 圈选区域预览弹框 -->
-    <ImageProcessorSelectionDialog
-      v-model:visible="selectionDialogVisible"
-      :cropped-image-url="croppedImageUrl"
-    />
   </div>
 </template>
 
@@ -124,7 +119,6 @@ import { io } from "socket.io-client";
 import ImageProcessorLeftPanel from "./ImageProcessorLeftPanel.vue";
 import ImageProcessorRightPanel from "./ImageProcessorRightPanel.vue";
 import ImageProcessorDeviceDialog from "./ImageProcessorDeviceDialog.vue";
-import ImageProcessorSelectionDialog from "./ImageProcessorSelectionDialog.vue";
 
 // 文件输入引用
 const fileInputRef = ref(null);
@@ -186,6 +180,8 @@ const selectionDisplay = ref(null); // 用于在页面上显示的矩形（基�
 const selectionRect = ref(null); // 基于原始图片坐标的矩形 { x, y, w, h }
 const resizeHandle = ref(null); // 当前拖动的边/角方向，例如 left/right/top/bottom/top-left 等
 const containerCursor = ref("default"); // 容器鼠标样式
+const previousSelectionDisplay = ref(null); // 保存的旧选区显示矩形（用于点击时恢复）
+const previousSelectionRect = ref(null); // 保存的旧选区原始坐标矩形（用于点击时恢复）
 
 // 对外显示的圈选信息
 const selectionInfo = computed(() => selectionRect.value);
@@ -218,9 +214,6 @@ const currentDeviceId = ref("");
 const screenshotLoading = ref(false);
 let deviceSocket = null;
 
-// 圈选区域预览弹框相关
-const selectionDialogVisible = ref(false);
-const croppedImageUrl = ref(null);
 
 // 载入图片
 function handleLoadImage() {
@@ -679,7 +672,7 @@ function handleMouseDown(event) {
   }
 
   // 如果已有选区，优先判断是否点击在边框附近，进入拖拉边框模式；
-  // 如果没有点在边框上，则不允许重新开始圈选（必须先右键清除）
+  // 如果没有点在边框上，保存旧选区并准备开始新的圈选（但不清除，等拖动确认后再清除）
   if (selectionDisplay.value || selectionRect.value) {
     const handle = selectionDisplay.value
       ? getResizeHandleAtPoint(imageX, imageY, selectionDisplay.value)
@@ -690,8 +683,16 @@ function handleMouseDown(event) {
       isSelecting.value = false;
       return;
     }
-    // 有圈选但没点到边框上：禁止重新圈选
-    return;
+    // 有圈选但没点到边框上：保存旧选区，准备开始新的圈选
+    // 如果只是点击（未拖动），会在 handleMouseUp 中保持旧选区不变，允许选取颜色
+    // 如果真正拖动，会在 handleMouseUp 中清除旧选区并创建新的
+    previousSelectionDisplay.value = selectionDisplay.value ? { ...selectionDisplay.value } : null;
+    previousSelectionRect.value = selectionRect.value ? { ...selectionRect.value } : null;
+    // 不清除旧选区，等拖动确认后再决定
+  } else {
+    // 没有旧选区时，清空保存的旧选区信息
+    previousSelectionDisplay.value = null;
+    previousSelectionRect.value = null;
   }
 
   // 转换为图片原始尺寸的坐标
@@ -749,7 +750,13 @@ function handleMouseUp(event) {
     const dragDistance = Math.sqrt(dx * dx + dy * dy);
 
     if (dragDistance >= dragThreshold) {
-      // 真正的拖动，更新当前点并创建/更新圈选框
+      // 真正的拖动，清除旧圈选范围并创建新的圈选框
+      if (previousSelectionDisplay.value || previousSelectionRect.value) {
+        // 清除旧圈选范围
+        selectionDisplay.value = null;
+        selectionRect.value = null;
+      }
+      // 更新当前点并创建/更新圈选框
       selectionCurrent.value = {
         imageX: clampedX,
         imageY: clampedY,
@@ -757,10 +764,17 @@ function handleMouseUp(event) {
         naturalY,
       };
       updateSelectionRects();
+      // 拖动创建新选区后，清空保存的旧选区信息
+      previousSelectionDisplay.value = null;
+      previousSelectionRect.value = null;
     } else {
-      // 只是点击，不创建或清除圈选框，仅重置本次拖拽状态
+      // 只是点击，不创建新圈选框，保持旧圈选范围不变（因为本来就没清除）
+      // 重置本次拖拽状态
       selectionStart.value = null;
       selectionCurrent.value = null;
+      // 清空保存的旧选区信息
+      previousSelectionDisplay.value = null;
+      previousSelectionRect.value = null;
     }
   }
 
@@ -789,6 +803,9 @@ function clearSelection() {
   selectionStart.value = null;
   selectionCurrent.value = null;
   resizeHandle.value = null;
+  // 清空保存的旧选区信息
+  previousSelectionDisplay.value = null;
+  previousSelectionRect.value = null;
   // 清空圈选后，如果圈选功能已启用，则启用颜色选择模式
   if (selectionEnabled.value) {
     colorSelectionEnabled.value = true;
@@ -1248,99 +1265,65 @@ function handleImageClick(event) {
     return;
   }
 
-  // 只有在圈选功能开启且圈选完成后（有selectionDisplay和selectionRect）才处理点击
-  if (!selectionEnabled.value || !selectionDisplay.value || !selectionRect.value) {
-    // 默认不执行任何操作
-    return;
-  }
+  // 如果有圈选范围，需要特殊处理
+  if (selectionEnabled.value && selectionDisplay.value && selectionRect.value) {
+    const containerRect = imageContainerRef.value.getBoundingClientRect();
+    const containerX = event.clientX - containerRect.left;
+    const containerY = event.clientY - containerRect.top;
 
-  const containerRect = imageContainerRef.value.getBoundingClientRect();
-  const containerX = event.clientX - containerRect.left;
-  const containerY = event.clientY - containerRect.top;
+    // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+    const imageX = containerX - imageTranslateX.value;
+    const imageY = containerY - imageTranslateY.value;
 
-  // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
-  const imageX = containerX - imageTranslateX.value;
-  const imageY = containerY - imageTranslateY.value;
-
-  const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
-  const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
-
-  if (
-    imageX >= 0 &&
-    imageX < imgDisplayWidth &&
-    imageY >= 0 &&
-    imageY < imgDisplayHeight
-  ) {
-    // 检查是否点击在圈选区域内（排除边框，边框用于调整大小）
-    const rect = selectionDisplay.value;
-    const borderMargin = 6; // 边框容差，与getResizeHandleAtPoint中的margin保持一致
-
-    // 检查是否点击在边框上（用于调整大小）
-    const handle = getResizeHandleAtPoint(imageX, imageY, rect);
-    if (handle) {
-      // 点击在边框上，不打开弹框（边框用于调整大小）
-      return;
-    }
-
-    // 检查是否点击在圈选区域内部（排除边框区域）
-    const innerX = rect.x + borderMargin;
-    const innerY = rect.y + borderMargin;
-    const innerW = rect.w - borderMargin * 2;
-    const innerH = rect.h - borderMargin * 2;
+    const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+    const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
 
     if (
-      imageX >= innerX &&
-      imageX <= innerX + innerW &&
-      imageY >= innerY &&
-      imageY <= innerY + innerH
+      imageX >= 0 &&
+      imageX < imgDisplayWidth &&
+      imageY >= 0 &&
+      imageY < imgDisplayHeight
     ) {
-      // 点击在圈选区域内部，裁剪图片并显示弹框
-      cropSelectionArea();
-      return;
-    }
-  }
-}
+      const rect = selectionDisplay.value;
+      const borderMargin = 6; // 边框容差，与getResizeHandleAtPoint中的margin保持一致
 
-// 裁剪圈选区域的图片
-function cropSelectionArea() {
-  if (!currentImage.value || !imageRef.value || !selectionRect.value) {
+      // 检查是否点击在边框上（用于调整大小）
+      const handle = getResizeHandleAtPoint(imageX, imageY, rect);
+      if (handle) {
+        // 点击在边框上，不处理（边框用于调整大小）
+        return;
+      }
+
+      // 点击在圈选区域内部或外部，都允许选取颜色
+      if (currentColor.value) {
+        // 转换为图片原始尺寸的坐标
+        const naturalX = Math.floor(imageX / imageScale.value);
+        const naturalY = Math.floor(imageY / imageScale.value);
+
+        // 确保当前图片有颜色数组
+        if (!currentImage.value.selectedColors) {
+          currentImage.value.selectedColors = [];
+        }
+
+        // 检查是否相同坐标点
+        const exists = currentImage.value.selectedColors.some(
+          c => c.x === naturalX && c.y === naturalY
+        );
+        if (exists) {
+          return;
+        }
+        
+        // 记录颜色到当前图片
+        currentImage.value.selectedColors.push({
+          ...currentColor.value,
+          x: naturalX,
+          y: naturalY,
+        });
+      }
+    }
     return;
   }
 
-  const rect = selectionRect.value;
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  // 设置canvas尺寸为圈选区域的尺寸
-  canvas.width = rect.w;
-  canvas.height = rect.h;
-
-  // 创建临时图片对象用于裁剪
-  const img = new Image();
-  img.onload = () => {
-    // 裁剪图片
-    ctx.drawImage(
-      img,
-      rect.x,
-      rect.y,
-      rect.w,
-      rect.h, // 源图片的裁剪区域
-      0,
-      0,
-      rect.w,
-      rect.h // 目标canvas的位置和尺寸
-    );
-
-    // 转换为base64 URL
-    croppedImageUrl.value = canvas.toDataURL("image/png");
-    selectionDialogVisible.value = true;
-  };
-
-  img.onerror = () => {
-    ElMessage.error("裁剪图片失败");
-  };
-
-  img.src = currentImage.value.url;
 }
 
 // 移除颜色
