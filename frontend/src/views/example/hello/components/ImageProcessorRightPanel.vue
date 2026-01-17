@@ -156,7 +156,7 @@
               </el-button>
 
             </div>
-            <el-button type="primary" size="small" class="clear-all-btn" @click="clearAllImages">
+            <el-button type="primary" size="small" class="clear-all-btn" @click="handleSaveTransparentImage">
               保存透明图
             </el-button>
           </div>
@@ -897,6 +897,49 @@ const clearTransparentImage = () => {
   }
   transparentImageUrl.value = null;
   ElMessage.success('已清除透明图结果');
+};
+
+// 保存透明图
+const handleSaveTransparentImage = async () => {
+  if (!transparentImageUrl.value) {
+    ElMessage.warning('没有可保存的透明图');
+    return;
+  }
+
+  try {
+    // 打开保存对话框
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const defaultName = `transparent_${timestamp}.png`;
+
+    const result = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+      defaultName: defaultName
+    });
+
+    if (!result || !result.success || result.canceled) {
+      return; // 用户取消或对话框失败
+    }
+
+    // 从 base64 URL 中提取 base64 字符串（去掉 data:image/png;base64, 前缀）
+    let base64Data = transparentImageUrl.value;
+    if (base64Data.includes(',')) {
+      base64Data = base64Data.split(',')[1];
+    }
+
+    // 通过 IPC 调用主进程保存文件
+    const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+      filePath: result.filePath,
+      imageData: base64Data
+    });
+
+    if (saveResult && saveResult.success) {
+      ElMessage.success('透明图保存成功');
+    } else {
+      throw new Error(saveResult?.error || '保存失败');
+    }
+  } catch (error) {
+    console.error('保存透明图失败:', error);
+    ElMessage.error(`保存透明图失败: ${error.message || '未知错误'}`);
+  }
 };
 
 // 初始化设备 Socket 连接
