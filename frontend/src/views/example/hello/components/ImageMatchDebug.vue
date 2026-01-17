@@ -22,14 +22,23 @@
             <el-icon><Close /></el-icon>
           </el-button>
         </div>
-        <el-button
-          v-else
-          type="primary"
-          size="small"
-          @click="smallImageInputRef?.click()"
-        >
-          上传小图
-        </el-button>
+        <div v-else class="button-group">
+          <el-button
+            type="primary"
+            size="small"
+            @click="smallImageInputRef?.click()"
+          >
+            上传小图
+          </el-button>
+          <el-button
+            type="success"
+            size="small"
+            :disabled="!transparentImageUrl"
+            @click="useTransparentImage"
+          >
+            加入透明图
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -55,14 +64,24 @@
             <el-icon><Close /></el-icon>
           </el-button>
         </div>
-        <el-button
-          v-else
-          type="primary"
-          size="small"
-          @click="largeImageInputRef?.click()"
-        >
-          上传大图
-        </el-button>
+        <div v-else class="button-group">
+          <el-button
+            type="primary"
+            size="small"
+            @click="largeImageInputRef?.click()"
+          >
+            上传大图
+          </el-button>
+          <el-button
+            type="success"
+            size="small"
+            :loading="screenshotLoading"
+            :disabled="!currentDeviceId"
+            @click="handleScreenshotClick"
+          >
+            截图
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -124,6 +143,17 @@ import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
 
+const props = defineProps({
+  transparentImageUrl: {
+    type: String,
+    default: null,
+  },
+  currentDeviceId: {
+    type: String,
+    default: "",
+  },
+});
+
 const smallImageInputRef = ref(null);
 const largeImageInputRef = ref(null);
 const smallImageUrl = ref(null);
@@ -135,6 +165,8 @@ const colorToleranceInput = ref("");
 const matching = ref(false);
 const resultImageUrl = ref(null);
 const matchResult = ref(null);
+const screenshotLoading = ref(false);
+const isScreenshotPending = ref(false);
 let matchSocket = null;
 
 // 初始化 Socket 连接
@@ -152,6 +184,14 @@ function initMatchSocket() {
   matchSocket.on("image-match-result", (data) => {
     console.log("收到匹配结果:", data);
     handleMatchResult(data);
+  });
+
+  matchSocket.on("device-screenshot", (data) => {
+    console.log("收到设备截图 (ImageMatchDebug):", data);
+    // 只处理自己发起的截图请求
+    if (isScreenshotPending.value) {
+      handleDeviceScreenshot(data);
+    }
   });
 }
 
@@ -209,9 +249,74 @@ function clearLargeImage() {
   }
 }
 
+// 使用透明图作为小图
+function useTransparentImage() {
+  if (!props.transparentImageUrl) {
+    ElMessage.warning("当前没有透明图");
+    return;
+  }
+
+  // 将透明图 URL 设置为小图
+  smallImageUrl.value = props.transparentImageUrl;
+  smallImageFile.value = null; // 透明图没有文件对象
+
+  ElMessage.success("已加入透明图");
+}
+
+// 处理截图按钮点击
+async function handleScreenshotClick() {
+  // 检查是否有当前设备
+  if (!props.currentDeviceId) {
+    ElMessage.warning("请先连接设备");
+    return;
+  }
+
+  screenshotLoading.value = true;
+  isScreenshotPending.value = true;
+  
+  try {
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: "capture_screenshot",
+      source: "image-match-debug", // 添加来源标识
+    });
+    // 截图结果会通过 socket 事件返回，在 handleDeviceScreenshot 中处理
+    // 设置超时，防止标志一直存在
+    setTimeout(() => {
+      if (isScreenshotPending.value) {
+        isScreenshotPending.value = false;
+        screenshotLoading.value = false;
+        ElMessage.error("截图超时");
+      }
+    }, 10000); // 10秒超时
+  } catch (error) {
+    console.error("截图失败:", error);
+    ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
+    screenshotLoading.value = false;
+    isScreenshotPending.value = false;
+  }
+}
+
+// 处理设备截图结果
+function handleDeviceScreenshot(data) {
+  screenshotLoading.value = false;
+  isScreenshotPending.value = false;
+
+  if (!data || !data.success || !data.image) {
+    ElMessage.error(data?.error || "获取截图失败");
+    return;
+  }
+
+  // 将截图设置为大图
+  const url = `data:image/png;base64,${data.image}`;
+  largeImageUrl.value = url;
+  largeImageFile.value = null; // 截图没有文件对象
+
+  ElMessage.success("截图已设置为大图");
+}
+
 // 处理匹配
 async function handleMatch() {
-  if (!smallImageFile.value || !largeImageFile.value) {
+  if ((!smallImageFile.value && !smallImageUrl.value) || (!largeImageFile.value && !largeImageUrl.value)) {
     ElMessage.warning("请先上传小图和大图");
     return;
   }
@@ -222,8 +327,44 @@ async function handleMatch() {
 
   try {
     // 读取文件为 base64
-    const smallBase64 = await fileToBase64(smallImageFile.value);
-    const largeBase64 = await fileToBase64(largeImageFile.value);
+    let smallBase64;
+    if (smallImageFile.value) {
+      // 从文件读取
+      smallBase64 = await fileToBase64(smallImageFile.value);
+    } else if (smallImageUrl.value) {
+      // 从 URL 中提取 base64（透明图的情况）
+      const base64Data = smallImageUrl.value.split(",")[1];
+      if (!base64Data) {
+        ElMessage.error("无法从图片 URL 中提取 base64 数据");
+        matching.value = false;
+        return;
+      }
+      smallBase64 = base64Data;
+    } else {
+      ElMessage.warning("请先上传小图");
+      matching.value = false;
+      return;
+    }
+    
+    // 读取大图为 base64
+    let largeBase64;
+    if (largeImageFile.value) {
+      // 从文件读取
+      largeBase64 = await fileToBase64(largeImageFile.value);
+    } else if (largeImageUrl.value) {
+      // 从 URL 中提取 base64（截图的情况）
+      const base64Data = largeImageUrl.value.split(",")[1];
+      if (!base64Data) {
+        ElMessage.error("无法从图片 URL 中提取 base64 数据");
+        matching.value = false;
+        return;
+      }
+      largeBase64 = base64Data;
+    } else {
+      ElMessage.warning("请先上传大图");
+      matching.value = false;
+      return;
+    }
 
     // 解析区域
     let region = null;
@@ -417,6 +558,16 @@ onUnmounted(() => {
   text-align: center;
   color: #909399;
   font-size: 12px;
+}
+
+.button-group {
+  display: flex;
+  gap: 5px;
+  width: 100%;
+}
+
+.button-group .el-button {
+  flex: 1;
 }
 </style>
 

@@ -434,6 +434,12 @@ function handleDeviceScreenshot(data) {
     return;
   }
   
+  // 检查截图来源，如果是图片匹配调试组件发起的，则忽略（由图片匹配调试组件自己处理）
+  if (source === "image-match-debug") {
+    console.log("忽略图片匹配调试组件的截图，由图片匹配调试组件自己处理");
+    return;
+  }
+  
   // 兼容旧逻辑：如果数据中没有 source，但标志已设置，也忽略
   if (isRightPanelScreenshoting.value && !source) {
     console.log("忽略右侧面板的截图（通过标志判断），由右侧面板自己处理");

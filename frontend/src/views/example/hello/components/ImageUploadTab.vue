@@ -423,6 +423,11 @@ const handleSaveTransparentImage = async () => {
     ElMessage.error(`保存透明图失败: ${error.message || '未知错误'}`);
   }
 };
+
+// 暴露透明图 URL 供外部访问
+defineExpose({
+  getTransparentImageUrl: () => transparentImageUrl.value,
+});
 </script>
 
 <style scoped>

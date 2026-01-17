@@ -31,17 +31,21 @@
           @images-updated="handleImagesUpdated"
           @remove-image="handleRemoveImage"
           @clear-all-images="handleClearAllImages"
+          ref="imageUploadTabRef"
         />
       </el-tab-pane>
       <el-tab-pane label="调试">
-        <ImageMatchDebug />
+        <ImageMatchDebug 
+          :transparent-image-url="transparentImageUrl"
+          :current-device-id="currentDeviceId"
+        />
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -90,10 +94,19 @@ const emit = defineEmits(["remove-color", "clear-all-colors", "right-panel-scree
 
 const magnifierCardRef = ref(null);
 const colorSelectionTabRef = ref(null);
+const imageUploadTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
 let deviceSocket = null;
+
+// 获取透明图 URL
+const transparentImageUrl = computed(() => {
+  if (imageUploadTabRef.value) {
+    return imageUploadTabRef.value.getTransparentImageUrl?.() || null;
+  }
+  return null;
+});
 
 // 获取选中的偏色列表（从 ColorSelectionTab 组件）
 const selectedDeviations = computed(() => {
