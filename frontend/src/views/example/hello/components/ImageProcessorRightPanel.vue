@@ -161,8 +161,27 @@
             </el-button>
           </div>
           <!-- 透明图处理结果显示区域 -->
-          <div class="transparent-image-result">
-            <img v-if="transparentImageUrl" :src="transparentImageUrl" alt="透明图处理结果" class="transparent-result-image" />
+          <div 
+            class="transparent-image-result"
+            ref="transparentImageContainerRef"
+            :style="{ cursor: transparentIsDragging ? 'grabbing' : 'default' }"
+            @mousedown="handleTransparentImageMouseDown"
+            @mousemove="handleTransparentImageMouseMove"
+            @mouseup="handleTransparentImageMouseUp"
+            @mouseleave="handleTransparentImageMouseLeave"
+            @wheel="handleTransparentImageWheel"
+          >
+            <div v-if="transparentImageUrl" class="transparent-image-wrapper" :style="transparentImageWrapperStyle">
+              <img 
+                :src="transparentImageUrl" 
+                alt="透明图处理结果" 
+                class="transparent-result-image"
+                ref="transparentImageRef"
+                :style="transparentImageStyle"
+                @load="handleTransparentImageLoad"
+                draggable="false"
+              />
+            </div>
             <div v-else class="transparent-result-placeholder">
               透明图处理结果将显示在此处
             </div>
@@ -176,7 +195,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { ZoomIn, Collection, Delete } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
@@ -230,6 +249,21 @@ const transparentImageUrl = ref(null);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
 let deviceSocket = null;
+
+// 透明图拖动和缩放相关
+const transparentImageContainerRef = ref(null);
+const transparentImageRef = ref(null);
+const transparentImageScale = ref(1); // 缩放比例
+const transparentImageTranslateX = ref(0); // X轴偏移
+const transparentImageTranslateY = ref(0); // Y轴偏移
+const transparentInitialScale = ref(1); // 初始缩放比例（用于重置）
+const transparentInitialTranslateX = ref(0); // 初始X偏移
+const transparentInitialTranslateY = ref(0); // 初始Y偏移
+const transparentIsDragging = ref(false);
+const transparentDragStartX = ref(0);
+const transparentDragStartY = ref(0);
+const transparentDragStartTranslateX = ref(0);
+const transparentDragStartTranslateY = ref(0);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -1065,6 +1099,168 @@ defineExpose({
   },
 });
 
+// 透明图包装器样式（用于定位）
+const transparentImageWrapperStyle = computed(() => {
+  return {
+    transform: `translate(${transparentImageTranslateX.value}px, ${transparentImageTranslateY.value}px)`,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    cursor: transparentIsDragging.value ? "grabbing" : "default",
+  };
+});
+
+// 透明图样式（用于缩放）
+const transparentImageStyle = computed(() => {
+  return {
+    transform: `scale(${transparentImageScale.value})`,
+    transformOrigin: "top left",
+    display: "block",
+  };
+});
+
+// 透明图加载完成
+function handleTransparentImageLoad() {
+  if (transparentImageRef.value && transparentImageContainerRef.value) {
+    nextTick(() => {
+      calculateTransparentInitialTransform();
+    });
+  }
+}
+
+// 计算透明图初始变换（居中显示）
+function calculateTransparentInitialTransform() {
+  if (!transparentImageRef.value || !transparentImageContainerRef.value) return;
+
+  const containerRect = transparentImageContainerRef.value.getBoundingClientRect();
+  const imgWidth = transparentImageRef.value.naturalWidth;
+  const imgHeight = transparentImageRef.value.naturalHeight;
+
+  // 计算适合容器的缩放比例（保持宽高比，最大边占满）
+  const scaleX = containerRect.width / imgWidth;
+  const scaleY = containerRect.height / imgHeight;
+  const scale = Math.min(scaleX, scaleY, 1); // 不超过原始大小
+
+  transparentImageScale.value = scale;
+  transparentInitialScale.value = scale;
+
+  // 居中显示
+  const scaledWidth = imgWidth * scale;
+  const scaledHeight = imgHeight * scale;
+  transparentImageTranslateX.value = (containerRect.width - scaledWidth) / 2;
+  transparentImageTranslateY.value = (containerRect.height - scaledHeight) / 2;
+  transparentInitialTranslateX.value = transparentImageTranslateX.value;
+  transparentInitialTranslateY.value = transparentImageTranslateY.value;
+}
+
+// 透明图鼠标按下
+function handleTransparentImageMouseDown(event) {
+  if (!transparentImageUrl.value || !transparentImageRef.value) return;
+  
+  // 仅响应左键
+  if (event.button !== 0) return;
+
+  // 检查是否按住了Ctrl键，如果是则允许拖动
+  if (event.ctrlKey || event.metaKey) {
+    transparentIsDragging.value = true;
+    transparentDragStartX.value = event.clientX;
+    transparentDragStartY.value = event.clientY;
+    transparentDragStartTranslateX.value = transparentImageTranslateX.value;
+    transparentDragStartTranslateY.value = transparentImageTranslateY.value;
+    event.preventDefault();
+    return;
+  }
+  
+  // 如果没有按住Ctrl，也允许拖动（方便操作）
+  transparentIsDragging.value = true;
+  transparentDragStartX.value = event.clientX;
+  transparentDragStartY.value = event.clientY;
+  transparentDragStartTranslateX.value = transparentImageTranslateX.value;
+  transparentDragStartTranslateY.value = transparentImageTranslateY.value;
+}
+
+// 透明图鼠标移动
+function handleTransparentImageMouseMove(event) {
+  if (!transparentImageUrl.value || !transparentImageRef.value) return;
+
+  // 如果正在拖动图片
+  if (transparentIsDragging.value) {
+    const deltaX = event.clientX - transparentDragStartX.value;
+    const deltaY = event.clientY - transparentDragStartY.value;
+    transparentImageTranslateX.value = transparentDragStartTranslateX.value + deltaX;
+    transparentImageTranslateY.value = transparentDragStartTranslateY.value + deltaY;
+  }
+}
+
+// 透明图鼠标抬起
+function handleTransparentImageMouseUp(event) {
+  transparentIsDragging.value = false;
+}
+
+// 透明图鼠标离开
+function handleTransparentImageMouseLeave(event) {
+  transparentIsDragging.value = false;
+}
+
+// 透明图滚轮缩放（Ctrl + 滚轮）
+function handleTransparentImageWheel(event) {
+  if (!transparentImageUrl.value || !transparentImageRef.value || !transparentImageContainerRef.value) return;
+
+  // 检查是否按住了Ctrl键
+  if (!event.ctrlKey && !event.metaKey) {
+    return; // 没有按住Ctrl，不处理缩放
+  }
+
+  event.preventDefault();
+
+  // 获取容器和图片的位置信息
+  const containerRect = transparentImageContainerRef.value.getBoundingClientRect();
+  const mouseX = event.clientX - containerRect.left;
+  const mouseY = event.clientY - containerRect.top;
+
+  // 计算鼠标在图片上的相对位置（考虑当前缩放和偏移）
+  const imgRect = transparentImageRef.value.getBoundingClientRect();
+  const imgX = (mouseX - transparentImageTranslateX.value) / transparentImageScale.value;
+  const imgY = (mouseY - transparentImageTranslateY.value) / transparentImageScale.value;
+
+  // 计算缩放增量
+  const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.1, Math.min(10, transparentImageScale.value * zoomFactor));
+
+  // 计算新的偏移，使鼠标指向的图片位置保持不变
+  const newTranslateX = mouseX - imgX * newScale;
+  const newTranslateY = mouseY - imgY * newScale;
+
+  transparentImageScale.value = newScale;
+  transparentImageTranslateX.value = newTranslateX;
+  transparentImageTranslateY.value = newTranslateY;
+}
+
+// 监听透明图 URL 变化，重置缩放和位置
+watch(transparentImageUrl, (newUrl) => {
+  if (newUrl) {
+    // 重置缩放和位置
+    transparentImageScale.value = 1;
+    transparentImageTranslateX.value = 0;
+    transparentImageTranslateY.value = 0;
+    transparentInitialScale.value = 1;
+    transparentInitialTranslateX.value = 0;
+    transparentInitialTranslateY.value = 0;
+    // 等待图片加载后重新计算
+    nextTick(() => {
+      if (transparentImageRef.value) {
+        transparentImageRef.value.onload = () => {
+          calculateTransparentInitialTransform();
+        };
+        // 如果图片已经加载完成，直接计算
+        if (transparentImageRef.value.complete) {
+          calculateTransparentInitialTransform();
+        }
+      }
+    });
+  }
+});
+
 // 组件挂载时初始化 socket
 onMounted(() => {
   initDeviceSocket();
@@ -1334,17 +1530,32 @@ onUnmounted(() => {
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
   position: relative;
+  user-select: none;
+}
+
+.transparent-image-wrapper {
+  display: inline-block;
+  position: relative;
+  user-select: none;
 }
 
 .transparent-result-image {
-  max-width: 100%;
-  max-height: 100%;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
   display: block;
+  user-select: none;
+  pointer-events: none;
 }
 
 .transparent-result-placeholder {
   color: #909399;
   font-size: 12px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 </style>
