@@ -34,7 +34,7 @@
         />
       </el-tab-pane>
       <el-tab-pane label="调试">
-       
+        <ImageMatchDebug />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -49,6 +49,7 @@ import { io } from "socket.io-client";
 import MagnifierCard from "./MagnifierCard.vue";
 import ColorSelectionTab from "./ColorSelectionTab.vue";
 import ImageUploadTab from "./ImageUploadTab.vue";
+import ImageMatchDebug from "./ImageMatchDebug.vue";
 
 const props = defineProps({
   magnifierVisible: {

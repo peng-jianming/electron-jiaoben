@@ -50,6 +50,15 @@ class ExampleController {
         }
         return { success: true, message: '设备截图已发送' };
       }
+
+      // 图片匹配结果事件
+      if (prop === 'image-match-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('image-match-result', imageData);
+        }
+        return { success: true, message: '图片匹配结果已发送' };
+      }
       
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {
