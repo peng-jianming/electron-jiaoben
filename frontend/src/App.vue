@@ -1,14 +1,18 @@
 <template>
-  <router-view/>
+  <router-view />
 </template>
 <script setup>
 import { onMounted } from 'vue';
 
 onMounted(() => {
-const loadingElement = document.getElementById('loadingPage');
-if (loadingElement) {
-  loadingElement.remove();
-}
+  const loadingElement = document.getElementById('loadingPage');
+  if (loadingElement) {
+    loadingElement.remove();
+  }
 });
 </script>
-<style lang="less"></style>
+<style lang="less">
+.el-button+.el-button {
+  margin-left: 0;
+}
+</style>

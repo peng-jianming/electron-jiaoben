@@ -1,0 +1,295 @@
+<template>
+  <div style="display: flex; flex-direction: column;height: 590px;">
+    <div style="display: flex">
+      <ColorList 
+        :colors="currentSelectedColors"
+        @remove-color="$emit('remove-color', $event)"
+        @calculate-deviation="handleCalculateDeviation"
+        @clear-all-colors="$emit('clear-all-colors')"
+      />
+      <DeviationList 
+        :deviation-colors="deviationColors"
+        v-model="selectedDeviations"
+        @clear-deviations="handleClearDeviationColors"
+        @rerender="handleRerender"
+      />
+    </div>
+    <!-- 显示渲染后的图片区域 -->
+    <ImageDisplayArea 
+      :image-url="processedImageUrl"
+      alt="处理后的图片"
+      placeholder-text="偏色二值化后的图片将显示在此处"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, nextTick } from "vue";
+import { ElMessage } from "element-plus";
+import ColorList from "./ColorList.vue";
+import DeviationList from "./DeviationList.vue";
+import ImageDisplayArea from "./ImageDisplayArea.vue";
+
+const props = defineProps({
+  currentSelectedColors: {
+    type: Array,
+    default: () => [],
+  },
+  currentImage: {
+    type: Object,
+    default: null,
+  },
+  selectionRect: {
+    type: Object,
+    default: null,
+  },
+});
+
+const emit = defineEmits(["remove-color", "clear-all-colors"]);
+
+const deviationColors = ref([]);
+const selectedDeviations = ref([]);
+const processedImageUrl = ref(null);
+
+// HEX 转 RGB
+const hexToRgb = (hex) => {
+  hex = hex.replace("#", "");
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+  return {
+    r: parseInt(hex.substring(0, 2), 16),
+    g: parseInt(hex.substring(2, 4), 16),
+    b: parseInt(hex.substring(4, 6), 16),
+  };
+};
+
+// 数字转 HEX（两位，大写）
+const numToHex = (num) => {
+  const hex = Math.max(0, Math.min(255, Math.floor(num)))
+    .toString(16)
+    .toUpperCase();
+  return hex.length === 1 ? "0" + hex : hex;
+};
+
+// 计算偏色
+const handleCalculateDeviation = () => {
+  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
+    ElMessage.warning("请先选取颜色");
+    return;
+  }
+
+  // 1. 将所有颜色转换为 RGB
+  const rgbColors = props.currentSelectedColors.map((color) => {
+    return hexToRgb(color.hex);
+  });
+
+  // 2. 确定每个通道的最小值和最大值
+  let minR = 255, maxR = 0;
+  let minG = 255, maxG = 0;
+  let minB = 255, maxB = 0;
+
+  rgbColors.forEach((rgb) => {
+    minR = Math.min(minR, rgb.r);
+    maxR = Math.max(maxR, rgb.r);
+    minG = Math.min(minG, rgb.g);
+    maxG = Math.max(maxG, rgb.g);
+    minB = Math.min(minB, rgb.b);
+    maxB = Math.max(maxB, rgb.b);
+  });
+
+  // 3. 计算基准色（取最小值和最大值的平均值，向下取整）
+  const baseR = Math.floor((minR + maxR) / 2);
+  const baseG = Math.floor((minG + maxG) / 2);
+  const baseB = Math.floor((minB + maxB) / 2);
+
+  // 4. 计算偏色（最大值减基准色）
+  const deviationR = maxR - baseR;
+  const deviationG = maxG - baseG;
+  const deviationB = maxB - baseB;
+
+  // 5. 格式化为 HEX 字符串
+  const baseHex = numToHex(baseR) + numToHex(baseG) + numToHex(baseB);
+  const deviationHex = numToHex(deviationR) + numToHex(deviationG) + numToHex(deviationB);
+
+  // 6. 组合结果
+  const result = `${baseHex}-${deviationHex}`;
+
+  // 7. 检查偏色列表中是否已存在相同的偏色
+  const existingIndex = deviationColors.value.findIndex((item) => item === result);
+  if (existingIndex !== -1) {
+    ElMessage.warning(`偏色 ${result} 已存在于列表中（第 ${existingIndex + 1} 项）`);
+    return;
+  }
+
+  // 8. 添加到偏色列表并默认勾选
+  deviationColors.value.push(result);
+  selectedDeviations.value.push(result);
+
+  ElMessage.success("偏色计算完成");
+
+  // 9. 自动执行一次二值化渲染
+  nextTick(() => {
+    handleRerender();
+  });
+};
+
+// 清空偏色列表
+const handleClearDeviationColors = () => {
+  deviationColors.value = [];
+  selectedDeviations.value = [];
+  processedImageUrl.value = null;
+  ElMessage.success("已清空偏色列表");
+};
+
+// 解析偏色字符串（如 "D7CCC6-0E0E09"）
+const parseDeviation = (deviationStr) => {
+  const [baseHex, deviationHex] = deviationStr.split("-");
+  if (!baseHex || !deviationHex || baseHex.length !== 6 || deviationHex.length !== 6) {
+    return null;
+  }
+
+  const baseR = parseInt(baseHex.substring(0, 2), 16);
+  const baseG = parseInt(baseHex.substring(2, 4), 16);
+  const baseB = parseInt(baseHex.substring(4, 6), 16);
+
+  const deviationR = parseInt(deviationHex.substring(0, 2), 16);
+  const deviationG = parseInt(deviationHex.substring(2, 4), 16);
+  const deviationB = parseInt(deviationHex.substring(4, 6), 16);
+
+  return {
+    base: { r: baseR, g: baseG, b: baseB },
+    deviation: { r: deviationR, g: deviationG, b: deviationB },
+  };
+};
+
+// 检查颜色是否在偏色范围内
+const isColorInDeviationRange = (r, g, b, deviationData) => {
+  const { base, deviation } = deviationData;
+
+  // 计算每个通道的范围
+  const minR = Math.max(0, base.r - deviation.r);
+  const maxR = Math.min(255, base.r + deviation.r);
+  const minG = Math.max(0, base.g - deviation.g);
+  const maxG = Math.min(255, base.g + deviation.g);
+  const minB = Math.max(0, base.b - deviation.b);
+  const maxB = Math.min(255, base.b + deviation.b);
+
+  // 检查颜色是否在所有通道的范围内
+  return r >= minR && r <= maxR && g >= minG && g <= maxG && b >= minB && b <= maxB;
+};
+
+// 处理图片二值化
+const handleRerender = () => {
+  if (!props.currentImage || !props.currentImage.url) {
+    ElMessage.warning("请先载入图片");
+    return;
+  }
+
+  // 获取选中的偏色列表
+  if (selectedDeviations.value.length === 0) {
+    ElMessage.warning("请先选择偏色项");
+    return;
+  }
+
+  // 解析所有选中的偏色
+  const deviationDataList = selectedDeviations.value
+    .map((dev) => parseDeviation(dev))
+    .filter((data) => data !== null);
+
+  if (deviationDataList.length === 0) {
+    ElMessage.error("偏色数据格式错误");
+    return;
+  }
+
+  // 创建图片对象
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      // 创建 canvas 用于处理
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // 确定处理区域
+      let startX = 0;
+      let startY = 0;
+      let width = img.width;
+      let height = img.height;
+
+      if (props.selectionRect && props.selectionRect.w > 0 && props.selectionRect.h > 0) {
+        // 使用圈选范围
+        startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
+        startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
+        width = Math.min(props.selectionRect.w, img.width - startX);
+        height = Math.min(props.selectionRect.h, img.height - startY);
+      }
+
+      // 设置 canvas 尺寸
+      canvas.width = width;
+      canvas.height = height;
+
+      // 绘制原始图片区域到 canvas
+      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
+
+      // 获取像素数据
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      // 遍历每个像素进行二值化处理
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // 检查是否在任何一个偏色范围内
+        let inRange = false;
+        for (const deviationData of deviationDataList) {
+          if (isColorInDeviationRange(r, g, b, deviationData)) {
+            inRange = true;
+            break;
+          }
+        }
+
+        // 在范围内设置为白色，否则设置为黑色
+        if (inRange) {
+          data[i] = 255; // R
+          data[i + 1] = 255; // G
+          data[i + 2] = 255; // B
+          data[i + 3] = 255; // A
+        } else {
+          data[i] = 0; // R
+          data[i + 1] = 0; // G
+          data[i + 2] = 0; // B
+          data[i + 3] = 255; // A
+        }
+      }
+
+      // 将处理后的数据写回 canvas
+      ctx.putImageData(imageData, 0, 0);
+
+      // 转换为图片 URL
+      processedImageUrl.value = canvas.toDataURL("image/png");
+      ElMessage.success("图片处理完成");
+    } catch (error) {
+      console.error("处理图片时出错:", error);
+      ElMessage.error("处理图片失败");
+    }
+  };
+
+  img.onerror = () => {
+    ElMessage.error("加载图片失败");
+  };
+
+  img.src = props.currentImage.url;
+};
+
+// 暴露选中的偏色列表，供父组件使用
+defineExpose({
+  getSelectedDeviations: () => selectedDeviations.value,
+});
+</script>
+
