@@ -91,20 +91,28 @@
             </div>
           </div>
           <!-- 显示渲染后的图片区域 -->
-          <div style="
-            margin-top: 5px;
-            flex: 1;
-            border: 1px solid #dcdfe6;
-            border-radius: 4px;
-            overflow: hidden;
-            background: #f5f5f5;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          ">
-            <img v-if="processedImageUrl" :src="processedImageUrl" alt="处理后的图片"
-              style="max-width: 100%; max-height: 100%; object-fit: contain" />
-            <div v-else style="color: #909399; font-size: 12px">
+          <div 
+            class="processed-image-result"
+            ref="processedImageContainerRef"
+            :style="{ cursor: processedIsDragging ? 'grabbing' : 'default' }"
+            @mousedown="handleProcessedImageMouseDown"
+            @mousemove="handleProcessedImageMouseMove"
+            @mouseup="handleProcessedImageMouseUp"
+            @mouseleave="handleProcessedImageMouseLeave"
+            @wheel="handleProcessedImageWheel"
+          >
+            <div v-if="processedImageUrl" class="processed-image-wrapper" :style="processedImageWrapperStyle">
+              <img 
+                :src="processedImageUrl" 
+                alt="处理后的图片"
+                class="processed-result-image"
+                ref="processedImageRef"
+                :style="processedImageStyle"
+                @load="handleProcessedImageLoad"
+                draggable="false"
+              />
+            </div>
+            <div v-else class="processed-result-placeholder">
               偏色二值化后的图片将显示在此处
             </div>
           </div>
@@ -264,6 +272,21 @@ const transparentDragStartX = ref(0);
 const transparentDragStartY = ref(0);
 const transparentDragStartTranslateX = ref(0);
 const transparentDragStartTranslateY = ref(0);
+
+// 处理后的图片拖动和缩放相关
+const processedImageContainerRef = ref(null);
+const processedImageRef = ref(null);
+const processedImageScale = ref(1); // 缩放比例
+const processedImageTranslateX = ref(0); // X轴偏移
+const processedImageTranslateY = ref(0); // Y轴偏移
+const processedInitialScale = ref(1); // 初始缩放比例（用于重置）
+const processedInitialTranslateX = ref(0); // 初始X偏移
+const processedInitialTranslateY = ref(0); // 初始Y偏移
+const processedIsDragging = ref(false);
+const processedDragStartX = ref(0);
+const processedDragStartY = ref(0);
+const processedDragStartTranslateX = ref(0);
+const processedDragStartTranslateY = ref(0);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -1236,6 +1259,143 @@ function handleTransparentImageWheel(event) {
   transparentImageTranslateY.value = newTranslateY;
 }
 
+// 处理后的图片包装器样式（用于定位）
+const processedImageWrapperStyle = computed(() => {
+  return {
+    transform: `translate(${processedImageTranslateX.value}px, ${processedImageTranslateY.value}px)`,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    cursor: processedIsDragging.value ? "grabbing" : "default",
+  };
+});
+
+// 处理后的图片样式（用于缩放）
+const processedImageStyle = computed(() => {
+  return {
+    transform: `scale(${processedImageScale.value})`,
+    transformOrigin: "top left",
+    display: "block",
+  };
+});
+
+// 处理后的图片加载完成
+function handleProcessedImageLoad() {
+  if (processedImageRef.value && processedImageContainerRef.value) {
+    nextTick(() => {
+      calculateProcessedInitialTransform();
+    });
+  }
+}
+
+// 计算处理后的图片初始变换（居中显示）
+function calculateProcessedInitialTransform() {
+  if (!processedImageRef.value || !processedImageContainerRef.value) return;
+
+  const containerRect = processedImageContainerRef.value.getBoundingClientRect();
+  const imgWidth = processedImageRef.value.naturalWidth;
+  const imgHeight = processedImageRef.value.naturalHeight;
+
+  // 计算适合容器的缩放比例（保持宽高比，最大边占满）
+  const scaleX = containerRect.width / imgWidth;
+  const scaleY = containerRect.height / imgHeight;
+  const scale = Math.min(scaleX, scaleY, 1); // 不超过原始大小
+
+  processedImageScale.value = scale;
+  processedInitialScale.value = scale;
+
+  // 居中显示
+  const scaledWidth = imgWidth * scale;
+  const scaledHeight = imgHeight * scale;
+  processedImageTranslateX.value = (containerRect.width - scaledWidth) / 2;
+  processedImageTranslateY.value = (containerRect.height - scaledHeight) / 2;
+  processedInitialTranslateX.value = processedImageTranslateX.value;
+  processedInitialTranslateY.value = processedImageTranslateY.value;
+}
+
+// 处理后的图片鼠标按下
+function handleProcessedImageMouseDown(event) {
+  if (!processedImageUrl.value || !processedImageRef.value) return;
+  
+  // 仅响应左键
+  if (event.button !== 0) return;
+
+  // 检查是否按住了Ctrl键，如果是则允许拖动
+  if (event.ctrlKey || event.metaKey) {
+    processedIsDragging.value = true;
+    processedDragStartX.value = event.clientX;
+    processedDragStartY.value = event.clientY;
+    processedDragStartTranslateX.value = processedImageTranslateX.value;
+    processedDragStartTranslateY.value = processedImageTranslateY.value;
+    event.preventDefault();
+    return;
+  }
+  
+  // 如果没有按住Ctrl，也允许拖动（方便操作）
+  processedIsDragging.value = true;
+  processedDragStartX.value = event.clientX;
+  processedDragStartY.value = event.clientY;
+  processedDragStartTranslateX.value = processedImageTranslateX.value;
+  processedDragStartTranslateY.value = processedImageTranslateY.value;
+}
+
+// 处理后的图片鼠标移动
+function handleProcessedImageMouseMove(event) {
+  if (!processedImageUrl.value || !processedImageRef.value) return;
+
+  // 如果正在拖动图片
+  if (processedIsDragging.value) {
+    const deltaX = event.clientX - processedDragStartX.value;
+    const deltaY = event.clientY - processedDragStartY.value;
+    processedImageTranslateX.value = processedDragStartTranslateX.value + deltaX;
+    processedImageTranslateY.value = processedDragStartTranslateY.value + deltaY;
+  }
+}
+
+// 处理后的图片鼠标抬起
+function handleProcessedImageMouseUp(event) {
+  processedIsDragging.value = false;
+}
+
+// 处理后的图片鼠标离开
+function handleProcessedImageMouseLeave(event) {
+  processedIsDragging.value = false;
+}
+
+// 处理后的图片滚轮缩放（Ctrl + 滚轮）
+function handleProcessedImageWheel(event) {
+  if (!processedImageUrl.value || !processedImageRef.value || !processedImageContainerRef.value) return;
+
+  // 检查是否按住了Ctrl键
+  if (!event.ctrlKey && !event.metaKey) {
+    return; // 没有按住Ctrl，不处理缩放
+  }
+
+  event.preventDefault();
+
+  // 获取容器和图片的位置信息
+  const containerRect = processedImageContainerRef.value.getBoundingClientRect();
+  const mouseX = event.clientX - containerRect.left;
+  const mouseY = event.clientY - containerRect.top;
+
+  // 计算鼠标在图片上的相对位置（考虑当前缩放和偏移）
+  const imgRect = processedImageRef.value.getBoundingClientRect();
+  const imgX = (mouseX - processedImageTranslateX.value) / processedImageScale.value;
+  const imgY = (mouseY - processedImageTranslateY.value) / processedImageScale.value;
+
+  // 计算缩放增量
+  const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.1, Math.min(10, processedImageScale.value * zoomFactor));
+
+  // 计算新的偏移，使鼠标指向的图片位置保持不变
+  const newTranslateX = mouseX - imgX * newScale;
+  const newTranslateY = mouseY - imgY * newScale;
+
+  processedImageScale.value = newScale;
+  processedImageTranslateX.value = newTranslateX;
+  processedImageTranslateY.value = newTranslateY;
+}
+
 // 监听透明图 URL 变化，重置缩放和位置
 watch(transparentImageUrl, (newUrl) => {
   if (newUrl) {
@@ -1255,6 +1415,31 @@ watch(transparentImageUrl, (newUrl) => {
         // 如果图片已经加载完成，直接计算
         if (transparentImageRef.value.complete) {
           calculateTransparentInitialTransform();
+        }
+      }
+    });
+  }
+});
+
+// 监听处理后的图片 URL 变化，重置缩放和位置
+watch(processedImageUrl, (newUrl) => {
+  if (newUrl) {
+    // 重置缩放和位置
+    processedImageScale.value = 1;
+    processedImageTranslateX.value = 0;
+    processedImageTranslateY.value = 0;
+    processedInitialScale.value = 1;
+    processedInitialTranslateX.value = 0;
+    processedInitialTranslateY.value = 0;
+    // 等待图片加载后重新计算
+    nextTick(() => {
+      if (processedImageRef.value) {
+        processedImageRef.value.onload = () => {
+          calculateProcessedInitialTransform();
+        };
+        // 如果图片已经加载完成，直接计算
+        if (processedImageRef.value.complete) {
+          calculateProcessedInitialTransform();
         }
       }
     });
@@ -1551,6 +1736,54 @@ onUnmounted(() => {
 }
 
 .transparent-result-placeholder {
+  color: #909399;
+  font-size: 12px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 处理后的图片显示区域 */
+.processed-image-result {
+  margin-top: 5px;
+  flex: 1;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 深色棋盘格背景，用于显示透明区域 */
+  background: #1a1a2e;
+  background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  position: relative;
+  user-select: none;
+}
+
+.processed-image-wrapper {
+  display: inline-block;
+  position: relative;
+  user-select: none;
+}
+
+.processed-result-image {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  pointer-events: none;
+}
+
+.processed-result-placeholder {
   color: #909399;
   font-size: 12px;
   position: absolute;
