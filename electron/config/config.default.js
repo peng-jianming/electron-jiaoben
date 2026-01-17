@@ -12,10 +12,10 @@ module.exports = () => {
     singleLock: true,
     windowsOption: {
       title: 'electron-egg',
-      width: 1440,
-      height: 960,
-      minWidth: 1440,
-      minHeight: 960,
+      width: 1500,
+      height: 1000,
+      minWidth: 1500,
+      minHeight: 1000,
       webPreferences: {
         //webSecurity: false,
         contextIsolation: false, // false -> 可在渲染进程中使用electron的api，true->需要bridge.js(contextBridge)

@@ -7,7 +7,9 @@
           <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
         </div>
         <div v-else class="magnifier-placeholder">
-          <el-icon><ZoomIn /></el-icon>
+          <el-icon>
+            <ZoomIn />
+          </el-icon>
           <p>将鼠标移动到图片上查看</p>
         </div>
         <!-- 当前颜色值 -->
@@ -24,112 +26,74 @@
     <!-- 选中颜色列表 -->
     <el-tabs type="border-card" size="mini">
       <el-tab-pane label="颜色">
-        <div style="display: flex">
-          <div>
-            <el-table
-              :data="currentSelectedColors"
-              height="205"
-              border
-              style="width: 250px"
-              size="small"
-              empty-text="等待选取颜色"
-            >
-              <el-table-column type="index"> </el-table-column>
-              <el-table-column label="坐标" width="60">
-                <template #default="scope">
-                  {{ scope.row.x }}, {{ scope.row.y }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="hex" label="hex" width="80">
-                <template #default="scope">
-                  <div
-                    :style="{
+        <div style="display: flex; flex-direction: column;height: 590px;">
+          <div style="display: flex">
+            <div>
+              <el-table :data="currentSelectedColors" height="205" border size="small" empty-text="等待选取颜色">
+                <el-table-column type="index" label="#"> </el-table-column>
+                <el-table-column label="坐标" width="80">
+                  <template #default="scope">
+                    {{ scope.row.x }}, {{ scope.row.y }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="hex" label="hex" width="80">
+                  <template #default="scope">
+                    <div :style="{
                       'background-color': scope.row.hex,
                       color: isLightColor(scope.row.hex) ? '#000000' : '#ffffff',
-                    }"
-                  >
-                    {{ scope.row.hex }}
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="70">
-                <template #default="scope">
-                  <el-button
-                    type="text"
-                    size="small"
-                    @click="$emit('remove-color', scope.$index)"
-                    >删除</el-button
-                  >
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-button
-              type="primary"
-              size="small"
-              class="clear-all-btn"
-              @click="calculateDeviation"
-            >
-              计算偏色
-            </el-button>
-            <el-button
-              type="danger"
-              size="small"
-              @click="$emit('clear-all-colors')"
-              class="clear-all-btn"
-            >
-              清空全部
-            </el-button>
-          </div>
-          <div
-            style="
+                    }">
+                      {{ scope.row.hex }}
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="70">
+                  <template #default="scope">
+                    <el-button type="text" size="small" @click="$emit('remove-color', scope.$index)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+             <div style="padding: 0 5px;">
+              <el-button type="primary" size="small" class="clear-all-btn" @click="calculateDeviation">
+                计算偏色
+              </el-button>
+              <el-button type="danger" size="small" @click="$emit('clear-all-colors')" class="clear-all-btn">
+                清空全部
+              </el-button>
+             </div>
+            </div>
+            <div style="
               color: #909399;
               border: 1px solid #dcdfe6;
               margin-left: 5px;
-              width: 130px;
-            "
-          >
-            <div style="font-size: 14px; padding: 5px; border-bottom: 1px solid #dcdfe6">
-              偏色列表
+              width: 170px;
+            ">
+              <div style="font-size: 14px; padding: 5px; border-bottom: 1px solid #dcdfe6">
+                偏色列表
+              </div>
+              <div>
+                <el-scrollbar height="162px" style="padding: 5px">
+                  <el-checkbox-group v-model="checkboxGroup2" size="small"
+                    style="display: flex; flex-direction: column; gap: 5px">
+                    <el-checkbox v-for="(item, index) in deviationColors" :key="index" :label="item"
+                      border></el-checkbox>
+                  </el-checkbox-group>
+                </el-scrollbar>
+              </div>
+              <div style="padding: 0 5px;">
+                <el-button type="primary" size="small" class="clear-all-btn" @click="clearDeviationColors">
+                  清空偏色
+                </el-button>
+                <el-button type="primary" size="small" class="clear-all-btn" @click="handleRerender">
+                  重新渲染
+                </el-button>
+
+              </div>
             </div>
-            <div>
-              <el-scrollbar height="162px" style="padding: 5px">
-                <el-checkbox-group
-                  v-model="checkboxGroup2"
-                  size="small"
-                  style="display: flex; flex-direction: column; gap: 5px"
-                >
-                  <el-checkbox
-                    v-for="(item, index) in deviationColors"
-                    :key="index"
-                    :label="item"
-                    border
-                  ></el-checkbox>
-                </el-checkbox-group>
-              </el-scrollbar>
-            </div>
-            <el-button
-              type="primary"
-              size="small"
-              class="clear-all-btn"
-              @click="clearDeviationColors"
-            >
-              清空偏色
-            </el-button>
-            <el-button
-              type="primary"
-              size="small"
-              class="clear-all-btn"
-              @click="handleRerender"
-            >
-              重新渲染
-            </el-button>
           </div>
-        </div>
-        <!-- 显示渲染后的图片区域 -->
-        <div
-          style="
+          <!-- 显示渲染后的图片区域 -->
+          <div style="
             margin-top: 5px;
-            height: 250px;
+            flex: 1;
             border: 1px solid #dcdfe6;
             border-radius: 4px;
             overflow: hidden;
@@ -137,127 +101,87 @@
             display: flex;
             align-items: center;
             justify-content: center;
-          "
-        >
-          <img
-            v-if="processedImageUrl"
-            :src="processedImageUrl"
-            alt="处理后的图片"
-            style="max-width: 100%; max-height: 100%; object-fit: contain"
-          />
-          <div v-else style="color: #909399; font-size: 12px">
-            偏色二值化后的图片将显示在此处
+          ">
+            <img v-if="processedImageUrl" :src="processedImageUrl" alt="处理后的图片"
+              style="max-width: 100%; max-height: 100%; object-fit: contain" />
+            <div v-else style="color: #909399; font-size: 12px">
+              偏色二值化后的图片将显示在此处
+            </div>
           </div>
+
         </div>
       </el-tab-pane>
       <el-tab-pane label="图片">
-        <div>
-          <!-- 隐藏的文件选择框 -->
-          <input
-            ref="imageFileInputRef"
-            type="file"
-            accept="image/*"
-            multiple
-            style="display: none"
-            @change="handleImageFileSelect"
-          />
-          <el-table
-            :data="uploadedImages"
-            height="205"
-            border
-            style="width: 100%"
-            size="small"
-            empty-text="等待上传图片"
-          >
-            <el-table-column type="index" label="#" width="50"> </el-table-column>
-            <el-table-column label="缩略图">
-              <template #default="scope">
-                <div class="thumbnail-container">
-                  <el-image
-                    :src="scope.row.url"
-                    :preview-src-list="getPreviewSrcList()"
-                    :initial-index="scope.$index"
-                    fit="contain"
-                    preview-teleported
-                    class="thumbnail-image"
-                  />
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="70">
-              <template #default="scope">
-                <el-button
-                  type="text"
-                  size="small"
-                  @click="removeImage(scope.$index)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div style="display: flex; justify-content: space-between; margin-top: 10px">
-            <el-button
-              type="primary"
-              size="small"
-              style="width: 48%"
-              @click="handleUploadClick"
-            >
-              上传
+        <div style="display: flex; flex-direction: column;height: 590px;">
+          <div>
+            <!-- 隐藏的文件选择框 -->
+            <input ref="imageFileInputRef" type="file" accept="image/*" multiple style="display: none"
+              @change="handleImageFileSelect" />
+            <el-table :data="uploadedImages" height="205" border style="width: 100%" size="small" empty-text="等待上传图片">
+              <el-table-column type="index" label="#" width="50"> </el-table-column>
+              <el-table-column label="缩略图">
+                <template #default="scope">
+                  <div class="thumbnail-container">
+                    <el-image :src="scope.row.url" :preview-src-list="getPreviewSrcList()" :initial-index="scope.$index"
+                      fit="contain" preview-teleported class="thumbnail-image" />
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="70">
+                <template #default="scope">
+                  <el-button type="text" size="small" @click="removeImage(scope.$index)">
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div style="display: flex; justify-content: space-between; margin-top: 5px">
+              <el-button type="primary" size="small" style="width: 48%" @click="handleUploadClick">
+                上传
+              </el-button>
+              <el-button type="primary" size="small" style="width: 48%" :loading="screenshotLoading"
+                @click="handleScreenshotClick">
+                截图
+              </el-button>
+            </div>
+            <el-button type="danger" size="small" class="clear-all-btn" @click="clearAllImages">
+              清空全部
             </el-button>
-            <el-button type="primary" size="small" style="width: 48%">
-              截图
-            </el-button>
-          </div>
-          <el-button
-            type="danger"
-            size="small"
-            class="clear-all-btn"
-            @click="clearAllImages"
-          >
-            清空全部
-          </el-button>
-          <div style="display: flex; justify-content: space-between; margin-top: 10px">
-            <el-button
-            type="danger"
-            size="small"
-            style="width: 48%"
-            @click="makeTransparentImage"
-          >
-            制作透明图
-          </el-button>
-          <el-button
-            type="danger"
-            size="small"
-            style="width: 48%"
-            @click="clearTransparentImage"
-          >
-            删除透明图
-          </el-button>
+            <div style="display: flex; justify-content: space-between; margin-top: 5px">
+              <el-button type="primary" size="small" style="width: 48%" @click="makeTransparentImage">
+                制作透明图
+              </el-button>
+              <el-button type="danger" size="small" style="width: 48%" @click="clearTransparentImage">
+                删除透明图
+              </el-button>
 
+            </div>
+            <el-button type="primary" size="small" class="clear-all-btn" @click="clearAllImages">
+              保存透明图
+            </el-button>
           </div>
-        </div>
-        <!-- 透明图处理结果显示区域 -->
-        <div class="transparent-image-result">
-          <img
-            v-if="transparentImageUrl"
-            :src="transparentImageUrl"
-            alt="透明图处理结果"
-            class="transparent-result-image"
-          />
-          <div v-else class="transparent-result-placeholder">
-            透明图处理结果将显示在此处
+          <!-- 透明图处理结果显示区域 -->
+          <div class="transparent-image-result">
+            <img v-if="transparentImageUrl" :src="transparentImageUrl" alt="透明图处理结果" class="transparent-result-image" />
+            <div v-else class="transparent-result-placeholder">
+              透明图处理结果将显示在此处
+            </div>
           </div>
+
         </div>
+
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, nextTick, onMounted, onUnmounted } from "vue";
 import { ZoomIn, Collection, Delete } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
+import { ipc } from "@/utils/ipcRenderer";
+import { ipcApiRoute } from "@/api";
+import { io } from "socket.io-client";
 
 const props = defineProps({
   magnifierVisible: {
@@ -288,9 +212,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  currentDeviceId: {
+    type: String,
+    default: "",
+  },
 });
 
-defineEmits(["remove-color", "clear-all-colors"]);
+const emit = defineEmits(["remove-color", "clear-all-colors", "right-panel-screenshot-start", "right-panel-screenshot-end"]);
 
 const magnifierCanvasRef = ref(null);
 const deviationColors = ref([]);
@@ -299,6 +227,9 @@ const processedImageUrl = ref(null);
 const imageFileInputRef = ref(null);
 const uploadedImages = ref([]);
 const transparentImageUrl = ref(null);
+const screenshotLoading = ref(false);
+const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
+let deviceSocket = null;
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -968,24 +899,159 @@ const clearTransparentImage = () => {
   ElMessage.success('已清除透明图结果');
 };
 
+// 初始化设备 Socket 连接
+function initDeviceSocket() {
+  if (deviceSocket) {
+    return; // 已经连接过了
+  }
+
+  deviceSocket = io("ws://localhost:7070");
+
+  deviceSocket.on("connect", () => {
+    console.log("设备 Socket 连接成功 (RightPanel)");
+  });
+
+  deviceSocket.on("device-screenshot", (data) => {
+    console.log("收到设备截图 (RightPanel):", data);
+    // 只处理自己发起的截图请求
+    if (isRightPanelScreenshotPending.value) {
+      handleDeviceScreenshot(data);
+    }
+  });
+}
+
+// 处理设备截图结果
+function handleDeviceScreenshot(data) {
+  screenshotLoading.value = false;
+  isRightPanelScreenshotPending.value = false; // 清除标志
+  emit("right-panel-screenshot-end"); // 通知父组件截图结束
+
+  if (!data || !data.success || !data.image) {
+    ElMessage.error(data?.error || "获取截图失败");
+    return;
+  }
+
+  const url = `data:image/png;base64,${data.image}`;
+  const img = new Image();
+  img.onload = () => {
+    // 创建缩略图
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const maxSize = 100; // 缩略图最大尺寸
+
+    // 计算缩略图尺寸
+    let thumbWidth = img.width;
+    let thumbHeight = img.height;
+    if (thumbWidth > thumbHeight) {
+      if (thumbWidth > maxSize) {
+        thumbHeight = (thumbHeight * maxSize) / thumbWidth;
+        thumbWidth = maxSize;
+      }
+    } else {
+      if (thumbHeight > maxSize) {
+        thumbWidth = (thumbWidth * maxSize) / thumbHeight;
+        thumbHeight = maxSize;
+      }
+    }
+
+    canvas.width = thumbWidth;
+    canvas.height = thumbHeight;
+    ctx.drawImage(img, 0, 0, thumbWidth, thumbHeight);
+
+    const thumbnail = canvas.toDataURL("image/png");
+
+    // 添加到图片列表
+    uploadedImages.value.push({
+      id: Date.now() + Math.random(), // 生成唯一ID
+      url: url,
+      thumbnail: thumbnail,
+      file: null, // 截图没有文件对象
+    });
+
+    ElMessage.success("截图已添加到图片列表");
+  };
+  img.onerror = () => {
+    ElMessage.error("图片加载失败");
+  };
+  img.src = url;
+}
+
+// 处理截图按钮点击
+async function handleScreenshotClick() {
+  // 检查是否有当前设备
+  if (!props.currentDeviceId) {
+    ElMessage.warning("请先连接设备");
+    return;
+  }
+
+  screenshotLoading.value = true;
+  isRightPanelScreenshotPending.value = true; // 设置标志，表示这是右侧面板发起的截图
+  // 先同步设置父组件的标志，确保在 socket 事件到达前已设置
+  emit("right-panel-screenshot-start"); // 通知父组件开始截图
+  // 使用 nextTick 确保 emit 事件已处理
+  await nextTick();
+  try {
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: "capture_screenshot",
+      source: "right-panel", // 添加来源标识
+    });
+    // 截图结果会通过 socket 事件返回，在 handleDeviceScreenshot 中处理
+    // 设置超时，防止标志一直存在
+    setTimeout(() => {
+      if (isRightPanelScreenshotPending.value) {
+        isRightPanelScreenshotPending.value = false;
+        screenshotLoading.value = false;
+        emit("right-panel-screenshot-end"); // 通知父组件截图结束
+      }
+    }, 10000); // 10秒超时
+  } catch (error) {
+    console.error("截图失败:", error);
+    ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
+    screenshotLoading.value = false;
+    isRightPanelScreenshotPending.value = false; // 清除标志
+    emit("right-panel-screenshot-end"); // 通知父组件截图结束
+  }
+}
+
 // 暴露放大镜 canvas 给父组件，用于绘制
+// 同时暴露截图状态，让父组件可以检查
 defineExpose({
   getMagnifierCanvas: () => magnifierCanvasRef.value,
+  get isRightPanelScreenshotPending() {
+    return isRightPanelScreenshotPending.value;
+  },
+});
+
+// 组件挂载时初始化 socket
+onMounted(() => {
+  initDeviceSocket();
+});
+
+// 组件卸载时断开 socket
+onUnmounted(() => {
+  if (deviceSocket) {
+    deviceSocket.disconnect();
+    deviceSocket = null;
+  }
 });
 </script>
 
 <style scoped>
-.el-button + .el-button {
+.el-button+.el-button {
   margin-left: 0;
 }
+
 .el-checkbox {
   margin-right: 0;
 }
+
 .right-panel {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  padding: 0 10px;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 0 5px;
+  width: 460px;
 }
 
 .card {
@@ -1179,7 +1245,7 @@ defineExpose({
 
 .clear-all-btn {
   width: 100%;
-  margin-top: 10px;
+  margin-top: 5px;
 }
 
 .thumbnail-container {
@@ -1208,8 +1274,8 @@ defineExpose({
 
 /* 透明图处理结果显示区域 */
 .transparent-image-result {
-  margin-top: 10px;
-  height: 250px;
+  margin-top: 5px;
+  flex: 1;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   overflow: hidden;

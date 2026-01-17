@@ -88,8 +88,11 @@
           :current-selected-colors="currentSelectedColors"
           :selection-rect="selectionRect"
           :image-ref="imageRef"
+          :current-device-id="currentDeviceId"
           @remove-color="removeColor"
           @clear-all-colors="clearAllColors"
+          @right-panel-screenshot-start="handleRightPanelScreenshotStart"
+          @right-panel-screenshot-end="handleRightPanelScreenshotEnd"
           ref="rightPanelRef"
         />
       </div>
@@ -214,6 +217,7 @@ const deviceLoading = ref(false);
 const selectedDeviceId = ref("");
 const currentDeviceId = ref("");
 const screenshotLoading = ref(false);
+const isRightPanelScreenshoting = ref(false); // 标记右侧面板是否正在截图
 let deviceSocket = null;
 
 
@@ -423,6 +427,19 @@ function handleDeviceSelected(data) {
 }
 
 function handleDeviceScreenshot(data) {
+  // 检查截图来源，如果是右侧面板发起的，则忽略（由右侧面板自己处理）
+  const source = data?.source;
+  if (source === "right-panel") {
+    console.log("忽略右侧面板的截图，由右侧面板自己处理");
+    return;
+  }
+  
+  // 兼容旧逻辑：如果数据中没有 source，但标志已设置，也忽略
+  if (isRightPanelScreenshoting.value && !source) {
+    console.log("忽略右侧面板的截图（通过标志判断），由右侧面板自己处理");
+    return;
+  }
+
   screenshotLoading.value = false;
 
   if (!data || !data.success || !data.image) {
@@ -478,6 +495,16 @@ async function connectSelectedDevice() {
   }
 }
 
+// 处理右侧面板开始截图
+function handleRightPanelScreenshotStart() {
+  isRightPanelScreenshoting.value = true;
+}
+
+// 处理右侧面板结束截图
+function handleRightPanelScreenshotEnd() {
+  isRightPanelScreenshoting.value = false;
+}
+
 async function captureScreenshot() {
   if (!currentDeviceId.value) {
     ElMessage.warning("请先连接设备");
@@ -488,6 +515,7 @@ async function captureScreenshot() {
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
       type: "capture_screenshot",
+      source: "left-panel", // 添加来源标识
     });
   } catch (error) {
     console.error("截图失败:", error);
@@ -1539,7 +1567,7 @@ onUnmounted(() => {
 <style scoped>
 
 .image-processor-tab {
-  height: 824px;
+  height: 890px;
 }
 
 .processor-layout {
@@ -1649,13 +1677,6 @@ onUnmounted(() => {
 .info-value {
   color: var(--text-primary);
   font-weight: 500;
-}
-
-/* 右侧面板 */
-.right-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
 .magnifier-container {
@@ -1851,21 +1872,4 @@ onUnmounted(() => {
   margin-top: 8px;
 }
 
-/* 响应式布局 */
-@media (max-width: 1400px) {
-  .processor-layout {
-    grid-template-columns: 180px 1fr 280px;
-  }
-}
-
-@media (max-width: 1200px) {
-  .processor-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .right-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-}
 </style>

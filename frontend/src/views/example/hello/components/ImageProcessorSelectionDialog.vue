@@ -631,10 +631,7 @@ function handleDialogClosed() {
   flex-shrink: 0;
 }
 
-.right-panel {
-  display: flex;
-  flex-direction: column;
-}
+
 
 .card {
   background: var(--bg-card);

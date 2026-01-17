@@ -79,8 +79,8 @@ defineEmits([
   display: flex;
   flex-direction: column;
   width: 200px;
-  gap: 15px;
-  margin-right: 10px;
+  gap: 5px;
+  padding: 0 5px;
 }
 .el-button+.el-button {
     margin-left: 0;

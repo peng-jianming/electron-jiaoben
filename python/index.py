@@ -723,7 +723,7 @@ def 设置当前设备(data):
         发送设备选择结果(error=str(e))
 
 
-def 发送设备截图(image_bytes=None, error=None):
+def 发送设备截图(image_bytes=None, error=None, source=None):
     """向 Electron 发送设备截图（PNG base64）"""
     message = {
         "success": error is None and image_bytes is not None,
@@ -733,6 +733,10 @@ def 发送设备截图(image_bytes=None, error=None):
         message["error"] = error or "截图失败"
     else:
         message["image"] = base64.b64encode(image_bytes).decode("utf-8")
+    
+    # 添加来源标识，用于前端区分处理
+    if source:
+        message["source"] = source
 
     send_to_electron(
         prop="device-screenshot",
@@ -744,21 +748,24 @@ def 发送设备截图(image_bytes=None, error=None):
 def 截图当前设备(data):
     """对当前连接的设备执行截图"""
     try:
+        # 获取来源标识（left-panel 或 right-panel）
+        source = data.get("source", "left-panel")
+        
         if not _current_device_id:
             print("尚未选择当前设备，无法截图")
-            发送设备截图(image_bytes=None, error="未选择设备")
+            发送设备截图(image_bytes=None, error="未选择设备", source=source)
             return
 
         controller = ADBController(device_id=_current_device_id)
         img_bytes = controller.截图到内存()
         if not img_bytes:
-            发送设备截图(image_bytes=None, error="截图失败")
+            发送设备截图(image_bytes=None, error="截图失败", source=source)
             return
 
-        发送设备截图(image_bytes=img_bytes)
+        发送设备截图(image_bytes=img_bytes, source=source)
     except Exception as e:
         traceback.print_exc()
-        发送设备截图(image_bytes=None, error=str(e))
+        发送设备截图(image_bytes=None, error=str(e), source=data.get("source", "left-panel"))
 
 
 #================================================================
