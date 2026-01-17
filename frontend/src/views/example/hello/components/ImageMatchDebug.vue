@@ -120,17 +120,11 @@
 
     <div class="debug-section result-section">
       <div class="section-title">匹配结果</div>
-      <div v-if="resultImageUrl" class="result-image-container">
-        <img :src="resultImageUrl" alt="匹配结果" />
-        <div v-if="matchResult" class="result-info">
-          <div>位置: ({{ matchResult.x }}, {{ matchResult.y }})</div>
-          <div>尺寸: {{ matchResult.w }} × {{ matchResult.h }}</div>
-          <div>相似度: {{ (matchResult.similarity * 100).toFixed(2) }}%</div>
-        </div>
-      </div>
-      <div v-else class="result-placeholder">
-        匹配结果将显示在此处
-      </div>
+      <ImageDisplayArea
+        :imageUrl="resultImageUrl"
+        alt="匹配结果"
+        placeholderText="匹配结果将显示在此处"
+      />
     </div>
   </div>
 </template>
@@ -142,6 +136,7 @@ import { Close } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
+import ImageDisplayArea from "./ImageDisplayArea.vue";
 
 const props = defineProps({
   transparentImageUrl: {
@@ -524,40 +519,9 @@ onUnmounted(() => {
 .result-section {
   flex: 1;
   min-height: 200px;
-}
-
-.result-image-container {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 300px;
-  overflow: auto;
-}
-
-.result-image-container img {
-  max-width: 100%;
-  max-height: 200px;
-  object-fit: contain;
-}
-
-.result-info {
-  font-size: 12px;
-  color: #606266;
   display: flex;
   flex-direction: column;
   gap: 5px;
-}
-
-.result-placeholder {
-  border: 1px dashed #dcdfe6;
-  border-radius: 4px;
-  padding: 20px;
-  text-align: center;
-  color: #909399;
-  font-size: 12px;
 }
 
 .button-group {
