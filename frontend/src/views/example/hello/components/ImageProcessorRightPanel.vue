@@ -33,6 +33,9 @@
           @clear-all-images="handleClearAllImages"
         />
       </el-tab-pane>
+      <el-tab-pane label="调试">
+       
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
