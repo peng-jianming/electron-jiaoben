@@ -11,7 +11,6 @@ import os
 import time
 import glob
 from PIL import Image
-from tools import DeviceController
 
 # 配置路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

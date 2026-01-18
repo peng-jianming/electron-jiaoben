@@ -566,7 +566,7 @@ def init_client(url="http://127.0.0.1:7070"):
 
         @_client.on("python-message")
         def on_message(data):
-            print(f"收到来自 Electron 的消息: {data}")
+            # print(f"收到来自 Electron 的消息: {data}")
             if not isinstance(data, dict):
                 return
 

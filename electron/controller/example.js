@@ -8,12 +8,6 @@ const { dialog } = require('electron');
  * @class
  */
 class ExampleController {
-  changeProp(args, event){
-    console.log(args, "9999999");
-    
-    // exampleService.changeDeviceProcesses(args.deviceId, args.prop, args.message)
-  }
-
   /**
    * 接收 Python 处理后的图像结果
    * @param {Object} args - 参数对象

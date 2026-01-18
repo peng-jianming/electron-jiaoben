@@ -1,13 +1,9 @@
 <template>
   <div class="code-generator-tab">
-    <el-form :model="formData" label-width="90px" size="small">
+    <el-form :model="formData" label-width="95px" size="small">
       <!-- 资源存放路径选择框 -->
       <el-form-item label="资源存放路径" required>
-        <el-input
-          v-model="formData.resourcePath"
-          placeholder="请选择资源存放路径"
-          readonly
-        >
+        <el-input v-model="formData.resourcePath" placeholder="请选择资源存放路径" readonly>
           <template #append>
             <el-button @click="handleSelectResourcePath">选择</el-button>
           </template>
@@ -16,11 +12,7 @@
 
       <!-- 配置文件选择框 -->
       <el-form-item label="配置文件" required>
-        <el-input
-          v-model="formData.configPath"
-          placeholder="请选择配置文件"
-          readonly
-        >
+        <el-input v-model="formData.configPath" placeholder="请选择配置文件" readonly>
           <template #append>
             <el-button @click="handleSelectConfigPath">选择</el-button>
           </template>
@@ -30,11 +22,7 @@
       <!-- 图片名输入框 -->
       <el-form-item label="图片名" required>
         <div style="display: flex; gap: 10px; align-items: center;">
-          <el-input
-            v-model="formData.imageName"
-            placeholder="请输入图片名称"
-            style="flex: 1;"
-          />
+          <el-input v-model="formData.imageName" placeholder="请输入图片名称" style="flex: 1;" />
           <el-radio-group v-model="imageSourceType" size="small">
             <el-radio-button label="current">当前大图</el-radio-button>
             <el-radio-button label="transparent">透明图</el-radio-button>
@@ -44,10 +32,7 @@
 
       <!-- 颜色偏色输入框 -->
       <el-form-item label="颜色偏色">
-        <el-input
-          v-model="formData.colorDeviation"
-          placeholder="请输入颜色偏色，例如：D7CCC6-0E0E09"
-        >
+        <el-input v-model="formData.colorDeviation" placeholder="请输入颜色偏色，例如：D7CCC6-0E0E09">
           <template #append>
             <el-button @click="handleGetDeviation">获取偏色</el-button>
           </template>
@@ -56,15 +41,10 @@
 
       <!-- 查找区域输入框 -->
       <el-form-item label="查找区域">
-        <el-input
-          v-model="formData.searchArea"
-          placeholder="请输入查找区域，格式：x,y,w,h"
-        >
+        <el-input v-model="formData.searchArea" placeholder="请输入查找区域，格式：x,y,w,h">
           <template #append>
-            <el-button 
-              :type="codeGeneratorSelectionEnabled === 'searchArea' ? 'warning' : 'primary'"
-              @click="toggleCodeGeneratorSelection('searchArea')"
-            >
+            <el-button :type="codeGeneratorSelectionEnabled === 'searchArea' ? 'warning' : 'primary'"
+              @click="toggleCodeGeneratorSelection('searchArea')">
               {{ codeGeneratorSelectionEnabled === 'searchArea' ? '取消圈选范围' : '启动圈选范围' }}
             </el-button>
           </template>
@@ -73,16 +53,10 @@
 
       <!-- 偏移点击区域输入框 -->
       <el-form-item label="偏移点击区域">
-        <el-input
-          v-model="formData.clickOffsetArea"
-          placeholder="请输入偏移点击区域，格式：x,y,w,h"
-        >
+        <el-input v-model="formData.clickOffsetArea" placeholder="请输入偏移点击区域，格式：x,y,w,h">
           <template #append>
-            <el-button 
-              :type="codeGeneratorSelectionEnabled === 'clickOffsetArea' ? 'warning' : 'primary'"
-              :disabled="!hasSelectionRect"
-              @click="toggleCodeGeneratorSelection('clickOffsetArea')"
-            >
+            <el-button :type="codeGeneratorSelectionEnabled === 'clickOffsetArea' ? 'warning' : 'primary'"
+              :disabled="!hasSelectionRect" @click="toggleCodeGeneratorSelection('clickOffsetArea')">
               {{ codeGeneratorSelectionEnabled === 'clickOffsetArea' ? '取消圈选范围' : '启动圈选范围' }}
             </el-button>
           </template>
@@ -91,15 +65,10 @@
 
       <!-- 点击区域输入框 -->
       <el-form-item label="点击区域">
-        <el-input
-          v-model="formData.clickArea"
-          placeholder="请输入点击区域，格式：x,y,w,h"
-        >
+        <el-input v-model="formData.clickArea" placeholder="请输入点击区域，格式：x,y,w,h">
           <template #append>
-            <el-button 
-              :type="codeGeneratorSelectionEnabled === 'clickArea' ? 'warning' : 'primary'"
-              @click="toggleCodeGeneratorSelection('clickArea')"
-            >
+            <el-button :type="codeGeneratorSelectionEnabled === 'clickArea' ? 'warning' : 'primary'"
+              @click="toggleCodeGeneratorSelection('clickArea')">
               {{ codeGeneratorSelectionEnabled === 'clickArea' ? '取消圈选范围' : '启动圈选范围' }}
             </el-button>
           </template>
@@ -109,58 +78,43 @@
       <!-- 相似度选择框 -->
       <el-form-item label="相似度">
         <div style="display: flex; align-items: center; width: 100%">
-          <el-slider
-          v-model="formData.similarity"
-          :min="0.1"
-          :max="1"
-          :step="0.1"
-          :format-tooltip="formatSimilarity"
-          style="flex:1; margin-right: 5px;"
-        />
-        <div class="similarity-value">{{ formData.similarity }}</div>
+          <el-slider v-model="formData.similarity" :min="0.1" :max="1" :step="0.1" :format-tooltip="formatSimilarity"
+            style="flex:1; margin-right: 5px;" />
+          <div class="similarity-value">{{ formData.similarity }}</div>
         </div>
       </el-form-item>
 
       <el-form-item label="配置名">
-        <el-input
-          v-model="formData.configName"
-          placeholder="请输入配置名"
-        />
+        <el-input v-model="formData.configName" placeholder="请输入配置名" />
       </el-form-item>
     </el-form>
-    <el-button 
-      style="width: 100%; " 
-      type="primary" 
-      size="small"
-      @click="handleGenerateCode"
-      :loading="generating"
-    >
+    <el-button style="width: 100%; " type="primary" size="small" @click="handleGenerateCode" :loading="generating">
       生成代码
     </el-button>
     <!-- 显示生成的代码区域 -->
-    <div v-if="generatedCode" class="generated-code-section">
-      <div class="code-header">
-        <span>生成的代码：</span>
-        <el-button 
-          type="text" 
-          size="small" 
-          @click="handleCopyCode"
-          style="padding: 0; margin-left: 10px;"
-        >
-          复制代码
-        </el-button>
-      </div>
-      <pre class="code-content">{{ generatedCode }}</pre>
-    </div>
+    <!-- <div style="position: relative;flex:1;overflow:auto;margin: 5px 0;">
+      <el-button v-if="generatedCode" style="position: absolute; top: 5px; right: 5px; z-index: 10;" size="small"
+        @click="handleCopyCode" :icon="copied ? Check : DocumentCopy">
+        {{ copied ? '已复制' : '复制' }}
+      </el-button>
+      <vue-json-viewer style="text-align: left;height:100%;overflow: hidden;" :value="generatedCode"
+        :expanded="false" :preview-mode="true" boxed :copyable="false" show-double-quotes
+        :show-array-index="false" />
+    </div> -->
+    <vue-json-viewer style="text-align: left;flex:1;overflow:auto;margin: 5px 0;" :value="generatedCode"
+        :expanded="false" :preview-mode="true" boxed :copyable show-double-quotes
+        :show-array-index="false" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
+import { Check, DocumentCopy } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
-
+import VueJsonViewer from "vue-json-viewer";
+import "vue-json-viewer/style.css";
 const props = defineProps({
   selectedDeviations: {
     type: Array,
@@ -184,8 +138,9 @@ const emit = defineEmits(['start-code-generator-selection', 'stop-code-generator
 
 const codeGeneratorSelectionEnabled = ref(false); // false | 'searchArea' | 'clickOffsetArea' | 'clickArea'
 const generating = ref(false);
-const generatedCode = ref("");
+const generatedCode = ref(null); // 改为对象类型，用于 vue-json-viewer
 const imageSourceType = ref("current"); // 'current' | 'transparent'，默认选择当前大图
+const copied = ref(false); // 复制状态
 
 // 检查是否有左侧圈选范围
 const hasSelectionRect = computed(() => {
@@ -216,7 +171,7 @@ const handleSelectResourcePath = async () => {
       title: "选择资源存放路径",
       defaultPath: formData.value.resourcePath || "",
     });
-    
+
     if (result && result.success && result.filePath) {
       formData.value.resourcePath = result.filePath;
       // 保存路径配置
@@ -240,7 +195,7 @@ const handleSelectConfigPath = async () => {
         { name: "所有文件", extensions: ["*"] },
       ],
     });
-    
+
     if (result && result.success && result.filePath) {
       formData.value.configPath = result.filePath;
       // 保存路径配置
@@ -259,7 +214,7 @@ const handleGetDeviation = () => {
     ElMessage.warning(`请先在"偏色计算"标签页中选择偏色`);
     return;
   }
-  
+
   // 将选中的偏色用 | 连接
   const deviationStr = props.selectedDeviations.join("|");
   formData.value.colorDeviation = deviationStr;
@@ -273,7 +228,7 @@ const toggleCodeGeneratorSelection = (type) => {
     ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
     return;
   }
-  
+
   if (codeGeneratorSelectionEnabled.value === type) {
     // 取消当前圈选模式
     codeGeneratorSelectionEnabled.value = false;
@@ -291,7 +246,7 @@ const toggleCodeGeneratorSelection = (type) => {
 const setSearchAreaFromSelection = (rect) => {
   if (rect && rect.w && rect.h) {
     const { x, y, w, h } = rect;
-    
+
     // 根据当前圈选类型设置对应的输入框
     if (codeGeneratorSelectionEnabled.value === 'searchArea') {
       const areaStr = `${x},${y},${w},${h}`;
@@ -308,7 +263,7 @@ const setSearchAreaFromSelection = (rect) => {
         // 不取消圈选模式，让用户可以继续操作
         return;
       }
-      
+
       // 计算偏移值：偏移点击区域的坐标 - 左侧圈选范围的坐标
       const offsetX = x - props.selectionRect.x;
       const offsetY = y - props.selectionRect.y;
@@ -316,7 +271,7 @@ const setSearchAreaFromSelection = (rect) => {
       formData.value.clickOffsetArea = areaStr;
       ElMessage.success("已获取偏移点击区域范围（已计算偏移值）");
     }
-    
+
     // 自动取消圈选模式
     codeGeneratorSelectionEnabled.value = false;
     emit('stop-code-generator-selection');
@@ -395,9 +350,11 @@ const handleGenerateCode = async () => {
     }
 
     // 保存图片到资源存放路径
-    const imageFileName = formData.value.imageName.endsWith('.png') 
-      ? formData.value.imageName 
-      : `${formData.value.imageName}.png`;
+    // 清理图片名称中的换行符、反斜杠和多余空白
+    const cleanImageName = formData.value.imageName.replace(/[\r\n\t]/g, '').replace(/[\\/]/g, '').trim();
+    const imageFileName = cleanImageName.endsWith('.png')
+      ? cleanImageName
+      : `${cleanImageName}.png`;
     const imagePath = `${formData.value.resourcePath}/${imageFileName}`;
 
     // 处理图片数据：如果是 base64 格式，直接提取；否则转换为 base64
@@ -415,7 +372,7 @@ const handleGenerateCode = async () => {
         // 创建一个图片对象来加载图片
         const img = new Image();
         img.crossOrigin = "anonymous";
-        
+
         // 等待图片加载完成
         await new Promise((resolve, reject) => {
           img.onload = () => {
@@ -426,7 +383,7 @@ const handleGenerateCode = async () => {
               canvas.width = img.naturalWidth;
               canvas.height = img.naturalHeight;
               ctx.drawImage(img, 0, 0);
-              
+
               // 转换为 base64
               const base64DataUrl = canvas.toDataURL("image/png");
               if (base64DataUrl.includes(',')) {
@@ -470,7 +427,7 @@ const handleGenerateCode = async () => {
       "方式": "找图",
     };
 
-    if(formData.value.configName) {
+    if (formData.value.configName) {
       codeObj["标识"] = formData.value.configName;
     }
 
@@ -508,68 +465,40 @@ const handleGenerateCode = async () => {
     const path = require('path');
     const configDir = path.dirname(formData.value.configPath);
     const resourcePath = formData.value.resourcePath;
-    
+
     // 计算相对路径
     let relativePath = path.relative(configDir, resourcePath);
-    // Windows 路径分隔符转换为正斜杠
-    relativePath = relativePath.replace(/\\/g, '/');
-    
-    // 拼接图片文件名
+    // Windows 路径分隔符转换为正斜杠，并去掉所有换行符和多余空白
+    relativePath = relativePath.replace(/\\/g, '/').replace(/[\r\n\t]/g, '').trim();
+
+    // 拼接图片文件名，确保最终路径字符串没有换行符和反斜杠
+    let finalPathString = '';
     if (relativePath && relativePath !== '.') {
       // 如果相对路径不为空且不是当前目录，拼接路径和文件名
-      const fullRelativePath = relativePath.endsWith('/') 
+      const fullRelativePath = relativePath.endsWith('/')
         ? `${relativePath}${imageFileName}`
         : `${relativePath}/${imageFileName}`;
-      codeObj["图片路径"] = `os.path.join(os.path.dirname(__file__), "${fullRelativePath}")`;
+      // 清理：去掉换行符、将反斜杠转换为正斜杠
+      let cleanPath = fullRelativePath.replace(/[\r\n\t]/g, '').replace(/\\/g, '/').trim();
+      // 再次确保没有反斜杠（处理可能遗漏的情况）
+      cleanPath = cleanPath.replace(/\\/g, '/');
+      finalPathString = `os.path.join(os.path.dirname(__file__), "${cleanPath}")`;
     } else {
       // 如果资源路径就是配置文件目录，直接使用图片文件名
-      codeObj["图片路径"] = `os.path.join(os.path.dirname(__file__), "${imageFileName}")`;
+      // 确保图片文件名也没有反斜杠
+      let cleanImageFileName = imageFileName.replace(/\\/g, '/');
+      // 再次确保没有反斜杠
+      cleanImageFileName = cleanImageFileName.replace(/\\/g, '/');
+      finalPathString = `os.path.join(os.path.dirname(__file__), "${cleanImageFileName}")`;
     }
+    // 最终确保路径字符串没有换行符和反斜杠（多次替换确保彻底清理）
+    let finalPath = finalPathString.replace(/[\r\n\t]/g, '').replace(/\\/g, '/');
+    // 再次替换，确保没有遗漏
+    finalPath = finalPath.replace(/\\/g, '/');
+    codeObj["图片路径"] = finalPath;
 
-    // 格式化代码为 JSON 字符串
-    const formatCode = (obj) => {
-      const lines = [];
-      lines.push('{');
-      
-      const entries = Object.entries(obj);
-      entries.forEach(([key, value], index) => {
-        // 所有行都添加逗号，包括最后一行
-        const comma = ',';
-        
-        if (Array.isArray(value)) {
-          // 数组格式
-          if (value.length === 0) {
-            lines.push(`  "${key}": []${comma}`);
-          } else if (value.every(v => typeof v === 'number')) {
-            // 数字数组
-            lines.push(`  "${key}": [${value.join(' ,')}]${comma}`);
-          } else {
-            // 字符串数组
-            const arrStr = value.map(v => `"${v}"`).join(', ');
-            lines.push(`  "${key}": [${arrStr}]${comma}`);
-          }
-        } else if (typeof value === 'object' && value !== null) {
-          // 对象格式
-          lines.push(`  "${key}": {`);
-          lines.push(`    "x": ${value.x},`);
-          lines.push(`    "y": ${value.y},`);
-          lines.push(`    "w": ${value.w},`);
-          lines.push(`    "h": ${value.h}`);
-          lines.push(`  }${comma}`);
-        } else if (typeof value === 'string') {
-          // 字符串（可能是代码表达式）
-          lines.push(`  "${key}": ${value}${comma}`);
-        } else {
-          // 数字或其他
-          lines.push(`  "${key}": ${value}${comma}`);
-        }
-      });
-      
-      lines.push('},');
-      return lines.join('\n');
-    };
-
-    generatedCode.value = formatCode(codeObj);
+    // 直接使用对象，vue-json-viewer 会自动格式化显示
+    generatedCode.value = codeObj;
     ElMessage.success("代码生成成功");
   } catch (error) {
     console.error("生成代码失败:", error);
@@ -579,21 +508,6 @@ const handleGenerateCode = async () => {
   }
 };
 
-// 复制代码
-const handleCopyCode = async () => {
-  if (!generatedCode.value) {
-    ElMessage.warning("没有可复制的代码");
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(generatedCode.value);
-    ElMessage.success("代码已复制到剪贴板");
-  } catch (error) {
-    console.error("复制失败:", error);
-    ElMessage.error("复制失败，请手动复制");
-  }
-};
 
 // 保存路径配置到数据库
 const savePathsToDB = async () => {
@@ -626,6 +540,63 @@ const loadPathsFromDB = async () => {
   }
 };
 
+// 复制代码到剪贴板
+const handleCopyCode = async () => {
+  if (!generatedCode.value) {
+    ElMessage.warning("没有可复制的代码");
+    return;
+  }
+
+  try {
+    // 深拷贝代码对象
+    let codeToCopy = JSON.parse(JSON.stringify(generatedCode.value));
+    
+    // 处理图片路径，确保没有换行符和反斜杠
+    if (codeToCopy["图片路径"]) {
+      // 去掉所有换行符、回车符、制表符，将反斜杠转换为正斜杠
+      let cleanPath = codeToCopy["图片路径"]
+        .replace(/[\r\n\t]/g, '')  // 去掉换行符、回车符、制表符
+        .replace(/\\/g, '/')       // 将反斜杠转换为正斜杠
+        .trim();                    // 去掉首尾空白
+      
+      // 再次确保没有反斜杠（多次替换确保彻底清理）
+      cleanPath = cleanPath.replace(/\\/g, '/');
+      
+      codeToCopy["图片路径"] = cleanPath;
+    }
+
+    // 转换为 JSON 字符串，使用 2 空格缩进
+    let jsonString = JSON.stringify(codeToCopy, null, 2);
+    
+    // 处理 JSON 字符串，将图片路径行中的转义反斜杠 \\ 替换为正斜杠 /
+    // 按行处理，找到包含 "图片路径" 的行
+    const lines = jsonString.split('\n');
+    const processedLines = lines.map(line => {
+      if (line.includes('"图片路径"')) {
+        // 在这一行中，将 \\ 替换为 /（但保留 \" 中的反斜杠）
+        // 实际上，由于我们在对象中已经清理了反斜杠，这里主要是处理 JSON 转义
+        return line.replace(/\\\\/g, '/');
+      }
+      return line;
+    });
+    jsonString = processedLines.join('\n');
+    
+    // 复制到剪贴板
+    await navigator.clipboard.writeText(jsonString);
+    
+    copied.value = true;
+    ElMessage.success("代码已复制到剪贴板");
+    
+    // 2秒后重置复制状态
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch (error) {
+    console.error("复制代码失败:", error);
+    ElMessage.error(`复制代码失败: ${error.message || "未知错误"}`);
+  }
+};
+
 // 组件挂载时加载保存的路径
 onMounted(() => {
   loadPathsFromDB();
@@ -646,18 +617,37 @@ defineExpose({
       similarity: 0.8,
       configName: "",
     };
-    generatedCode.value = "";
+    generatedCode.value = null;
   },
   setSearchAreaFromSelection,
   getCodeGeneratorSelectionEnabled: () => codeGeneratorSelectionEnabled.value,
 });
 </script>
 
-<style scoped>
+<style lang="less">
+// vue-json-viewer 样式覆盖
+.code-generator-tab .jv-container {
+
+  .jv-light {
+    // background: #1a1a2e;
+  }
+  &.boxed:hover{
+    box-shadow: none;
+    border: 1px solid #dcdfe6;
+  }
+
+  .jv-code {
+    padding: 5px !important;
+  }
+}
+
+
+
 .code-generator-tab {
   padding: 10px;
   height: 590px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .similarity-value {
@@ -667,48 +657,9 @@ defineExpose({
   text-align: center;
 }
 
-.hint-text {
-  margin-top: 5px;
-  font-size: 12px;
-  color: #f56c6c;
-  font-style: italic;
-}
 
-.generated-code-section {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  border: 1px solid #dcdfe6;
-}
 
-.code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  font-weight: 500;
-  color: #303133;
-}
-
-.code-content {
-  margin: 0;
-  padding: 10px;
-  background-color: #ffffff;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  color: #303133;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow-x: auto;
-  max-height: 300px;
-  overflow-y: auto;
-}
 .el-form-item {
   margin-bottom: 5px;
 }
 </style>
-
