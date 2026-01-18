@@ -360,12 +360,6 @@ const handleGenerateCode = async () => {
       return;
     }
 
-    if (!formData.value.configName) {
-      ElMessage.warning("请输入配置名");
-      generating.value = false;
-      return;
-    }
-
     if (!props.transparentImageUrl) {
       ElMessage.warning("请先制作透明图");
       generating.value = false;
@@ -398,9 +392,12 @@ const handleGenerateCode = async () => {
 
     // 生成代码
     const codeObj = {
-      "标识": formData.value.configName,
       "方式": "找图",
     };
+
+    if(formData.value.configName) {
+      codeObj["标识"] = formData.value.configName;
+    }
 
     // 偏移点击区域
     const clickOffsetArea = parseAreaString(formData.value.clickOffsetArea);
