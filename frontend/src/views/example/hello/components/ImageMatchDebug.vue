@@ -63,16 +63,18 @@
       </el-form-item>
     </el-form>
 
-    <el-button type="primary" size="small" :loading="matching" :disabled="!smallImageUrl || !largeImageUrl"
-      @click="handleMatch" style="width: 100%; margin-bottom: 5px;">
+    <el-button type="primary" size="small" :loading="matching"
+      :disabled="(!smallImageUrl && !transparentImageUrl) || (!largeImageUrl && !currentDeviceId)" @click="handleMatch"
+      style="width: 100%; margin-bottom: 5px;">
       {{ matching ? "匹配中..." : "开始匹配" }}
     </el-button>
 
     <div class="result-section">
       <el-image :src="resultImageUrl" :preview-src-list="[resultImageUrl]" fit="contain" preview-teleported
-        style="min-width: 180px; max-width:100%;max-height: 100%;">
+        style="height: 100%; width: 100%;">
         <template #placeholder>
-          <div>匹配结果将显示在此处</div>
+          <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">匹配结果将显示在此处
+          </div>
         </template>
       </el-image>
     </div>
@@ -261,8 +263,15 @@ function handleDeviceScreenshot(data) {
 
 // 处理匹配
 async function handleMatch() {
-  if ((!smallImageFile.value && !smallImageUrl.value) || (!largeImageFile.value && !largeImageUrl.value)) {
-    ElMessage.warning("请先上传小图和大图");
+  // 检查是否有小图或透明图
+  if (!smallImageFile.value && !smallImageUrl.value && !props.transparentImageUrl) {
+    ElMessage.warning("请先上传小图或使用透明图");
+    return;
+  }
+
+  // 检查是否有大图或设备ID（用于自动截图）
+  if (!largeImageFile.value && !largeImageUrl.value && !props.currentDeviceId) {
+    ElMessage.warning("请先上传大图或连接设备以自动截图");
     return;
   }
 
@@ -271,45 +280,44 @@ async function handleMatch() {
   matchResult.value = null;
 
   try {
-    // 读取文件为 base64
-    let smallBase64;
+    // 读取小图为 base64
+    let smallBase64 = null;
     if (smallImageFile.value) {
       // 从文件读取
       smallBase64 = await fileToBase64(smallImageFile.value);
     } else if (smallImageUrl.value) {
-      // 从 URL 中提取 base64（透明图的情况）
+      // 从 URL 中提取 base64（已上传的小图）
       const base64Data = smallImageUrl.value.split(",")[1];
-      if (!base64Data) {
-        ElMessage.error("无法从图片 URL 中提取 base64 数据");
-        matching.value = false;
-        return;
+      if (base64Data) {
+        smallBase64 = base64Data;
       }
-      smallBase64 = base64Data;
-    } else {
-      ElMessage.warning("请先上传小图");
+    } else if (props.transparentImageUrl) {
+      // 使用透明图作为小图
+      const base64Data = props.transparentImageUrl.split(",")[1];
+      if (base64Data) {
+        smallBase64 = base64Data;
+      }
+    }
+
+    if (!smallBase64) {
+      ElMessage.error("无法获取小图数据");
       matching.value = false;
       return;
     }
 
-    // 读取大图为 base64
-    let largeBase64;
+    // 读取大图为 base64（如果没有大图，则不传，让后端自动截图）
+    let largeBase64 = null;
     if (largeImageFile.value) {
       // 从文件读取
       largeBase64 = await fileToBase64(largeImageFile.value);
     } else if (largeImageUrl.value) {
       // 从 URL 中提取 base64（截图的情况）
       const base64Data = largeImageUrl.value.split(",")[1];
-      if (!base64Data) {
-        ElMessage.error("无法从图片 URL 中提取 base64 数据");
-        matching.value = false;
-        return;
+      if (base64Data) {
+        largeBase64 = base64Data;
       }
-      largeBase64 = base64Data;
-    } else {
-      ElMessage.warning("请先上传大图");
-      matching.value = false;
-      return;
     }
+    // 如果没有大图，largeBase64 保持为 null，后端会自动截图
 
     // 解析区域
     let region = null;
@@ -344,7 +352,7 @@ async function handleMatch() {
     await ipc.invoke(ipcApiRoute.sendToPython, {
       type: "image_match",
       smallImage: smallBase64,
-      largeImage: largeBase64,
+      largeImage: largeBase64, // 如果为 null，后端会自动截图
       region: region,
       colorTolerance: colorTolerance,
     });
@@ -460,7 +468,7 @@ onUnmounted(() => {
 
 .result-section {
   flex: 1;
-  /* height: 280px; */
+  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;

@@ -17,9 +17,10 @@
     <!-- 显示渲染后的图片区域 -->
     <div class="result-section">
       <el-image :src="processedImageUrl" :preview-src-list="[processedImageUrl]" fit="contain" preview-teleported
-        style="min-width: 180px; max-width:100%;max-height: 100%;">
+      style="height: 100%; width: 100%;">
         <template #placeholder>
-          <div>偏色二值化后的图片将显示在此处</div>
+          <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">偏色二值化后的图片将显示在此处
+          </div>
         </template>
       </el-image>
     </div>
@@ -300,6 +301,7 @@ defineExpose({
   .result-section {
     margin-top: 5px;
     flex: 1;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;

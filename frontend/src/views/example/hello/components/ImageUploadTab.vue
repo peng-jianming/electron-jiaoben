@@ -24,9 +24,10 @@
     </div>
     <div class="result-section">
       <el-image :src="transparentImageUrl" :preview-src-list="[transparentImageUrl]" fit="contain" preview-teleported
-        style="min-width: 180px; max-width:100%;max-height: 100%;">
+      style="height: 100%; width: 100%;">
         <template #placeholder>
-          <div>透明图处理结果将显示在此处</div>
+          <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">透明图处理结果将显示在此处
+          </div>
         </template>
       </el-image>
     </div>
@@ -440,6 +441,7 @@ defineExpose({
 .result-section {
     margin-top: 5px;
     flex: 1;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;

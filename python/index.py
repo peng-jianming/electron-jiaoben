@@ -794,26 +794,47 @@ def 图片匹配(data):
     """图片匹配处理函数"""
     try:
         small_image_base64 = data.get("smallImage")
-        large_image_base64 = data.get("largeImage")
+        large_image_base64 = data.get("largeImage")  # 可能为 None，需要自动截图
         region = data.get("region")  # {x, y, w, h} 或 None
         color_tolerance = data.get("colorTolerance")  # 字符串数组或 None
         
-        if not small_image_base64 or not large_image_base64:
-            发送图片匹配结果(error="缺少图片数据")
+        # 检查小图（必须提供）
+        if not small_image_base64:
+            发送图片匹配结果(error="缺少小图数据")
             return
         
-        # 将 base64 转换为临时文件
-        small_image_bytes = base64.b64decode(small_image_base64)
-        large_image_bytes = base64.b64decode(large_image_base64)
+        # 处理大图：如果没有提供，则自动截图
+        large_image_path = None
+        if not large_image_base64:
+            # 需要自动截图
+            if not _current_device_id:
+                发送图片匹配结果(error="未选择设备，无法自动截图")
+                return
+            
+            print(f"未提供大图，自动截图设备: {_current_device_id}")
+            controller = ADBController(device_id=_current_device_id)
+            large_image_bytes = controller.截图到内存()
+            if not large_image_bytes:
+                发送图片匹配结果(error="自动截图失败")
+                return
+            
+            # 将截图保存为临时文件
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as large_file:
+                large_file.write(large_image_bytes)
+                large_image_path = large_file.name
+            print(f"截图已保存到临时文件: {large_image_path}")
+        else:
+            # 将 base64 转换为临时文件
+            large_image_bytes = base64.b64decode(large_image_base64)
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as large_file:
+                large_file.write(large_image_bytes)
+                large_image_path = large_file.name
         
-        # 创建临时文件
+        # 将小图 base64 转换为临时文件
+        small_image_bytes = base64.b64decode(small_image_base64)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as small_file:
             small_file.write(small_image_bytes)
             small_image_path = small_file.name
-        
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as large_file:
-            large_file.write(large_image_bytes)
-            large_image_path = large_file.name
         
         try:
             # 解析区域参数
