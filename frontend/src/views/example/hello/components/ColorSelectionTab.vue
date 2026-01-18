@@ -15,11 +15,14 @@
       />
     </div>
     <!-- 显示渲染后的图片区域 -->
-    <ImageDisplayArea 
-      :image-url="processedImageUrl"
-      alt="处理后的图片"
-      placeholder-text="偏色二值化后的图片将显示在此处"
-    />
+    <div class="result-section">
+      <el-image :src="processedImageUrl" :preview-src-list="[processedImageUrl]" fit="contain" preview-teleported
+        style="min-width: 180px; max-width:100%;max-height: 100%;">
+        <template #placeholder>
+          <div>偏色二值化后的图片将显示在此处</div>
+        </template>
+      </el-image>
+    </div>
   </div>
 </template>
 
@@ -293,3 +296,24 @@ defineExpose({
 });
 </script>
 
+<style scoped>
+  .result-section {
+    margin-top: 5px;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* 深色棋盘格背景，用于显示透明区域 */
+    background: #1a1a2e;
+    background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
+      linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
+      linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    color: #909399;
+    font-size: 12px;
+  }
+  
+
+  </style>

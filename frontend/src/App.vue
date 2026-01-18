@@ -11,8 +11,11 @@ onMounted(() => {
   }
 });
 </script>
-<style lang="less">
+<style >
 .el-button+.el-button {
   margin-left: 0;
+}
+.el-form-item {
+  margin-bottom: 5px;;
 }
 </style>

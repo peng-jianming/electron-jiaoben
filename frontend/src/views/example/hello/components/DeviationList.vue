@@ -67,5 +67,8 @@ const selectedDeviations = computed({
 .el-checkbox {
   margin-right: 0;
 }
+.el-button+.el-button {
+  margin-left: 0;
+}
 </style>
 

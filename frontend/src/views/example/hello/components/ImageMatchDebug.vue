@@ -1,130 +1,80 @@
 <template>
   <div class="image-match-debug">
-    <div class="debug-section">
-      <div class="section-title">小图</div>
-      <div class="image-upload-area">
-        <input
-          ref="smallImageInputRef"
-          type="file"
-          accept="image/*"
-          style="display: none"
-          @change="handleSmallImageSelect"
-        />
-        <div v-if="smallImageUrl" class="image-preview">
-          <img :src="smallImageUrl" alt="小图" />
-          <el-button
-            type="danger"
-            size="small"
-            circle
-            class="remove-btn"
-            @click="clearSmallImage"
-          >
-            <el-icon><Close /></el-icon>
-          </el-button>
+    <el-form>
+      <el-form-item label="小图">
+        <div class="image-upload-area">
+          <input ref="smallImageInputRef" type="file" accept="image/*" style="display: none"
+            @change="handleSmallImageSelect" />
+          <div v-if="smallImageUrl" class="image-preview">
+            <el-image :src="smallImageUrl" :preview-src-list="[smallImageUrl]" fit="contain" preview-teleported
+              class="thumbnail-image" />
+            <el-button type="danger" size="small" circle class="remove-btn" @click="clearSmallImage">
+              <el-icon>
+                <Close />
+              </el-icon>
+            </el-button>
+          </div>
+          <div v-else>
+            <div style="color: #909399; font-size: 12px;">不传,默认透明图</div>
+            <div class="button-group">
+              <el-button type="primary" size="small" @click="smallImageInputRef?.click()">
+                上传小图
+              </el-button>
+              <el-button type="success" size="small" :disabled="!transparentImageUrl" @click="useTransparentImage">
+                加入透明图
+              </el-button>
+            </div>
+          </div>
         </div>
-        <div v-else class="button-group">
-          <el-button
-            type="primary"
-            size="small"
-            @click="smallImageInputRef?.click()"
-          >
-            上传小图
-          </el-button>
-          <el-button
-            type="success"
-            size="small"
-            :disabled="!transparentImageUrl"
-            @click="useTransparentImage"
-          >
-            加入透明图
-          </el-button>
+      </el-form-item>
+      <el-form-item label="大图">
+        <div class="image-upload-area">
+          <input ref="largeImageInputRef" type="file" accept="image/*" style="display: none"
+            @change="handleLargeImageSelect" />
+          <div v-if="largeImageUrl" class="image-preview">
+            <el-image :src="largeImageUrl" :preview-src-list="[largeImageUrl]" fit="contain" preview-teleported
+              class="thumbnail-image" />
+            <el-button type="danger" size="small" circle class="remove-btn" @click="clearLargeImage">
+              <el-icon>
+                <Close />
+              </el-icon>
+            </el-button>
+          </div>
+          <div v-else>
+            <div style="color: #909399;font-size: 12px;">不传,默认截图</div>
+            <div class="button-group">
+              <el-button type="primary" size="small" @click="largeImageInputRef?.click()">
+                上传大图
+              </el-button>
+              <el-button type="success" size="small" :loading="screenshotLoading" :disabled="!currentDeviceId"
+                @click="handleScreenshotClick">
+                截图
+              </el-button>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </el-form-item>
+      <el-form-item label="范围">
+        <el-input v-model="regionInput" placeholder="例如: 0,0,100,100 (留空则查询全图) (x,y,w,h)" size="small" clearable />
+      </el-form-item>
+      <el-form-item label="偏色">
+        <el-input v-model="colorToleranceInput" placeholder="例如: C9C0B2-25211F|111111-222222 (多个用|分割)" size="small"
+          clearable />
+      </el-form-item>
+    </el-form>
 
-    <div class="debug-section">
-      <div class="section-title">大图</div>
-      <div class="image-upload-area">
-        <input
-          ref="largeImageInputRef"
-          type="file"
-          accept="image/*"
-          style="display: none"
-          @change="handleLargeImageSelect"
-        />
-        <div v-if="largeImageUrl" class="image-preview">
-          <img :src="largeImageUrl" alt="大图" />
-          <el-button
-            type="danger"
-            size="small"
-            circle
-            class="remove-btn"
-            @click="clearLargeImage"
-          >
-            <el-icon><Close /></el-icon>
-          </el-button>
-        </div>
-        <div v-else class="button-group">
-          <el-button
-            type="primary"
-            size="small"
-            @click="largeImageInputRef?.click()"
-          >
-            上传大图
-          </el-button>
-          <el-button
-            type="success"
-            size="small"
-            :loading="screenshotLoading"
-            :disabled="!currentDeviceId"
-            @click="handleScreenshotClick"
-          >
-            截图
-          </el-button>
-        </div>
-      </div>
-    </div>
+    <el-button type="primary" size="small" :loading="matching" :disabled="!smallImageUrl || !largeImageUrl"
+      @click="handleMatch" style="width: 100%; margin-bottom: 5px;">
+      {{ matching ? "匹配中..." : "开始匹配" }}
+    </el-button>
 
-    <div class="debug-section">
-      <div class="section-title">查询范围 (x,y,w,h)</div>
-      <el-input
-        v-model="regionInput"
-        placeholder="例如: 0,0,100,100 (留空则查询全图)"
-        size="small"
-        clearable
-      />
-    </div>
-
-    <div class="debug-section">
-      <div class="section-title">偏色 (多个用|分割)</div>
-      <el-input
-        v-model="colorToleranceInput"
-        placeholder="例如: C9C0B2-25211F|111111-222222"
-        size="small"
-        clearable
-      />
-    </div>
-
-    <div class="debug-section">
-      <el-button
-        type="primary"
-        size="small"
-        :loading="matching"
-        :disabled="!smallImageUrl || !largeImageUrl"
-        @click="handleMatch"
-        style="width: 100%"
-      >
-        {{ matching ? "匹配中..." : "开始匹配" }}
-      </el-button>
-    </div>
-
-    <div class="debug-section result-section">
-      <div class="section-title">匹配结果</div>
-      <ImageDisplayArea
-        :imageUrl="resultImageUrl"
-        alt="匹配结果"
-        placeholderText="匹配结果将显示在此处"
-      />
+    <div class="result-section">
+      <el-image :src="resultImageUrl" :preview-src-list="[resultImageUrl]" fit="contain" preview-teleported
+        style="min-width: 180px; max-width:100%;max-height: 100%;">
+        <template #placeholder>
+          <div>匹配结果将显示在此处</div>
+        </template>
+      </el-image>
     </div>
   </div>
 </template>
@@ -268,7 +218,7 @@ async function handleScreenshotClick() {
 
   screenshotLoading.value = true;
   isScreenshotPending.value = true;
-  
+
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
       type: "capture_screenshot",
@@ -340,7 +290,7 @@ async function handleMatch() {
       matching.value = false;
       return;
     }
-    
+
     // 读取大图为 base64
     let largeBase64;
     if (largeImageFile.value) {
@@ -466,16 +416,8 @@ onUnmounted(() => {
 .image-match-debug {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 5px;
-  max-height: 590px;
+  height: 590px;
   overflow-y: auto;
-}
-
-.debug-section {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
 }
 
 .section-title {
@@ -485,10 +427,11 @@ onUnmounted(() => {
 }
 
 .image-upload-area {
-  min-height: 80px;
+  height: 80px;
+  width: 100%;
   border: 1px dashed #dcdfe6;
   border-radius: 4px;
-  padding: 10px;
+  padding: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -504,9 +447,8 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-.image-preview img {
-  max-width: 100%;
-  max-height: 150px;
+.thumbnail-image {
+  height: 80px;
   object-fit: contain;
 }
 
@@ -518,10 +460,21 @@ onUnmounted(() => {
 
 .result-section {
   flex: 1;
-  min-height: 200px;
+  /* height: 280px; */
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  justify-content: center;
+  align-items: center;
+  /* gap: 5px; */
+  /* 深色棋盘格背景，用于显示透明区域 */
+  background: #1a1a2e;
+  background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .button-group {
@@ -533,5 +486,9 @@ onUnmounted(() => {
 .button-group .el-button {
   flex: 1;
 }
-</style>
 
+.el-form-item {
+  margin-bottom: 5px;
+  ;
+}
+</style>

@@ -22,12 +22,14 @@
         保存透明图
       </el-button>
     </div>
-    <!-- 透明图处理结果显示区域 -->
-    <ImageDisplayArea 
-      :image-url="transparentImageUrl"
-      alt="透明图处理结果"
-      placeholder-text="透明图处理结果将显示在此处"
-    />
+    <div class="result-section">
+      <el-image :src="transparentImageUrl" :preview-src-list="[transparentImageUrl]" fit="contain" preview-teleported
+        style="min-width: 180px; max-width:100%;max-height: 100%;">
+        <template #placeholder>
+          <div>透明图处理结果将显示在此处</div>
+        </template>
+      </el-image>
+    </div>
   </div>
 </template>
 
@@ -435,5 +437,22 @@ defineExpose({
   width: 100%;
   margin-top: 5px;
 }
+.result-section {
+    margin-top: 5px;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* 深色棋盘格背景，用于显示透明区域 */
+    background: #1a1a2e;
+    background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
+      linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
+      linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    color: #909399;
+    font-size: 12px;
+  }
 </style>
 
