@@ -11,7 +11,7 @@
 
     <!-- 选中颜色列表 -->
     <el-tabs type="border-card" size="mini">
-      <el-tab-pane label="颜色">
+      <el-tab-pane label="偏色计算">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
@@ -21,7 +21,7 @@
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="图片">
+      <el-tab-pane label="透明图制作">
         <ImageUploadTab
           :uploaded-images="uploadedImages"
           :screenshot-loading="screenshotLoading"
@@ -34,11 +34,14 @@
           ref="imageUploadTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="调试">
+      <el-tab-pane label="调试图片">
         <ImageMatchDebug 
           :transparent-image-url="transparentImageUrl"
           :current-device-id="currentDeviceId"
         />
+      </el-tab-pane>
+      <el-tab-pane label="生成代码">
+      
       </el-tab-pane>
     </el-tabs>
   </div>

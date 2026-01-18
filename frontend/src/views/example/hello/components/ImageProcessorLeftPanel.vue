@@ -43,6 +43,14 @@
       {{ selectionInfo ? selectionInfo.h : 0 }}
     </el-tag>
 
+    <el-button 
+      type="warning" 
+      :disabled="!hasImage || !selectionInfo"
+      @click="$emit('crop-image')"
+    >
+      裁剪图片
+    </el-button>
+
     <el-divider></el-divider>
 
     <el-button type="primary" @click="$emit('fit-to-window')"> 自适应缩放 </el-button>
@@ -84,6 +92,7 @@ defineEmits([
   "fit-to-window",
   "reset-zoom",
   "save-image",
+  "crop-image",
 ]);
 </script>
 

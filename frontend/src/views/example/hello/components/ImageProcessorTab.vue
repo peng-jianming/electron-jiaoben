@@ -16,6 +16,7 @@
         @fit-to-window="fitToWindow"
         @reset-zoom="resetZoom"
         @save-image="handleSaveImage"
+        @crop-image="handleCropImage"
       />
       <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
       <input
@@ -1517,6 +1518,88 @@ function resetZoom() {
   ElMessage.success("已重置缩放");
 }
 
+// 裁剪图片
+function handleCropImage() {
+  if (!currentImage.value || !imageRef.value || !selectionRect.value) {
+    ElMessage.warning("请先选择要裁剪的区域");
+    return;
+  }
+
+  const rect = selectionRect.value;
+  const img = imageRef.value;
+
+  // 验证裁剪区域是否有效
+  if (rect.w <= 0 || rect.h <= 0) {
+    ElMessage.warning("裁剪区域无效");
+    return;
+  }
+
+  // 确保裁剪区域在图片范围内
+  const maxX = img.naturalWidth;
+  const maxY = img.naturalHeight;
+  const cropX = Math.max(0, Math.min(rect.x, maxX - 1));
+  const cropY = Math.max(0, Math.min(rect.y, maxY - 1));
+  const cropW = Math.min(rect.w, maxX - cropX);
+  const cropH = Math.min(rect.h, maxY - cropY);
+
+  if (cropW <= 0 || cropH <= 0) {
+    ElMessage.warning("裁剪区域超出图片范围");
+    return;
+  }
+
+  try {
+    // 创建 canvas 进行裁剪
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    
+    // 设置 canvas 尺寸为裁剪区域大小
+    canvas.width = cropW;
+    canvas.height = cropH;
+
+    // 将裁剪区域绘制到 canvas
+    ctx.drawImage(
+      img,
+      cropX, cropY, cropW, cropH,  // 源图片的裁剪区域
+      0, 0, cropW, cropH            // 目标 canvas 的位置和尺寸
+    );
+
+    // 将 canvas 转换为 base64
+    const base64Data = canvas.toDataURL("image/png");
+    
+    // 创建新的图片数据
+    const timestamp = new Date().toLocaleTimeString();
+    const originalName = currentImage.value.name || "image.png";
+    const nameWithoutExt = originalName.replace(/\.[^/.]+$/, "");
+    const extension = originalName.match(/\.[^/.]+$/) || ".png";
+    const croppedName = `${nameWithoutExt}_cropped_${timestamp}${extension}`;
+
+    const imageData = {
+      name: croppedName,
+      url: base64Data,
+      file: null,
+      info: {
+        fileSize: "--",
+        format: "PNG",
+        width: cropW,
+        height: cropH,
+      },
+      selectedColors: [],
+    };
+
+    // 添加到图片数组
+    images.value.push(imageData);
+    
+    // 自动切换到新创建的图片
+    const newIndex = images.value.length - 1;
+    currentImageIndex.value = String(newIndex);
+
+    ElMessage.success("图片裁剪成功");
+  } catch (error) {
+    console.error("裁剪图片失败:", error);
+    ElMessage.error(`裁剪图片失败: ${error.message || "未知错误"}`);
+  }
+}
+
 // 保存图片
 async function handleSaveImage() {
   if (!currentImage.value || !imageRef.value) {
@@ -1661,6 +1744,7 @@ onUnmounted(() => {
 
 /* 中间面板 */
 .center-panel {
+  max-width: 800px;
   display: flex;
   flex-direction: column;
 }
