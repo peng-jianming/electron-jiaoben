@@ -8,6 +8,8 @@ const fs = require('fs');
 const tkill = require('tree-kill');
 const crossSpawn = require('cross-spawn');
 const { BrowserWindow, screen, desktopCapturer, dialog, nativeImage } = require('electron');
+const { getDataDir } = require('ee-core/ps');
+const _ = require('lodash');
 
 class ExampleService {
   constructor() {
@@ -35,6 +37,20 @@ class ExampleService {
     this.currentPath = [];
     // 距离场（用于让路径走在中间）
     this.distanceField = null;
+    
+    // JSON 文件存储路径
+    const dataDir = getDataDir();
+    this.configFilePath = path.join(dataDir, 'codeGenerator.json');
+    
+    // 确保目录存在
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // 初始化配置文件（如果不存在）
+    if (!fs.existsSync(this.configFilePath)) {
+      fs.writeFileSync(this.configFilePath, JSON.stringify({ paths: {} }, null, 2), 'utf8');
+    }
   }
 
   /**
@@ -1057,6 +1073,62 @@ class ExampleService {
         tkill(current.pid, 'SIGKILL', () => { });
       }
     });
+  }
+
+  // ==================== 路径配置存储功能 ====================
+
+  /**
+   * 保存路径配置
+   * @param {Object} paths - 路径对象 { resourcePath, configPath }
+   */
+  savePaths(paths) {
+    try {
+      // 读取现有配置
+      let config = {};
+      if (fs.existsSync(this.configFilePath)) {
+        const content = fs.readFileSync(this.configFilePath, 'utf8');
+        config = JSON.parse(content);
+      }
+      
+      // 更新路径配置
+      if (!config.paths) {
+        config.paths = {};
+      }
+      Object.assign(config.paths, paths);
+      
+      // 保存到文件
+      fs.writeFileSync(this.configFilePath, JSON.stringify(config, null, 2), 'utf8');
+      
+      return { success: true, data: config.paths };
+    } catch (error) {
+      console.error('保存路径配置错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 读取路径配置
+   */
+  getPaths() {
+    try {
+      if (!fs.existsSync(this.configFilePath)) {
+        return { success: true, data: { resourcePath: '', configPath: '' } };
+      }
+      
+      const content = fs.readFileSync(this.configFilePath, 'utf8');
+      const config = JSON.parse(content);
+      
+      const paths = config.paths || {};
+      
+      if (_.isEmpty(paths)) {
+        return { success: true, data: { resourcePath: '', configPath: '' } };
+      }
+      
+      return { success: true, data: paths };
+    } catch (error) {
+      console.error('读取路径配置错误:', error);
+      return { success: false, message: error.message, data: { resourcePath: '', configPath: '' } };
+    }
   }
 }
 ExampleService.toString = () => '[class ExampleService]';

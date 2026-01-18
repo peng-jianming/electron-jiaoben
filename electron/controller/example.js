@@ -421,6 +421,36 @@ class ExampleController {
       return { success: false, message: error.message };
     }
   }
+
+  // ==================== 路径配置存储功能 ====================
+
+  /**
+   * 保存路径配置
+   * @param {Object} args - 参数对象 { resourcePath, configPath }
+   */
+  savePaths(args, event) {
+    try {
+      return exampleService.savePaths({
+        resourcePath: args.resourcePath || '',
+        configPath: args.configPath || ''
+      });
+    } catch (error) {
+      console.error('保存路径配置错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 读取路径配置
+   */
+  getPaths(args, event) {
+    try {
+      return exampleService.getPaths();
+    } catch (error) {
+      console.error('读取路径配置错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
 }
 ExampleController.toString = () => '[class ExampleController]';
 

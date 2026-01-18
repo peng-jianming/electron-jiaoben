@@ -156,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -219,6 +219,8 @@ const handleSelectResourcePath = async () => {
     
     if (result && result.success && result.filePath) {
       formData.value.resourcePath = result.filePath;
+      // 保存路径配置
+      await savePathsToDB();
       ElMessage.success("路径选择成功");
     }
   } catch (error) {
@@ -241,6 +243,8 @@ const handleSelectConfigPath = async () => {
     
     if (result && result.success && result.filePath) {
       formData.value.configPath = result.filePath;
+      // 保存路径配置
+      await savePathsToDB();
       ElMessage.success("配置文件选择成功");
     }
   } catch (error) {
@@ -590,6 +594,42 @@ const handleCopyCode = async () => {
     ElMessage.error("复制失败，请手动复制");
   }
 };
+
+// 保存路径配置到数据库
+const savePathsToDB = async () => {
+  try {
+    await ipc.invoke(ipcApiRoute.savePaths, {
+      resourcePath: formData.value.resourcePath,
+      configPath: formData.value.configPath,
+    });
+  } catch (error) {
+    console.error("保存路径配置失败:", error);
+    // 不显示错误提示，避免干扰用户操作
+  }
+};
+
+// 从数据库加载路径配置
+const loadPathsFromDB = async () => {
+  try {
+    const result = await ipc.invoke(ipcApiRoute.getPaths);
+    if (result && result.success && result.data) {
+      if (result.data.resourcePath) {
+        formData.value.resourcePath = result.data.resourcePath;
+      }
+      if (result.data.configPath) {
+        formData.value.configPath = result.data.configPath;
+      }
+    }
+  } catch (error) {
+    console.error("加载路径配置失败:", error);
+    // 不显示错误提示，避免干扰用户操作
+  }
+};
+
+// 组件挂载时加载保存的路径
+onMounted(() => {
+  loadPathsFromDB();
+});
 
 // 暴露表单数据供外部访问
 defineExpose({
