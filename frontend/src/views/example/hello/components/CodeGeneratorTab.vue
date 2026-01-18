@@ -1,6 +1,6 @@
 <template>
   <div class="code-generator-tab">
-    <el-form :model="formData" label-width="120px" size="small">
+    <el-form :model="formData" label-width="90px" size="small">
       <!-- 资源存放路径选择框 -->
       <el-form-item label="资源存放路径">
         <el-input
@@ -101,17 +101,50 @@
 
       <!-- 相似度选择框 -->
       <el-form-item label="相似度">
-        <el-slider
+        <div style="display: flex; align-items: center; width: 100%">
+          <el-slider
           v-model="formData.similarity"
           :min="0.1"
           :max="1"
           :step="0.1"
           :format-tooltip="formatSimilarity"
-          style="width: 100%"
+          style="flex:1; margin-right: 5px;"
         />
-        <div class="similarity-value">当前值: {{ formData.similarity }}</div>
+        <div class="similarity-value">{{ formData.similarity }}</div>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="配置名">
+        <el-input
+          v-model="formData.configName"
+          placeholder="请输入配置名"
+        />
       </el-form-item>
     </el-form>
+    <el-button 
+      style="width: 100%; margin-top: 10px;" 
+      type="primary" 
+      size="small"
+      @click="handleGenerateCode"
+      :loading="generating"
+    >
+      生成代码
+    </el-button>
+    <!-- 显示生成的代码区域 -->
+    <div v-if="generatedCode" class="generated-code-section">
+      <div class="code-header">
+        <span>生成的代码：</span>
+        <el-button 
+          type="text" 
+          size="small" 
+          @click="handleCopyCode"
+          style="padding: 0; margin-left: 10px;"
+        >
+          复制代码
+        </el-button>
+      </div>
+      <pre class="code-content">{{ generatedCode }}</pre>
+    </div>
   </div>
 </template>
 
@@ -130,11 +163,17 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  transparentImageUrl: {
+    type: String,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['start-code-generator-selection', 'stop-code-generator-selection']);
 
 const codeGeneratorSelectionEnabled = ref(false); // false | 'searchArea' | 'clickOffsetArea' | 'clickArea'
+const generating = ref(false);
+const generatedCode = ref("");
 
 // 检查是否有左侧圈选范围
 const hasSelectionRect = computed(() => {
@@ -150,6 +189,7 @@ const formData = ref({
   clickOffsetArea: "",
   clickArea: "",
   similarity: 0.8,
+  configName: "",
 });
 
 // 格式化相似度显示
@@ -267,6 +307,222 @@ const setSearchAreaFromSelection = (rect) => {
   }
 };
 
+// 解析区域字符串 (格式: "x,y,w,h")
+const parseAreaString = (areaStr) => {
+  if (!areaStr || !areaStr.trim()) {
+    return null;
+  }
+  const parts = areaStr.split(',').map(s => parseInt(s.trim()));
+  if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+    return parts;
+  }
+  return null;
+};
+
+// 解析查找区域字符串为对象格式
+const parseSearchAreaString = (areaStr) => {
+  if (!areaStr || !areaStr.trim()) {
+    return null;
+  }
+  const parts = areaStr.split(',').map(s => parseInt(s.trim()));
+  if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+    return {
+      x: parts[0],
+      y: parts[1],
+      w: parts[2],
+      h: parts[3],
+    };
+  }
+  return null;
+};
+
+// 生成代码
+const handleGenerateCode = async () => {
+  try {
+    generating.value = true;
+
+    // 验证必填项
+    if (!formData.value.resourcePath) {
+      ElMessage.warning("请选择资源存放路径");
+      generating.value = false;
+      return;
+    }
+
+    if (!formData.value.configPath) {
+      ElMessage.warning("请选择配置文件");
+      generating.value = false;
+      return;
+    }
+
+    if (!formData.value.imageName) {
+      ElMessage.warning("请输入图片名称");
+      generating.value = false;
+      return;
+    }
+
+    if (!formData.value.configName) {
+      ElMessage.warning("请输入配置名");
+      generating.value = false;
+      return;
+    }
+
+    if (!props.transparentImageUrl) {
+      ElMessage.warning("请先制作透明图");
+      generating.value = false;
+      return;
+    }
+
+    // 保存透明图到资源存放路径
+    const imageFileName = formData.value.imageName.endsWith('.png') 
+      ? formData.value.imageName 
+      : `${formData.value.imageName}.png`;
+    const imagePath = `${formData.value.resourcePath}/${imageFileName}`;
+
+    // 从 base64 URL 中提取 base64 字符串
+    let base64Data = props.transparentImageUrl;
+    if (base64Data.includes(',')) {
+      base64Data = base64Data.split(',')[1];
+    }
+
+    // 保存图片
+    const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+      filePath: imagePath,
+      imageData: base64Data,
+    });
+
+    if (!saveResult || !saveResult.success) {
+      throw new Error(saveResult?.error || "保存透明图失败");
+    }
+
+    ElMessage.success("透明图保存成功");
+
+    // 生成代码
+    const codeObj = {
+      "标识": formData.value.configName,
+      "方式": "找图",
+    };
+
+    // 偏移点击区域
+    const clickOffsetArea = parseAreaString(formData.value.clickOffsetArea);
+    if (clickOffsetArea) {
+      codeObj["偏移点击区域"] = clickOffsetArea;
+    }
+
+    // 点击区域
+    const clickArea = parseAreaString(formData.value.clickArea);
+    if (clickArea) {
+      codeObj["点击区域"] = clickArea;
+    }
+
+    // 查找区域
+    const searchArea = parseSearchAreaString(formData.value.searchArea);
+    if (searchArea) {
+      codeObj["查找区域"] = searchArea;
+    }
+
+    // 相似度
+    codeObj["相似度"] = formData.value.similarity;
+
+    // 颜色偏色
+    if (formData.value.colorDeviation && formData.value.colorDeviation.trim()) {
+      const deviations = formData.value.colorDeviation.split('|').map(d => d.trim()).filter(d => d);
+      if (deviations.length > 0) {
+        codeObj["颜色偏色"] = deviations;
+      }
+    }
+
+    // 图片路径
+    // 需要根据配置文件路径和资源存放路径计算相对路径
+    const path = require('path');
+    const configDir = path.dirname(formData.value.configPath);
+    const resourcePath = formData.value.resourcePath;
+    
+    // 计算相对路径
+    let relativePath = path.relative(configDir, resourcePath);
+    // Windows 路径分隔符转换为正斜杠
+    relativePath = relativePath.replace(/\\/g, '/');
+    
+    // 拼接图片文件名
+    if (relativePath && relativePath !== '.') {
+      // 如果相对路径不为空且不是当前目录，拼接路径和文件名
+      const fullRelativePath = relativePath.endsWith('/') 
+        ? `${relativePath}${imageFileName}`
+        : `${relativePath}/${imageFileName}`;
+      codeObj["图片路径"] = `os.path.join(os.path.dirname(__file__), "${fullRelativePath}")`;
+    } else {
+      // 如果资源路径就是配置文件目录，直接使用图片文件名
+      codeObj["图片路径"] = `os.path.join(os.path.dirname(__file__), "${imageFileName}")`;
+    }
+
+    // 格式化代码为 JSON 字符串
+    const formatCode = (obj) => {
+      const lines = [];
+      lines.push('{');
+      
+      const entries = Object.entries(obj);
+      entries.forEach(([key, value], index) => {
+        // 所有行都添加逗号，包括最后一行
+        const comma = ',';
+        
+        if (Array.isArray(value)) {
+          // 数组格式
+          if (value.length === 0) {
+            lines.push(`  "${key}": []${comma}`);
+          } else if (value.every(v => typeof v === 'number')) {
+            // 数字数组
+            lines.push(`  "${key}": [${value.join(' ,')}]${comma}`);
+          } else {
+            // 字符串数组
+            const arrStr = value.map(v => `"${v}"`).join(', ');
+            lines.push(`  "${key}": [${arrStr}]${comma}`);
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          // 对象格式
+          lines.push(`  "${key}": {`);
+          lines.push(`    "x": ${value.x},`);
+          lines.push(`    "y": ${value.y},`);
+          lines.push(`    "w": ${value.w},`);
+          lines.push(`    "h": ${value.h}`);
+          lines.push(`  }${comma}`);
+        } else if (typeof value === 'string') {
+          // 字符串（可能是代码表达式）
+          lines.push(`  "${key}": ${value}${comma}`);
+        } else {
+          // 数字或其他
+          lines.push(`  "${key}": ${value}${comma}`);
+        }
+      });
+      
+      lines.push('},');
+      return lines.join('\n');
+    };
+
+    generatedCode.value = formatCode(codeObj);
+    ElMessage.success("代码生成成功");
+  } catch (error) {
+    console.error("生成代码失败:", error);
+    ElMessage.error(`生成代码失败: ${error.message || "未知错误"}`);
+  } finally {
+    generating.value = false;
+  }
+};
+
+// 复制代码
+const handleCopyCode = async () => {
+  if (!generatedCode.value) {
+    ElMessage.warning("没有可复制的代码");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(generatedCode.value);
+    ElMessage.success("代码已复制到剪贴板");
+  } catch (error) {
+    console.error("复制失败:", error);
+    ElMessage.error("复制失败，请手动复制");
+  }
+};
+
 // 暴露表单数据供外部访问
 defineExpose({
   getFormData: () => formData.value,
@@ -280,7 +536,9 @@ defineExpose({
       clickOffsetArea: "",
       clickArea: "",
       similarity: 0.8,
+      configName: "",
     };
+    generatedCode.value = "";
   },
   setSearchAreaFromSelection,
   getCodeGeneratorSelectionEnabled: () => codeGeneratorSelectionEnabled.value,
@@ -306,6 +564,40 @@ defineExpose({
   font-size: 12px;
   color: #f56c6c;
   font-style: italic;
+}
+
+.generated-code-section {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.code-content {
+  margin: 0;
+  padding: 10px;
+  background-color: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #303133;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>
 

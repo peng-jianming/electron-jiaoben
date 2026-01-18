@@ -44,6 +44,7 @@
         <CodeGeneratorTab 
           :selected-deviations="selectedDeviations"
           :selection-rect="selectionRect"
+          :transparent-image-url="transparentImageUrl"
           @start-code-generator-selection="(type) => $emit('start-code-generator-selection', type)"
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
           ref="codeGeneratorTabRef"
