@@ -20,11 +20,19 @@
     <el-button type="primary" @click="$emit('load-image')"> 载入图片 </el-button>
 
     <el-button 
-      type="success" 
+      type="primary" 
       :disabled="!hasImage"
       @click="$emit('save-image')"
     >
       保存图片
+    </el-button>
+
+    <el-button 
+      type="primary" 
+      :disabled="!hasImage || !selectionInfo"
+      @click="$emit('crop-image')"
+    >
+      裁剪图片
     </el-button>
 
     <el-divider></el-divider>
@@ -42,14 +50,6 @@
       {{ selectionInfo ? selectionInfo.w : 0 }},
       {{ selectionInfo ? selectionInfo.h : 0 }}
     </el-tag>
-
-    <el-button 
-      type="warning" 
-      :disabled="!hasImage || !selectionInfo"
-      @click="$emit('crop-image')"
-    >
-      裁剪图片
-    </el-button>
 
     <el-divider></el-divider>
 

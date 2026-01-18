@@ -2,7 +2,7 @@
   <div class="code-generator-tab">
     <el-form :model="formData" label-width="90px" size="small">
       <!-- 资源存放路径选择框 -->
-      <el-form-item label="资源存放路径">
+      <el-form-item label="资源存放路径" required>
         <el-input
           v-model="formData.resourcePath"
           placeholder="请选择资源存放路径"
@@ -15,7 +15,7 @@
       </el-form-item>
 
       <!-- 配置文件选择框 -->
-      <el-form-item label="配置文件">
+      <el-form-item label="配置文件" required>
         <el-input
           v-model="formData.configPath"
           placeholder="请选择配置文件"
@@ -28,11 +28,18 @@
       </el-form-item>
 
       <!-- 图片名输入框 -->
-      <el-form-item label="图片名">
-        <el-input
-          v-model="formData.imageName"
-          placeholder="请输入图片名称"
-        />
+      <el-form-item label="图片名" required>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <el-input
+            v-model="formData.imageName"
+            placeholder="请输入图片名称"
+            style="flex: 1;"
+          />
+          <el-radio-group v-model="imageSourceType" size="small">
+            <el-radio-button label="current">当前大图</el-radio-button>
+            <el-radio-button label="transparent">透明图</el-radio-button>
+          </el-radio-group>
+        </div>
       </el-form-item>
 
       <!-- 颜色偏色输入框 -->
@@ -122,7 +129,7 @@
       </el-form-item>
     </el-form>
     <el-button 
-      style="width: 100%; margin-top: 10px;" 
+      style="width: 100%; " 
       type="primary" 
       size="small"
       @click="handleGenerateCode"
@@ -167,6 +174,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  currentImageUrl: {
+    type: String,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['start-code-generator-selection', 'stop-code-generator-selection']);
@@ -174,6 +185,7 @@ const emit = defineEmits(['start-code-generator-selection', 'stop-code-generator
 const codeGeneratorSelectionEnabled = ref(false); // false | 'searchArea' | 'clickOffsetArea' | 'clickArea'
 const generating = ref(false);
 const generatedCode = ref("");
+const imageSourceType = ref("current"); // 'current' | 'transparent'，默认选择当前大图
 
 // 检查是否有左侧圈选范围
 const hasSelectionRect = computed(() => {
@@ -360,22 +372,80 @@ const handleGenerateCode = async () => {
       return;
     }
 
-    if (!props.transparentImageUrl) {
-      ElMessage.warning("请先制作透明图");
-      generating.value = false;
-      return;
+    // 根据选择的图片类型获取图片 URL
+    let imageUrl = null;
+    if (imageSourceType.value === "current") {
+      if (!props.currentImageUrl) {
+        ElMessage.warning("请先载入当前大图");
+        generating.value = false;
+        return;
+      }
+      imageUrl = props.currentImageUrl;
+    } else {
+      if (!props.transparentImageUrl) {
+        ElMessage.warning("请先制作透明图");
+        generating.value = false;
+        return;
+      }
+      imageUrl = props.transparentImageUrl;
     }
 
-    // 保存透明图到资源存放路径
+    // 保存图片到资源存放路径
     const imageFileName = formData.value.imageName.endsWith('.png') 
       ? formData.value.imageName 
       : `${formData.value.imageName}.png`;
     const imagePath = `${formData.value.resourcePath}/${imageFileName}`;
 
-    // 从 base64 URL 中提取 base64 字符串
-    let base64Data = props.transparentImageUrl;
-    if (base64Data.includes(',')) {
-      base64Data = base64Data.split(',')[1];
+    // 处理图片数据：如果是 base64 格式，直接提取；否则转换为 base64
+    let base64Data = null;
+    if (imageUrl.startsWith("data:")) {
+      // 从 base64 URL 中提取 base64 字符串
+      if (imageUrl.includes(',')) {
+        base64Data = imageUrl.split(',')[1];
+      } else {
+        base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+      }
+    } else {
+      // 如果不是 base64 格式（如 blob URL 或文件 URL），需要转换为 base64
+      try {
+        // 创建一个图片对象来加载图片
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        
+        // 等待图片加载完成
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            try {
+              // 创建 canvas 来转换图片
+              const canvas = document.createElement("canvas");
+              const ctx = canvas.getContext("2d");
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              ctx.drawImage(img, 0, 0);
+              
+              // 转换为 base64
+              const base64DataUrl = canvas.toDataURL("image/png");
+              if (base64DataUrl.includes(',')) {
+                base64Data = base64DataUrl.split(',')[1];
+              } else {
+                base64Data = base64DataUrl.replace(/^data:image\/\w+;base64,/, "");
+              }
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          };
+          img.onerror = () => reject(new Error("图片加载失败"));
+          img.src = imageUrl;
+        });
+      } catch (error) {
+        console.error("转换图片为 base64 失败:", error);
+        throw new Error(`转换图片为 base64 失败: ${error.message || "未知错误"}`);
+      }
+    }
+
+    if (!base64Data) {
+      throw new Error("无法提取图片数据");
     }
 
     // 保存图片
@@ -385,10 +455,11 @@ const handleGenerateCode = async () => {
     });
 
     if (!saveResult || !saveResult.success) {
-      throw new Error(saveResult?.error || "保存透明图失败");
+      throw new Error(saveResult?.error || "保存图片失败");
     }
 
-    ElMessage.success("透明图保存成功");
+    const imageTypeName = imageSourceType.value === "current" ? "当前大图" : "透明图";
+    ElMessage.success(`${imageTypeName}保存成功`);
 
     // 生成代码
     const codeObj = {
@@ -595,6 +666,9 @@ defineExpose({
   overflow-x: auto;
   max-height: 300px;
   overflow-y: auto;
+}
+.el-form-item {
+  margin-bottom: 5px;
 }
 </style>
 

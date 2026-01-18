@@ -1,6 +1,6 @@
 <template>
   <div class="image-match-debug">
-    <el-form>
+    <el-form size="small">
       <el-form-item label="小图">
         <div class="image-upload-area">
           <input ref="smallImageInputRef" type="file" accept="image/*" style="display: none"
@@ -497,6 +497,5 @@ onUnmounted(() => {
 
 .el-form-item {
   margin-bottom: 5px;
-  ;
 }
 </style>
