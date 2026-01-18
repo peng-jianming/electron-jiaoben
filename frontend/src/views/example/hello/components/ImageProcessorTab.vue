@@ -8,12 +8,14 @@
         :screenshot-loading="screenshotLoading"
         :selection-enabled="selectionEnabled"
         :selectionInfo="selectionInfo"
+        :has-image="!!currentImage"
         @load-image="handleLoadImage"
         @open-device-dialog="openDeviceDialog"
         @capture-screenshot="captureScreenshot"
         @toggle-selection="toggleSelectionMode"
         @fit-to-window="fitToWindow"
         @reset-zoom="resetZoom"
+        @save-image="handleSaveImage"
       />
       <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
       <input
@@ -1513,6 +1515,81 @@ function resetZoom() {
   imageTranslateY.value = initialTranslateY.value;
 
   ElMessage.success("已重置缩放");
+}
+
+// 保存图片
+async function handleSaveImage() {
+  if (!currentImage.value || !imageRef.value) {
+    ElMessage.warning("请先载入图片");
+    return;
+  }
+
+  try {
+    // 打开保存对话框
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const defaultName = currentImage.value.name || `image_${timestamp}.png`;
+
+    const result = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+      defaultName: defaultName,
+    });
+
+    if (!result || !result.success || result.canceled) {
+      return; // 用户取消或对话框失败
+    }
+
+    // 如果图片 URL 是 base64 格式，直接提取 base64 数据
+    let base64String = null;
+    const imageUrl = currentImage.value.url;
+
+    if (imageUrl.startsWith("data:")) {
+      // 从 data URL 中提取 base64 字符串
+      if (imageUrl.includes(",")) {
+        base64String = imageUrl.split(",")[1];
+      } else {
+        base64String = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+      }
+    } else {
+      // 如果是 blob URL 或其他格式，需要将图片绘制到 canvas 再转换
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      
+      // 设置 canvas 尺寸为图片原始尺寸
+      canvas.width = imageRef.value.naturalWidth;
+      canvas.height = imageRef.value.naturalHeight;
+
+      // 绘制原始图片
+      ctx.drawImage(imageRef.value, 0, 0);
+
+      // 将 canvas 转换为 base64
+      const base64Data = canvas.toDataURL("image/png");
+      
+      // 提取 base64 字符串（去掉 data:image/png;base64, 前缀）
+      if (base64Data.includes(",")) {
+        base64String = base64Data.split(",")[1];
+      } else {
+        base64String = base64Data.replace(/^data:image\/\w+;base64,/, "");
+      }
+    }
+
+    if (!base64String) {
+      throw new Error("无法提取图片数据");
+    }
+
+    // 通过 IPC 调用主进程保存文件
+    const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+      filePath: result.filePath,
+      imageData: base64String,
+    });
+
+    if (saveResult && saveResult.success) {
+      ElMessage.success("图片保存成功");
+    } else {
+      throw new Error(saveResult?.error || "保存失败");
+    }
+  } catch (error) {
+    console.error("保存图片失败:", error);
+    ElMessage.error(`保存图片失败: ${error.message || "未知错误"}`);
+  }
 }
 
 // 监听当前图片切换，重置放大镜和颜色

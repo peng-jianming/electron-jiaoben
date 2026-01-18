@@ -19,6 +19,14 @@
 
     <el-button type="primary" @click="$emit('load-image')"> 载入图片 </el-button>
 
+    <el-button 
+      type="success" 
+      :disabled="!hasImage"
+      @click="$emit('save-image')"
+    >
+      保存图片
+    </el-button>
+
     <el-divider></el-divider>
 
     <el-button
@@ -62,6 +70,10 @@ defineProps({
     type: Object,
     default: null,
   },
+  hasImage: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 defineEmits([
@@ -71,6 +83,7 @@ defineEmits([
   "toggle-selection",
   "fit-to-window",
   "reset-zoom",
+  "save-image",
 ]);
 </script>
 
