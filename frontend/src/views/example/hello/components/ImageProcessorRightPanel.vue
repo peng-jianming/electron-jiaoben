@@ -41,7 +41,13 @@
         />
       </el-tab-pane>
       <el-tab-pane label="生成代码">
-      
+        <CodeGeneratorTab 
+          :selected-deviations="selectedDeviations"
+          :selection-rect="selectionRect"
+          @start-code-generator-selection="(type) => $emit('start-code-generator-selection', type)"
+          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
+          ref="codeGeneratorTabRef"
+        />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -57,6 +63,7 @@ import MagnifierCard from "./MagnifierCard.vue";
 import ColorSelectionTab from "./ColorSelectionTab.vue";
 import ImageUploadTab from "./ImageUploadTab.vue";
 import ImageMatchDebug from "./ImageMatchDebug.vue";
+import CodeGeneratorTab from "./CodeGeneratorTab.vue";
 
 const props = defineProps({
   magnifierVisible: {
@@ -93,11 +100,19 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["remove-color", "clear-all-colors", "right-panel-screenshot-start", "right-panel-screenshot-end"]);
+const emit = defineEmits([
+  "remove-color", 
+  "clear-all-colors", 
+  "right-panel-screenshot-start", 
+  "right-panel-screenshot-end",
+  "start-code-generator-selection",
+  "stop-code-generator-selection"
+]);
 
 const magnifierCardRef = ref(null);
 const colorSelectionTabRef = ref(null);
 const imageUploadTabRef = ref(null);
+const codeGeneratorTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
@@ -261,6 +276,7 @@ defineExpose({
   get isRightPanelScreenshotPending() {
     return isRightPanelScreenshotPending.value;
   },
+  getCodeGeneratorTabRef: () => codeGeneratorTabRef.value,
 });
 
 // 组件挂载时初始化 socket

@@ -73,6 +73,12 @@
               class="selection-rect"
               :style="selectionStyle"
             ></div>
+            <!-- 代码生成器圈选矩形高亮 -->
+            <div
+              v-if="codeGeneratorSelectionDisplay"
+              class="code-generator-selection-rect"
+              :style="codeGeneratorSelectionStyle"
+            ></div>
           </div>
           <div v-else class="empty-placeholder">
             <el-icon class="empty-icon"><Picture /></el-icon>
@@ -96,6 +102,8 @@
           @clear-all-colors="clearAllColors"
           @right-panel-screenshot-start="handleRightPanelScreenshotStart"
           @right-panel-screenshot-end="handleRightPanelScreenshotEnd"
+          @start-code-generator-selection="handleStartCodeGeneratorSelection"
+          @stop-code-generator-selection="handleStopCodeGeneratorSelection"
           ref="rightPanelRef"
         />
       </div>
@@ -143,6 +151,8 @@ const currentImageIndex = ref("0");
 const selectionEnabled = ref(false);
 // 是否启用颜色选择功能（仅在启动圈选且没有圈选范围时启用）
 const colorSelectionEnabled = ref(false);
+// 代码生成器圈选模式（独立于左侧圈选功能）
+const codeGeneratorSelectionEnabled = ref(false);
 
 // 当前图片的计算属性
 const currentImage = computed(() => {
@@ -190,6 +200,13 @@ const resizeHandle = ref(null); // 当前拖动的边/角方向，例如 left/ri
 const containerCursor = ref("default"); // 容器鼠标样式
 const previousSelectionDisplay = ref(null); // 保存的旧选区显示矩形（用于点击时恢复）
 const previousSelectionRect = ref(null); // 保存的旧选区原始坐标矩形（用于点击时恢复）
+
+// 代码生成器圈选相关（独立状态）
+const codeGeneratorSelectionStart = ref(null);
+const codeGeneratorSelectionCurrent = ref(null);
+const codeGeneratorSelectionRect = ref(null);
+const codeGeneratorSelectionDisplay = ref(null); // 用于在页面上显示的矩形（基于图片显示尺寸坐标）
+const codeGeneratorSelectionType = ref(null); // 'searchArea' | 'clickOffsetArea'
 
 // 对外显示的圈选信息
 const selectionInfo = computed(() => selectionRect.value);
@@ -514,6 +531,26 @@ function handleRightPanelScreenshotEnd() {
   isRightPanelScreenshoting.value = false;
 }
 
+// 启动代码生成器圈选模式
+function handleStartCodeGeneratorSelection(type) {
+  codeGeneratorSelectionEnabled.value = true;
+  codeGeneratorSelectionType.value = type; // 'searchArea' | 'clickOffsetArea'
+  codeGeneratorSelectionStart.value = null;
+  codeGeneratorSelectionCurrent.value = null;
+  codeGeneratorSelectionRect.value = null;
+  codeGeneratorSelectionDisplay.value = null;
+}
+
+// 停止代码生成器圈选模式
+function handleStopCodeGeneratorSelection() {
+  codeGeneratorSelectionEnabled.value = false;
+  codeGeneratorSelectionType.value = null;
+  codeGeneratorSelectionStart.value = null;
+  codeGeneratorSelectionCurrent.value = null;
+  codeGeneratorSelectionRect.value = null;
+  codeGeneratorSelectionDisplay.value = null;
+}
+
 async function captureScreenshot() {
   if (!currentDeviceId.value) {
     ElMessage.warning("请先连接设备");
@@ -604,31 +641,46 @@ function handleContainerMouseMove(event) {
 
   // 如果鼠标在图片上，处理圈选相关逻辑
   if (isOnImage) {
-    // 更新鼠标样式（仅在启用圈选时显示十字或缩放光标）
-    if (selectionEnabled.value) {
+    // 代码生成器圈选模式（优先级最高，独立处理）
+    if (codeGeneratorSelectionEnabled.value) {
+      containerCursor.value = "crosshair";
+      // 更新代码生成器圈选时的矩形
+      if (codeGeneratorSelectionStart.value) {
+        codeGeneratorSelectionCurrent.value = {
+          imageX,
+          imageY,
+          naturalX: clampedNaturalX,
+          naturalY: clampedNaturalY,
+        };
+        updateCodeGeneratorSelectionRects();
+      }
+    } else if (selectionEnabled.value) {
+      // 更新鼠标样式（仅在启用圈选时显示十字或缩放光标）
       updateCursorStyle(imageX, imageY);
+
+      // 正在拖动边框调整大小
+      if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
+        updateSelectionRectsByResize(imageX, imageY);
+      }
+
+      // 更新圈选时的矩形
+      if (isSelecting.value && selectionStart.value) {
+        selectionCurrent.value = {
+          imageX,
+          imageY,
+          naturalX: clampedNaturalX,
+          naturalY: clampedNaturalY,
+        };
+        updateSelectionRects();
+      }
     } else {
       containerCursor.value = "default";
     }
-
-    // 正在拖动边框调整大小
-    if (isResizing.value && selectionDisplay.value && resizeHandle.value) {
-      updateSelectionRectsByResize(imageX, imageY);
-    }
-
-    // 更新圈选时的矩形
-    if (isSelecting.value && selectionStart.value) {
-      selectionCurrent.value = {
-        imageX,
-        imageY,
-        naturalX: clampedNaturalX,
-        naturalY: clampedNaturalY,
-      };
-      updateSelectionRects();
-    }
   } else {
     // 鼠标不在图片上，重置为默认样式
-    containerCursor.value = "default";
+    if (!codeGeneratorSelectionEnabled.value) {
+      containerCursor.value = "default";
+    }
   }
 
   // 更新当前坐标和放大镜（无论鼠标是否在图片上，都显示放大镜）
@@ -655,7 +707,12 @@ function handleMouseLeave() {
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
-  containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
+  
+  if (codeGeneratorSelectionEnabled.value) {
+    containerCursor.value = "crosshair";
+  } else {
+    containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
+  }
 
   // 不清除 selectionDisplay / selectionRect，保证圈选框在滚动时仍然存在
   // 也不强制修改 isSelecting / isResizing，避免与正在进行的其它操作冲突
@@ -667,6 +724,42 @@ function handleMouseDown(event) {
 
   // 仅响应左键
   if (event.button !== 0) return;
+
+  // 代码生成器圈选模式（优先级最高，独立处理）
+  if (codeGeneratorSelectionEnabled.value) {
+    const containerRect = imageContainerRef.value.getBoundingClientRect();
+    const containerX = event.clientX - containerRect.left;
+    const containerY = event.clientY - containerRect.top;
+
+    // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+    const imageX = containerX - imageTranslateX.value;
+    const imageY = containerY - imageTranslateY.value;
+
+    const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+    const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
+
+    if (
+      imageX < 0 ||
+      imageY < 0 ||
+      imageX >= imgDisplayWidth ||
+      imageY >= imgDisplayHeight
+    ) {
+      return;
+    }
+
+    // 转换为图片原始尺寸的坐标
+    const naturalX = imageX / imageScale.value;
+    const naturalY = imageY / imageScale.value;
+
+    codeGeneratorSelectionStart.value = {
+      imageX,
+      imageY,
+      naturalX,
+      naturalY,
+    };
+    codeGeneratorSelectionCurrent.value = { ...codeGeneratorSelectionStart.value };
+    return;
+  }
 
   // 如果未启用圈选功能，则允许拖动图片
   if (!selectionEnabled.value) {
@@ -753,6 +846,60 @@ function handleMouseDown(event) {
 // 鼠标抬起结束圈选或拖动
 function handleMouseUp(event) {
   if (!imageRef.value || !imageContainerRef.value) return;
+
+  // 代码生成器圈选模式（优先级最高，独立处理）
+  if (codeGeneratorSelectionEnabled.value && codeGeneratorSelectionStart.value) {
+    const containerRect = imageContainerRef.value.getBoundingClientRect();
+    const containerX = event.clientX - containerRect.left;
+    const containerY = event.clientY - containerRect.top;
+
+    // 计算鼠标相对于图片显示区域的坐标（考虑图片的偏移）
+    const imageX = containerX - imageTranslateX.value;
+    const imageY = containerY - imageTranslateY.value;
+
+    const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+    const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
+
+    const clampedX = Math.min(Math.max(imageX, 0), imgDisplayWidth);
+    const clampedY = Math.min(Math.max(imageY, 0), imgDisplayHeight);
+
+    // 转换为图片原始尺寸的坐标
+    const naturalX = clampedX / imageScale.value;
+    const naturalY = clampedY / imageScale.value;
+
+    // 检查是否是真正的拖动（而不是点击）
+    const dragThreshold = 5; // 拖动阈值，像素
+    const dx = Math.abs(clampedX - codeGeneratorSelectionStart.value.imageX);
+    const dy = Math.abs(clampedY - codeGeneratorSelectionStart.value.imageY);
+    const dragDistance = Math.sqrt(dx * dx + dy * dy);
+
+    if (dragDistance >= dragThreshold) {
+      // 真正的拖动，更新当前点并创建/更新圈选框
+      codeGeneratorSelectionCurrent.value = {
+        imageX: clampedX,
+        imageY: clampedY,
+        naturalX,
+        naturalY,
+      };
+      updateCodeGeneratorSelectionRects();
+      
+      // 将结果传递给 CodeGeneratorTab
+      if (codeGeneratorSelectionRect.value && rightPanelRef.value) {
+        const codeGeneratorTabRef = rightPanelRef.value.getCodeGeneratorTabRef?.();
+        if (codeGeneratorTabRef && codeGeneratorTabRef.setSearchAreaFromSelection) {
+          codeGeneratorTabRef.setSearchAreaFromSelection(codeGeneratorSelectionRect.value);
+        }
+      }
+    } else {
+      // 只是点击，清除显示矩形
+      codeGeneratorSelectionDisplay.value = null;
+    }
+
+    // 重置状态
+    codeGeneratorSelectionStart.value = null;
+    codeGeneratorSelectionCurrent.value = null;
+    return;
+  }
 
   // 结束拖动
   if (isDragging.value) {
@@ -913,10 +1060,83 @@ function updateSelectionRects() {
   colorSelectionEnabled.value = false;
 }
 
+// 更新代码生成器圈选矩形（不显示在页面上）
+function updateCodeGeneratorSelectionRects() {
+  if (!codeGeneratorSelectionStart.value || !codeGeneratorSelectionCurrent.value) return;
+
+  const start = codeGeneratorSelectionStart.value;
+  const curr = codeGeneratorSelectionCurrent.value;
+
+  // 显示用矩形（基于图片显示尺寸）
+  const x1 = start.imageX;
+  const y1 = start.imageY;
+  const x2 = curr.imageX;
+  const y2 = curr.imageY;
+
+  const dispX = Math.min(x1, x2);
+  const dispY = Math.min(y1, y2);
+  const dispW = Math.abs(x2 - x1);
+  const dispH = Math.abs(y2 - y1);
+
+  // 检查拖动距离是否足够大（防止点击时出现很小的圈选框）
+  const dragThreshold = 5; // 拖动阈值，像素
+  const dragDistance = Math.sqrt(dispW * dispW + dispH * dispH);
+
+  if (dragDistance < dragThreshold) {
+    // 拖动距离太小，不更新圈选框
+    codeGeneratorSelectionDisplay.value = null;
+    codeGeneratorSelectionRect.value = null;
+    return;
+  }
+
+  codeGeneratorSelectionDisplay.value = {
+    x: dispX,
+    y: dispY,
+    w: dispW,
+    h: dispH,
+  };
+
+  // 原始坐标矩形
+  const nX1 = start.naturalX;
+  const nY1 = start.naturalY;
+  const nX2 = curr.naturalX;
+  const nY2 = curr.naturalY;
+
+  const natX = Math.floor(Math.max(0, Math.min(nX1, nX2)));
+  const natY = Math.floor(Math.max(0, Math.min(nY1, nY2)));
+  const natW = Math.floor(Math.abs(nX2 - nX1));
+  const natH = Math.floor(Math.abs(nY2 - nY1));
+
+  // 忽略过小的区域（防止误点）
+  if (natW <= 0 || natH <= 0) {
+    codeGeneratorSelectionRect.value = null;
+    return;
+  }
+
+  codeGeneratorSelectionRect.value = {
+    x: natX,
+    y: natY,
+    w: natW,
+    h: natH,
+  };
+}
+
 // 圈选矩形样式（转换为 CSS 像素）
 const selectionStyle = computed(() => {
   if (!selectionDisplay.value) return {};
   const rect = selectionDisplay.value;
+  return {
+    left: rect.x + "px",
+    top: rect.y + "px",
+    width: rect.w + "px",
+    height: rect.h + "px",
+  };
+});
+
+// 代码生成器圈选矩形样式（转换为 CSS 像素）
+const codeGeneratorSelectionStyle = computed(() => {
+  if (!codeGeneratorSelectionDisplay.value) return {};
+  const rect = codeGeneratorSelectionDisplay.value;
   return {
     left: rect.x + "px",
     top: rect.y + "px",
@@ -1789,6 +2009,17 @@ onUnmounted(() => {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
   pointer-events: none;
   box-sizing: border-box;
+}
+
+/* 代码生成器圈选矩形样式 */
+.code-generator-selection-rect {
+  position: absolute;
+  border: 2px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  box-sizing: border-box;
+  z-index: 10;
 }
 
 .image-wrapper img {

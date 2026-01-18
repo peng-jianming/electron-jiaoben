@@ -203,6 +203,63 @@ class ExampleController {
   }
 
   /**
+   * 打开文件夹选择对话框
+   * @param {Object} args - 参数对象
+   * @param {Object} event - 事件对象
+   */
+  async openDirectoryDialog(args, event) {
+    try {
+      const { getMainWindow } = require('ee-core/electron');
+      const mainWindow = getMainWindow();
+      
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: args.title || '选择文件夹',
+        defaultPath: args.defaultPath || '',
+        properties: ['openDirectory']
+      });
+      
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+      
+      return { success: true, filePath: result.filePaths[0] };
+    } catch (error) {
+      console.error('打开文件夹选择对话框错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 打开文件选择对话框
+   * @param {Object} args - 参数对象
+   * @param {Object} event - 事件对象
+   */
+  async openFileDialog(args, event) {
+    try {
+      const { getMainWindow } = require('ee-core/electron');
+      const mainWindow = getMainWindow();
+      
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: args.title || '选择文件',
+        defaultPath: args.defaultPath || '',
+        filters: args.filters || [
+          { name: '所有文件', extensions: ['*'] }
+        ],
+        properties: ['openFile']
+      });
+      
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+      
+      return { success: true, filePath: result.filePaths[0] };
+    } catch (error) {
+      console.error('打开文件选择对话框错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
    * 打开截图窗口
    */
   openCaptureWindow(args, event) {
