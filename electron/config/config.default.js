@@ -9,9 +9,9 @@ const { getBaseDir } = require('ee-core/ps');
 module.exports = () => {
   return {
     openDevTools: true,
-    singleLock: true,
+    singleLock: false,
     windowsOption: {
-      title: 'electron-egg',
+      title: 'mhxy',
       width: 1200,
       height: 1080,
       minWidth: 400,
@@ -39,7 +39,7 @@ module.exports = () => {
     },
     socketServer: {
       enable: true,
-      port: 7070,
+      port: 7072,
       path: "/socket.io/",
       connectTimeout: 45000,
       pingTimeout: 30000,

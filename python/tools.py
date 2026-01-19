@@ -582,7 +582,7 @@ class DeviceController:
         
         return self._model
     
-    def init_client(self, url="http://127.0.0.1:7070"):
+    def init_client(self, url="http://127.0.0.1:7072"):
         """初始化 Socket.IO 客户端"""
         if not hasattr(self, '_socketio_client') or self._socketio_client is None:
             self._socketio_client = socketio.Client()
@@ -596,7 +596,7 @@ class DeviceController:
         return self._socketio_client
     
     def send_to_electron(self, prop, message, method="controller/example/changeProp",
-                         url="http://127.0.0.1:7070", wait_response=True):
+                         url="http://127.0.0.1:7072", wait_response=True):
         """向 Electron 发送数据"""
         try:
             client = self.init_client(url)

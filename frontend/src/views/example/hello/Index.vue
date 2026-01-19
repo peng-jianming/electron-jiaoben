@@ -28,7 +28,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, toRaw } from "vue";
-import Abc from "./Abc.vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
@@ -70,7 +69,7 @@ const handleStop = async (deviceList) => {
 };
 
 onMounted(() => {
-  client.socket = io("ws://localhost:7070");
+  client.socket = io("ws://localhost:7072");
   client.socket.on("connect", () => {
     console.log("connect!!!!!!!!");
   });

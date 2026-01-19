@@ -53,7 +53,7 @@ def stop(data):
     print(f"{status}设备的所有任务: 设备={device_id}")
 
 
-def init_client(url="http://127.0.0.1:7070"):
+def init_client(url="http://127.0.0.1:7072"):
     """初始化 Socket.IO 客户端"""
     global _client
     if _client is None:

@@ -425,7 +425,7 @@ class DeviceController:
         
         return self._model
     
-    def init_client(self, url="http://127.0.0.1:7070"):
+    def init_client(self, url="http://127.0.0.1:7072"):
         """初始化 Socket.IO 客户端"""
         if self._client is None:
             self._client = socketio.Client()
@@ -454,7 +454,7 @@ class DeviceController:
         return self._client
     
     def send_to_electron(self, prop, message, method="controller/example/receiveProcessedImage",
-                         url="http://127.0.0.1:7070", wait_response=True):
+                         url="http://127.0.0.1:7072", wait_response=True):
         """向 Electron 发送数据"""
         try:
             client = self.init_client(url)
