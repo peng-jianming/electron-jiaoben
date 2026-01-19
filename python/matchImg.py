@@ -193,155 +193,6 @@ def opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance
         "similarity": float(custom_similarity)
     }
 
-def opencv颜色掩码找图(large_image_path, small_image_path, color_tolerance, region=(0, 0, 0, 0)):
-    """
-    使用颜色掩码进行模板匹配找图，只匹配基准色范围内的像素，不进行二值化
-    
-    :param large_image_path: 大图路径
-    :param small_image_path: 小图路径
-    :param color_tolerance: 颜色偏色字符串或字符串数组，格式如 "D7CCC6-0E0E09" 或 ["D7CCC6-0E0E09", "FFFFFF-101010"]
-                        其中D7CCC6为基准色(RGB)，0E0E09为RGB各通道的允许偏差
-                        支持多个颜色容差，会合并所有匹配的颜色区域
-    :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
-    """
-    # 读取图像
-    large_img = Image.open(large_image_path).convert('RGB')
-    small_img = Image.open(small_image_path).convert('RGB')
-
-    large_array = np.array(large_img)
-    small_array = np.array(small_img)
-
-    if large_array is None or small_array is None:
-        return None
-
-    # 获取大图尺寸
-    large_h, large_w = large_array.shape[:2]
-    small_h, small_w = small_array.shape[:2]
-
-    # 解析检测区域
-    x, y, width, height = region
-
-    # 判断是否指定了检测区域
-    if x == 0 and y == 0 and width == 0 and height == 0:
-        search_area = large_array
-        offset_x, offset_y = 0, 0
-    else:
-        # 确保区域在图像范围内
-        if x < 0: x = 0
-        if y < 0: y = 0
-        if width <= 0: width = large_w - x
-        if height <= 0: height = large_h - y
-
-        crop_x = max(0, x)
-        crop_y = max(0, y)
-        crop_width = min(width, large_w - crop_x)
-        crop_height = min(height, large_h - crop_y)
-
-        if crop_width <= 0 or crop_height <= 0:
-            return None
-
-        search_area = large_array[crop_y:crop_y + crop_height, crop_x:crop_x + crop_width]
-        offset_x, offset_y = crop_x, crop_y
-
-    # 检查小图是否大于检测区域
-    if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
-        return None
-
-    # 将 color_tolerance 转换为数组（支持单个字符串或数组）
-    if isinstance(color_tolerance, str):
-        color_tolerances = [color_tolerance]
-    elif isinstance(color_tolerance, (list, tuple)):
-        color_tolerances = list(color_tolerance)
-    else:
-        return None
-
-    # 初始化掩码（255表示在容差范围内，0表示不在）
-    search_mask_combined = np.zeros((search_area.shape[0], search_area.shape[1]), dtype=np.uint8)
-    small_mask_combined = np.zeros((small_h, small_w), dtype=np.uint8)
-
-    # 对每个颜色容差进行处理并合并掩码
-    for color_tol in color_tolerances:
-        # 解析颜色偏色字符串
-        base_color_hex, tolerance_hex = color_tol.split('-')
-        base_color = np.array([
-            int(base_color_hex[0:2], 16),
-            int(base_color_hex[2:4], 16),
-            int(base_color_hex[4:6], 16)
-        ], dtype=np.int16)
-        tolerance = np.array([
-            int(tolerance_hex[0:2], 16),
-            int(tolerance_hex[2:4], 16),
-            int(tolerance_hex[4:6], 16)
-        ], dtype=np.int16)
-
-        # 计算哪些像素在容差范围内（创建掩码，值为0或255）
-        search_int16 = search_area.astype(np.int16)
-        search_diff = np.abs(search_int16 - base_color)
-        search_mask_bool = np.all(search_diff <= tolerance, axis=2)
-        search_mask = np.where(search_mask_bool, 255, 0).astype(np.uint8)
-
-        small_int16 = small_array.astype(np.int16)
-        small_diff = np.abs(small_int16 - base_color)
-        small_mask_bool = np.all(small_diff <= tolerance, axis=2)
-        small_mask = np.where(small_mask_bool, 255, 0).astype(np.uint8)
-
-        # 合并多个颜色容差的掩码（使用 OR 操作）
-        search_mask_combined = np.bitwise_or(search_mask_combined, search_mask)
-        small_mask_combined = np.bitwise_or(small_mask_combined, small_mask)
-    
-    # 检查掩码是否有有效像素
-    if np.sum(small_mask_combined) == 0:
-        print("警告: 小图中没有像素在颜色容差范围内")
-        return None
-    
-    if np.sum(search_mask_combined) == 0:
-        print("警告: 大图中没有像素在颜色容差范围内")
-        return None
-
-    # 将RGB图像转换为BGR格式（OpenCV使用BGR）
-    search_area_bgr = cv2.cvtColor(search_area, cv2.COLOR_RGB2BGR)
-    small_array_bgr = cv2.cvtColor(small_array, cv2.COLOR_RGB2BGR)
-
-    # 创建掩码版本的图像：不在容差范围内的像素设为0
-    # 这样可以确保只匹配基准色范围内的像素
-    search_area_masked = search_area_bgr.copy()
-    search_area_masked[search_mask_combined == 0] = 0
-    
-    small_array_masked = small_array_bgr.copy()
-    small_array_masked[small_mask_combined == 0] = 0
-
-    cv2.imshow('search_area_masked Threshold', search_area_masked)
-    cv2.imshow('small_array_masked Threshold', small_array_masked)
-    cv2.imshow('small_mask_combined Threshold', small_mask_combined)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    
-    # 使用掩码进行模板匹配
-    # mask参数只作用于模板（小图），确保只匹配小图中掩码为255的像素
-    # 注意：mask必须是单通道，值为0或255
-    result = cv2.matchTemplate(search_area_masked, small_array_masked, cv2.TM_CCOEFF_NORMED, mask=small_mask_combined)
-
-    # 找到最匹配的位置
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-    
-    # 检查结果是否有效
-    if np.isnan(max_val) or np.isinf(max_val):
-        print("警告: 匹配结果无效 (nan 或 inf)")
-        return None
-    
-    print(f"匹配结果 - max_val: {max_val:.4f}, 位置: {max_loc}")
-    
-    # 相似度基于匹配值
-    similarity = float(max_val)
-
-    return {
-        "x": max_loc[0] + offset_x,
-        "y": max_loc[1] + offset_y,
-        "w": small_w,
-        "h": small_h,
-        "similarity": similarity
-    }
-
 def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolerance=None):
     """
     找图函数，根据是否传入颜色偏色参数自动选择找图方式
@@ -358,7 +209,7 @@ def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolera
     """
     if color_tolerance is not None:
         # 如果传入了颜色偏色参数，使用颜色偏色找图
-        return opencv颜色掩码找图(large_image_path, small_image_path, color_tolerance, region)
+        return opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance, region)
     else:
         # 如果没有传入颜色偏色参数，使用普通找图
         return opencv找图(large_image_path, small_image_path, region)
@@ -366,10 +217,11 @@ def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolera
 
 
 if __name__ == "__main__":
-    large_image_path = "ttt.png"
-    small_image_path = "aaa.png"
-    color_tolerance = "C9C0B2-25211F"
+    large_image_path = "888.png"
+    small_image_path = "主界面.png"
+    color_tolerance = ['72B23F-1A1D1D', 'A33631-312B2D']
+    # color_tolerance = ["C9BDB8-262325"]
     region = (0, 0, 0, 0)
     
-    result = 找图(large_image_path, small_image_path, color_tolerance, region)
+    result = opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance, region)
     print(f"结果: {result}")

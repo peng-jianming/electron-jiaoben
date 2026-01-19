@@ -56,7 +56,7 @@ const selectedDeviations = ref([]);
 const processedImageUrl = ref(null);
 
 // HEX 转 RGB
-const hexToRgb = (hex) => {
+const hexToRgb = (hex) => {;
   hex = hex.replace("#", "");
   if (hex.length === 3) {
     hex = hex
@@ -79,19 +79,42 @@ const numToHex = (num) => {
   return hex.length === 1 ? "0" + hex : hex;
 };
 
-// 计算偏色
-const handleCalculateDeviation = () => {
-  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
-    ElMessage.warning("请先选取颜色");
-    return;
+// RGB 转 HSV
+const rgbToHsv = (rgb) => {
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  let h = 0;
+  if (delta !== 0) {
+    if (max === r) {
+      h = ((g - b) / delta) % 6;
+    } else if (max === g) {
+      h = (b - r) / delta + 2;
+    } else {
+      h = (r - g) / delta + 4;
+    }
+  }
+  h = Math.round(h * 60);
+  if (h < 0) h += 360;
+
+  const s = max === 0 ? 0 : delta / max;
+  const v = max;
+
+  return { h, s, v };
+};
+
+// 计算基准色和偏色（从颜色列表中）
+const calculateBaseOffset = (rgbColors) => {
+  if (!rgbColors || rgbColors.length === 0) {
+    return null;
   }
 
-  // 1. 将所有颜色转换为 RGB
-  const rgbColors = props.currentSelectedColors.map((color) => {
-    return hexToRgb(color.hex);
-  });
-
-  // 2. 确定每个通道的最小值和最大值
+  // 确定每个通道的最小值和最大值
   let minR = 255, maxR = 0;
   let minG = 255, maxG = 0;
   let minB = 255, maxB = 0;
@@ -105,37 +128,133 @@ const handleCalculateDeviation = () => {
     maxB = Math.max(maxB, rgb.b);
   });
 
-  // 3. 计算基准色（取最小值和最大值的平均值，向下取整）
+  // 计算基准色（取最小值和最大值的平均值，向下取整）
   const baseR = Math.floor((minR + maxR) / 2);
   const baseG = Math.floor((minG + maxG) / 2);
   const baseB = Math.floor((minB + maxB) / 2);
 
-  // 4. 计算偏色（最大值减基准色）
+  // 计算偏色（最大值减基准色）
   const deviationR = maxR - baseR;
   const deviationG = maxG - baseG;
   const deviationB = maxB - baseB;
 
-  // 5. 格式化为 HEX 字符串
+  // 格式化为 HEX 字符串
   const baseHex = numToHex(baseR) + numToHex(baseG) + numToHex(baseB);
   const deviationHex = numToHex(deviationR) + numToHex(deviationG) + numToHex(deviationB);
 
-  // 6. 组合结果
-  const result = `${baseHex}-${deviationHex}`;
+  // 组合结果
+  return `${baseHex}-${deviationHex}`;
+};
 
-  // 7. 检查偏色列表中是否已存在相同的偏色
-  const existingIndex = deviationColors.value.findIndex((item) => item === result);
-  if (existingIndex !== -1) {
-    ElMessage.warning(`偏色 ${result} 已存在于列表中（第 ${existingIndex + 1} 项）`);
+// 智能颜色分段算法
+const colorSegmentation = (colorList) => {
+  const segments = {};
+  
+  for (const color of colorList) {
+    const rgb = hexToRgb(color);
+    const { h, s, v } = rgbToHsv(rgb);
+
+    // 1. 按亮度分组
+    let brightnessGroup;
+    if (v < 0.33) {
+      brightnessGroup = "dark";
+    } else if (v < 0.67) {
+      brightnessGroup = "medium";
+    } else {
+      brightnessGroup = "light";
+    }
+
+    // 2. 按色相分组
+    let hueGroup;
+    if (s < 0.2) {
+      // 接近无色
+      hueGroup = "grayscale";
+    } else if (h < 30 || h >= 330) {
+      hueGroup = "red";
+    } else if (h < 90) {
+      hueGroup = "yellow_orange";
+    } else if (h < 150) {
+      hueGroup = "green";
+    } else if (h < 210) {
+      hueGroup = "cyan";
+    } else if (h < 270) {
+      hueGroup = "blue";
+    } else {
+      hueGroup = "purple";
+    }
+
+    // 3. 组合键
+    const segmentKey = `${brightnessGroup}_${hueGroup}`;
+
+    if (!segments[segmentKey]) {
+      segments[segmentKey] = [];
+    }
+    segments[segmentKey].push(rgb);
+  }
+ 
+  // 4. 为每个分段计算基准色+偏色
+  const results = [];
+  for (const [segmentKey, colors] of Object.entries(segments)) {
+    if (colors.length >= 2) {
+      // 计算基准色和偏色
+      const result = calculateBaseOffset(colors);
+      if (result) {
+        results.push({ segmentKey, deviation: result });
+      }
+    } else if (colors.length === 1) {
+      // 只有一个颜色，只有基准色，无偏色（这种情况暂时跳过，因为需要偏色）
+      // 可以设置为偏色为 000000，或者跳过
+      const rgb = colors[0];
+      const baseHex = numToHex(rgb.r) + numToHex(rgb.g) + numToHex(rgb.b);
+      const result = `${baseHex}-000000`;
+      results.push({ segmentKey, deviation: result });
+    }
+  }
+
+  return results;
+};
+
+// 计算偏色
+const handleCalculateDeviation = () => {
+  
+  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
+    ElMessage.warning("请先选取颜色");
     return;
   }
 
-  // 8. 添加到偏色列表并默认勾选
-  deviationColors.value.push(result);
-  selectedDeviations.value.push(result);
+  // 1. 先进行颜色分段处理
+  const colorHexList = props.currentSelectedColors.map((color) => color.hex);
+  const segmentationResults = colorSegmentation(colorHexList);
 
-  ElMessage.success("偏色计算完成");
+  if (segmentationResults.length === 0) {
+    ElMessage.warning("颜色分段后没有有效的结果");
+    return;
+  }
 
-  // 9. 自动执行一次二值化渲染
+  // 2. 对每个分段的结果进行处理
+  let addedCount = 0;
+  for (const { segmentKey, deviation } of segmentationResults) {
+    // 检查偏色列表中是否已存在相同的偏色
+    const existingIndex = deviationColors.value.findIndex((item) => item === deviation);
+    if (existingIndex !== -1) {
+      console.log(`偏色 ${deviation} (分段: ${segmentKey}) 已存在于列表中（第 ${existingIndex + 1} 项）`);
+      continue;
+    }
+
+    // 添加到偏色列表并默认勾选
+    deviationColors.value.push(deviation);
+    selectedDeviations.value.push(deviation);
+    addedCount++;
+  }
+
+  if (addedCount === 0) {
+    ElMessage.warning("所有偏色都已存在于列表中");
+    return;
+  }
+
+  ElMessage.success(`偏色计算完成，共添加 ${addedCount} 个偏色（来自 ${segmentationResults.length} 个颜色分段）`);
+
+  // 3. 自动执行一次二值化渲染
   nextTick(() => {
     handleRerender();
   });
