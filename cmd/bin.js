@@ -20,12 +20,12 @@ module.exports = {
       args: ['.', '--env=local'],
       watch: false,
     },
-    python: {
-      directory: './python',
-      cmd: 'C:/ProgramData/anaconda3/python.exe',
-      args: ['./index.py', '--port=7074'],
-      stdio: "inherit", // ignore
-    },
+    // python: {
+    //   directory: './python',
+    //   cmd: 'C:/ProgramData/anaconda3/python.exe',
+    //   args: ['./index.py', '--port=7074'],
+    //   stdio: "inherit", // ignore
+    // },
   },
 
   /**

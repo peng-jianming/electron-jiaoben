@@ -6,7 +6,7 @@ const { logger } = require('ee-core/log');
 const { cross } = require('ee-core/cross');
 const path = require("path");
 const { getExtraResourcesDir } = require('ee-core/ps');
-
+const crossSpawn = require('cross-spawn');
 const createPythonServer = async () => {
   const serviceName = "python";
   const opt = {
@@ -25,10 +25,12 @@ const createPythonServer = async () => {
 
 
 const abc = () => {
-  const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [ `./python/index.py`], {
+  console.log(getExtraResourcesDir());
+  
+  const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [path.join(getExtraResourcesDir(), 'python', 'index.py')], {
     stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
     detached: false,
-    cwd: path.join(getExtraResourcesDir(), 'py'),
+    cwd: path.join(getExtraResourcesDir(), 'python'),
     maxBuffer: 1024 * 1024 * 1024,
     windowsHide: true
   });
@@ -47,7 +49,7 @@ const abc = () => {
 function preload() {
   // createPythonServer()
 
-
+  abc()
 
 
   logger.info('[preload] load 1');
