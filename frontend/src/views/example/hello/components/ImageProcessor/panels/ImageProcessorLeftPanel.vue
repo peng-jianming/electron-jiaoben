@@ -41,7 +41,7 @@
       :type="selectionEnabled ? 'warning' : 'primary'"
       @click="$emit('toggle-selection')"
     >
-      {{ selectionEnabled ? "取消选取" : "启用选取(颜色|范围)" }}
+      {{ selectionEnabled ? "取消选取" : "启用选取颜色|范围(Alt+D)" }}
     </el-button>
 
     <el-tag effect="plain">

@@ -1934,14 +1934,27 @@ function handleGlobalMouseUp(event) {
   }
 }
 
+// 处理键盘快捷键（Alt+D 切换选取模式）
+function handleKeyDown(event) {
+  // 检查是否按下了 Alt+D
+  if (event.altKey && event.key.toLowerCase() === 'd') {
+    event.preventDefault(); // 防止浏览器默认行为
+    toggleSelectionMode();
+  }
+}
+
 onMounted(() => {
   // 添加全局鼠标抬起事件监听
   document.addEventListener("mouseup", handleGlobalMouseUp);
+  // 添加键盘事件监听（Ctrl+E 切换选取模式）
+  document.addEventListener("keydown", handleKeyDown);
 });
 
 onUnmounted(() => {
   // 移除全局鼠标抬起事件监听
   document.removeEventListener("mouseup", handleGlobalMouseUp);
+  // 移除键盘事件监听
+  document.removeEventListener("keydown", handleKeyDown);
 
   if (deviceSocket) {
     deviceSocket.disconnect();
