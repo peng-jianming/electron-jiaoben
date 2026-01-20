@@ -3,9 +3,12 @@
     <div style="display: flex">
       <ColorList 
         :colors="currentSelectedColors"
+        :current-image="currentImage"
+        :selection-rect="selectionRect"
         @remove-color="$emit('remove-color', $event)"
         @calculate-deviation="handleCalculateDeviation"
         @clear-all-colors="$emit('clear-all-colors')"
+        @add-colors="handleAddColors"
       />
       <DeviationList 
         :deviation-colors="deviationColors"
@@ -49,7 +52,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["remove-color", "clear-all-colors"]);
+const emit = defineEmits(["remove-color", "clear-all-colors", "add-colors"]);
 
 const deviationColors = ref([]);
 const selectedDeviations = ref([]);
@@ -258,6 +261,12 @@ const handleCalculateDeviation = () => {
   nextTick(() => {
     handleRerender();
   });
+};
+
+// 处理添加统计的颜色
+const handleAddColors = (colorStats) => {
+  // 将统计的颜色添加到父组件的颜色列表中
+  emit("add-colors", colorStats);
 };
 
 // 清空偏色列表

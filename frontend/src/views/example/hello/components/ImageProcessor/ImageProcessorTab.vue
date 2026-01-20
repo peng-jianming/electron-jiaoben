@@ -95,11 +95,16 @@
           :current-position="currentPosition"
           :current-color="currentColor"
           :current-selected-colors="currentSelectedColors"
+          :recorded-colors="recordedColors"
           :selection-rect="selectionRect"
           :image-ref="imageRef"
           :current-device-id="currentDeviceId"
           @remove-color="removeColor"
           @clear-all-colors="clearAllColors"
+          @add-colors="addColors"
+          @remove-record-color="removeRecordColor"
+          @clear-all-record-colors="clearAllRecordColors"
+          @tab-change="handleRightTabChange"
           @right-panel-screenshot-start="handleRightPanelScreenshotStart"
           @right-panel-screenshot-end="handleRightPanelScreenshotEnd"
           @start-code-generator-selection="handleStartCodeGeneratorSelection"
@@ -177,11 +182,17 @@ const imageUrl = computed(() => currentImage.value?.url || null);
 // 当前图片的信息（用于兼容现有代码）
 const imageInfo = computed(() => currentImage.value?.info || null);
 
-// 当前图片的选中颜色列表
+// 当前图片的选中颜色列表（用于偏色计算）
 const currentSelectedColors = computed(() => {
   if (!currentImage.value) return [];
   return currentImage.value.selectedColors || [];
 });
+
+// 颜色记录列表（用于颜色记录 tab）
+const recordedColors = ref([]);
+
+// 右侧面板当前激活的 tab
+const activeRightTab = ref("color-record");
 
 // 放大镜相关
 const magnifierVisible = ref(false);
@@ -1500,25 +1511,43 @@ function handleImageClick(event) {
         const naturalX = Math.floor(imageX / imageScale.value);
         const naturalY = Math.floor(imageY / imageScale.value);
 
-        // 确保当前图片有颜色数组
-        if (!currentImage.value.selectedColors) {
-          currentImage.value.selectedColors = [];
-        }
+        // 根据当前激活的 tab 决定记录到哪里
+        if (activeRightTab.value === "deviation") {
+          // 如果当前在偏色计算 tab，记录到 selectedColors（用于偏色计算）
+          if (!currentImage.value.selectedColors) {
+            currentImage.value.selectedColors = [];
+          }
 
-        // 检查是否相同坐标点
-        const exists = currentImage.value.selectedColors.some(
-          c => c.x === naturalX && c.y === naturalY
-        );
-        if (exists) {
-          return;
+          // 检查是否已存在相同颜色的项
+          const existingColorIndex = currentImage.value.selectedColors.findIndex(
+            c => c.hex === currentColor.value.hex
+          );
+          
+          if (existingColorIndex !== -1) {
+            // 如果已存在相同颜色，个数+1
+            const existingColor = currentImage.value.selectedColors[existingColorIndex];
+            existingColor.count = (existingColor.count || 1) + 1;
+          } else {
+            // 如果不存在，添加新项并设置个数为1
+            currentImage.value.selectedColors.push({
+              ...currentColor.value,
+              count: 1,
+            });
+          }
+        } else {
+          // 默认记录到颜色记录 tab，记录坐标
+          // 检查是否相同坐标点，避免重复记录
+          const exists = recordedColors.value.some(
+            c => c.x === naturalX && c.y === naturalY
+          );
+          if (!exists) {
+            recordedColors.value.push({
+              ...currentColor.value,
+              x: naturalX,
+              y: naturalY,
+            });
+          }
         }
-        
-        // 记录颜色到当前图片
-        currentImage.value.selectedColors.push({
-          ...currentColor.value,
-          x: naturalX,
-          y: naturalY,
-        });
       }
     }
     return;
@@ -1559,25 +1588,43 @@ function handleImageClick(event) {
         const naturalX = Math.floor(imageX / imageScale.value);
         const naturalY = Math.floor(imageY / imageScale.value);
 
-        // 确保当前图片有颜色数组
-        if (!currentImage.value.selectedColors) {
-          currentImage.value.selectedColors = [];
-        }
+        // 根据当前激活的 tab 决定记录到哪里
+        if (activeRightTab.value === "deviation") {
+          // 如果当前在偏色计算 tab，记录到 selectedColors（用于偏色计算）
+          if (!currentImage.value.selectedColors) {
+            currentImage.value.selectedColors = [];
+          }
 
-        // 检查是否相同坐标点
-        const exists = currentImage.value.selectedColors.some(
-          c => c.x === naturalX && c.y === naturalY
-        );
-        if (exists) {
-          return;
+          // 检查是否已存在相同颜色的项
+          const existingColorIndex = currentImage.value.selectedColors.findIndex(
+            c => c.hex === currentColor.value.hex
+          );
+          
+          if (existingColorIndex !== -1) {
+            // 如果已存在相同颜色，个数+1
+            const existingColor = currentImage.value.selectedColors[existingColorIndex];
+            existingColor.count = (existingColor.count || 1) + 1;
+          } else {
+            // 如果不存在，添加新项并设置个数为1
+            currentImage.value.selectedColors.push({
+              ...currentColor.value,
+              count: 1,
+            });
+          }
+        } else {
+          // 默认记录到颜色记录 tab，记录坐标
+          // 检查是否相同坐标点，避免重复记录
+          const exists = recordedColors.value.some(
+            c => c.x === naturalX && c.y === naturalY
+          );
+          if (!exists) {
+            recordedColors.value.push({
+              ...currentColor.value,
+              x: naturalX,
+              y: naturalY,
+            });
+          }
         }
-        
-        // 记录颜色到当前图片
-        currentImage.value.selectedColors.push({
-          ...currentColor.value,
-          x: naturalX,
-          y: naturalY,
-        });
       }
     }
     return;
@@ -1597,6 +1644,53 @@ function clearAllColors() {
   if (currentImage.value && currentImage.value.selectedColors) {
     currentImage.value.selectedColors = [];
   }
+}
+
+// 处理右侧 tab 切换
+function handleRightTabChange(tabName) {
+  activeRightTab.value = tabName;
+}
+
+// 移除颜色记录
+function removeRecordColor(index) {
+  recordedColors.value.splice(index, 1);
+}
+
+// 清空所有颜色记录
+function clearAllRecordColors() {
+  recordedColors.value = [];
+}
+
+// 添加统计的颜色
+function addColors(colorStats) {
+  if (!currentImage.value) {
+    return;
+  }
+
+  // 确保当前图片有颜色数组
+  if (!currentImage.value.selectedColors) {
+    currentImage.value.selectedColors = [];
+  }
+
+  // 将统计的颜色添加到列表中，合并相同颜色的计数
+  colorStats.forEach((colorStat) => {
+    const existingColorIndex = currentImage.value.selectedColors.findIndex(
+      (c) => c.hex === colorStat.hex
+    );
+
+    if (existingColorIndex !== -1) {
+      // 如果已存在相同颜色，累加个数
+      const existingColor = currentImage.value.selectedColors[existingColorIndex];
+      existingColor.count = (existingColor.count || 1) + colorStat.count;
+    } else {
+      // 如果不存在，添加新项
+      currentImage.value.selectedColors.push({
+        hex: colorStat.hex,
+        rgb: colorStat.rgb,
+        count: colorStat.count,
+      });
+    }
+  });
 }
 
 // 移除图片

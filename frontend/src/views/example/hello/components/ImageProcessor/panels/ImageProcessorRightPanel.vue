@@ -10,14 +10,22 @@
     />
 
     <!-- 选中颜色列表 -->
-    <el-tabs type="border-card" size="mini">
-      <el-tab-pane label="偏色计算">
+    <el-tabs type="border-card" size="mini" v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane label="颜色记录" name="color-record">
+        <ColorRecordList 
+          :colors="recordedColors"
+          @remove-color="$emit('remove-record-color', $event)"
+          @clear-all-colors="$emit('clear-all-record-colors')"
+        />
+      </el-tab-pane>
+      <el-tab-pane label="偏色计算" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
           :selection-rect="selectionRect"
           @remove-color="$emit('remove-color', $event)"
           @clear-all-colors="$emit('clear-all-colors')"
+          @add-colors="$emit('add-colors', $event)"
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
@@ -34,13 +42,13 @@
           ref="imageUploadTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="调试图片">
+      <el-tab-pane label="调试">
         <ImageMatchDebug 
           :transparent-image-url="transparentImageUrl"
           :current-device-id="currentDeviceId"
         />
       </el-tab-pane>
-      <el-tab-pane label="生成代码">
+      <el-tab-pane label="代码">
         <CodeGeneratorTab 
           :selected-deviations="selectedDeviations"
           :selection-rect="selectionRect"
@@ -66,6 +74,7 @@ import ColorSelectionTab from "../tabs/ColorSelectionTab.vue";
 import ImageUploadTab from "../tabs/ImageUploadTab.vue";
 import ImageMatchDebug from "../tabs/ImageMatchDebug.vue";
 import CodeGeneratorTab from "../tabs/CodeGeneratorTab.vue";
+import ColorRecordList from "../lists/ColorRecordList.vue";
 
 const props = defineProps({
   magnifierVisible: {
@@ -88,6 +97,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  recordedColors: {
+    type: Array,
+    default: () => [],
+  },
   selectionRect: {
     type: Object,
     default: null,
@@ -104,7 +117,11 @@ const props = defineProps({
 
 const emit = defineEmits([
   "remove-color", 
-  "clear-all-colors", 
+  "clear-all-colors",
+  "add-colors",
+  "remove-record-color",
+  "clear-all-record-colors",
+  "tab-change",
   "right-panel-screenshot-start", 
   "right-panel-screenshot-end",
   "start-code-generator-selection",
@@ -118,7 +135,14 @@ const codeGeneratorTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
+const activeTab = ref("color-record"); // 当前激活的 tab
 let deviceSocket = null;
+
+// 处理 tab 切换
+const handleTabChange = (tabName) => {
+  activeTab.value = tabName;
+  emit("tab-change", tabName);
+};
 
 // 获取透明图 URL
 const transparentImageUrl = computed(() => {
