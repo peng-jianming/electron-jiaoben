@@ -57,12 +57,12 @@
 
 <script setup>
 import { onMounted, onUnmounted } from 'vue';
-import { useColoring } from '../composables/useColoring';
-import ImageUploadCard from './ImageUploadCard.vue';
-import ColorFilterCard from './ColorFilterCard.vue';
-import BinaryCard from './BinaryCard.vue';
-import FloodFillCard from './FloodFillCard.vue';
-import ProcessingStepsCard from './ProcessingStepsCard.vue';
+import { useColoring } from '../../composables/useColoring';
+import ImageUploadCard from './cards/ImageUploadCard.vue';
+import ColorFilterCard from './cards/ColorFilterCard.vue';
+import BinaryCard from './cards/BinaryCard.vue';
+import FloodFillCard from './cards/FloodFillCard.vue';
+import ProcessingStepsCard from './cards/ProcessingStepsCard.vue';
 
 const {
   // 状态
@@ -158,3 +158,4 @@ onUnmounted(() => {
   }
 }
 </style>
+

@@ -132,9 +132,9 @@ import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
-import ImageProcessorLeftPanel from "./ImageProcessorLeftPanel.vue";
-import ImageProcessorRightPanel from "./ImageProcessorRightPanel.vue";
-import ImageProcessorDeviceDialog from "./ImageProcessorDeviceDialog.vue";
+import ImageProcessorLeftPanel from "./panels/ImageProcessorLeftPanel.vue";
+import ImageProcessorRightPanel from "./panels/ImageProcessorRightPanel.vue";
+import ImageProcessorDeviceDialog from "./dialogs/ImageProcessorDeviceDialog.vue";
 
 // 文件输入引用
 const fileInputRef = ref(null);

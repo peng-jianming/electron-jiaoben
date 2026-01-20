@@ -30,9 +30,9 @@
 <script setup>
 import { ref, nextTick } from "vue";
 import { ElMessage } from "element-plus";
-import ColorList from "./ColorList.vue";
-import DeviationList from "./DeviationList.vue";
-import ImageDisplayArea from "./ImageDisplayArea.vue";
+import ColorList from "../lists/ColorList.vue";
+import DeviationList from "../lists/DeviationList.vue";
+import ImageDisplayArea from "../common/ImageDisplayArea.vue";
 
 const props = defineProps({
   currentSelectedColors: {

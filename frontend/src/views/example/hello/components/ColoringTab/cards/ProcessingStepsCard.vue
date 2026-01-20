@@ -400,3 +400,4 @@ function handleDrop(index, event) {
   position: absolute;
 }
 </style>
+

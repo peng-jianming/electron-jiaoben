@@ -30,9 +30,9 @@
 
 <script setup>
 import { ref } from "vue";
-import ImageProcessorTab from "./components/ImageProcessorTab.vue";
-import ColoringTab from "./components/ColoringTab.vue";
-import PathfindingTab from "./components/PathfindingTab.vue";
+import ImageProcessorTab from "./components/ImageProcessor/ImageProcessorTab.vue";
+import ColoringTab from "./components/ColoringTab/ColoringTab.vue";
+import PathfindingTab from "./components/PathfindingTab/PathfindingTab.vue";
 
 // Tab 切换
 const activeTab = ref("image-processor");
@@ -116,8 +116,8 @@ const coloringTabRef = ref(null);
   background-clip: text;
 }
 
-/deep/.el-tabs__content {
-  padding: 2px
+:deep(.el-tabs__content) {
+  padding: 2px;
 }
 
 

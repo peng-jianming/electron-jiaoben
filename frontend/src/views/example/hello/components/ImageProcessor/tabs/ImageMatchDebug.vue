@@ -88,7 +88,7 @@ import { Close } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
-import ImageDisplayArea from "./ImageDisplayArea.vue";
+import ImageDisplayArea from "../common/ImageDisplayArea.vue";
 
 const props = defineProps({
   transparentImageUrl: {

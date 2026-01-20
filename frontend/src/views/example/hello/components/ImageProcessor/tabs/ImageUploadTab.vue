@@ -39,8 +39,8 @@ import { ref } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
-import ImageUploadList from "./ImageUploadList.vue";
-import ImageDisplayArea from "./ImageDisplayArea.vue";
+import ImageUploadList from "../lists/ImageUploadList.vue";
+import ImageDisplayArea from "../common/ImageDisplayArea.vue";
 
 const props = defineProps({
   uploadedImages: {

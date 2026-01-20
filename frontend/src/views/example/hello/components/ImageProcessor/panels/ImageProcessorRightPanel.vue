@@ -61,11 +61,11 @@ import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
-import MagnifierCard from "./MagnifierCard.vue";
-import ColorSelectionTab from "./ColorSelectionTab.vue";
-import ImageUploadTab from "./ImageUploadTab.vue";
-import ImageMatchDebug from "./ImageMatchDebug.vue";
-import CodeGeneratorTab from "./CodeGeneratorTab.vue";
+import MagnifierCard from "../cards/MagnifierCard.vue";
+import ColorSelectionTab from "../tabs/ColorSelectionTab.vue";
+import ImageUploadTab from "../tabs/ImageUploadTab.vue";
+import ImageMatchDebug from "../tabs/ImageMatchDebug.vue";
+import CodeGeneratorTab from "../tabs/CodeGeneratorTab.vue";
 
 const props = defineProps({
   magnifierVisible: {
