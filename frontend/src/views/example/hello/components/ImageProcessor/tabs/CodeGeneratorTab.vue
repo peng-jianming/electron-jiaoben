@@ -644,7 +644,7 @@ defineExpose({
 
 
 .code-generator-tab {
-  padding: 10px;
+  padding: 2px;
   height: 590px;
   display: flex;
   flex-direction: column;

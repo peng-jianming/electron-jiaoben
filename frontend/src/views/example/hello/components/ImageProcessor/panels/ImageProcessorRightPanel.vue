@@ -304,4 +304,9 @@ onUnmounted(() => {
   padding: 0 5px;
   width: 460px;
 }
+.el-tabs :deep(.el-tabs__content) {
+  padding: 2px;
+  display: none !important; /* 隐藏默认的 tab-pane 内容，因为我们使用 router-view */
+}
+
 </style>

@@ -1,26 +1,38 @@
 <template>
   <div class="image-processor">
     <!-- Tab 切换 -->
-    <el-tabs v-model="activeTab"  type="border-card">
+    <el-tabs 
+      v-model="activeTab" 
+      type="border-card"
+    >
       <!-- 图片处理 Tab -->
       <el-tab-pane label="图片处理" name="image-processor">
-        <ImageProcessorTab />
       </el-tab-pane>
 
       <!-- 调色 Tab -->
       <el-tab-pane label="调色" name="coloring">
-        <ColoringTab ref="coloringTabRef" />
       </el-tab-pane>
 
       <!-- 寻路测试 Tab -->
       <el-tab-pane label="寻路测试" name="pathfinding">
-        <PathfindingTab />
       </el-tab-pane>
     </el-tabs>
 
+    <!-- 子路由内容 -->
+    <div class="router-view-container">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component 
+            :is="Component" 
+            ref="currentComponentRef"
+          />
+        </transition>
+      </router-view>
+    </div>
+
     <!-- 处理状态指示器 -->
     <transition name="fade">
-      <div v-if="coloringTabRef?.processing" class="processing-indicator">
+      <div v-if="isProcessing" class="processing-indicator">
         <div class="spinner"></div>
         <span>处理中...</span>
       </div>
@@ -29,16 +41,88 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import ImageProcessorTab from "./components/ImageProcessor/ImageProcessorTab.vue";
-import ColoringTab from "./components/ColoringTab/ColoringTab.vue";
-import PathfindingTab from "./components/PathfindingTab/PathfindingTab.vue";
+import { ref, computed, watch, watchEffect, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
-// Tab 切换
-const activeTab = ref("image-processor");
+const route = useRoute();
+const router = useRouter();
 
-// 调色 Tab 的引用
-const coloringTabRef = ref(null);
+// Tab 切换 - 从路由获取当前激活的 tab
+const activeTab = computed({
+  get: () => {
+    const routeName = route.name;
+    if (routeName === 'Coloring') return 'coloring';
+    if (routeName === 'Pathfinding') return 'pathfinding';
+    return 'image-processor'; // 默认或 ImageProcessor
+  },
+  set: (value) => {
+    // Tab 切换时更新路由
+    const routeName = value === 'image-processor' ? 'ImageProcessor' : value === 'coloring' ? 'Coloring' : 'Pathfinding';
+    router.push({ name: routeName });
+  }
+});
+
+// 处理状态
+const isProcessing = ref(false);
+const currentComponentRef = ref(null);
+
+// 监听组件实例的 processing 状态
+let stopWatcher = null;
+
+watchEffect(() => {
+  if (currentComponentRef.value) {
+    const component = currentComponentRef.value;
+    
+    // 如果组件暴露了 processing 属性（如 ColoringTab）
+    if (component.processing !== undefined) {
+      // processing 是通过 defineExpose 暴露的 ref，需要监听其 .value
+      if (typeof component.processing === 'object' && 'value' in component.processing) {
+        // 清理之前的 watcher
+        if (stopWatcher) {
+          stopWatcher();
+        }
+        stopWatcher = watch(
+          () => component.processing.value,
+          (newVal) => {
+            isProcessing.value = newVal;
+          },
+          { immediate: true }
+        );
+      } else {
+        // 如果是普通值，直接使用
+        isProcessing.value = component.processing;
+      }
+    } else {
+      isProcessing.value = false;
+      if (stopWatcher) {
+        stopWatcher();
+        stopWatcher = null;
+      }
+    }
+  } else {
+    isProcessing.value = false;
+    if (stopWatcher) {
+      stopWatcher();
+      stopWatcher = null;
+    }
+  }
+});
+
+// 监听路由变化，重置处理状态
+watch(() => route.name, () => {
+  isProcessing.value = false;
+  // 清理之前的 watcher
+  if (stopWatcher) {
+    stopWatcher();
+    stopWatcher = null;
+  }
+});
+
+onUnmounted(() => {
+  if (stopWatcher) {
+    stopWatcher();
+  }
+});
 </script>
 
 <style scoped>
@@ -116,8 +200,22 @@ const coloringTabRef = ref(null);
   background-clip: text;
 }
 
-:deep(.el-tabs__content) {
+/* 只隐藏主 tabs 的内容，不影响子组件中的 tabs */
+.image-processor > .el-tabs :deep(.el-tabs__content) {
   padding: 2px;
+  display: none !important; /* 隐藏默认的 tab-pane 内容，因为我们使用 router-view */
+}
+
+/* 确保子组件中的 tabs 内容正常显示 */
+.image-processor .router-view-container :deep(.el-tabs__content) {
+  display: block !important;
+}
+
+/* 路由视图容器 */
+.router-view-container {
+  /* padding: 20px; */
+  /* min-height: calc(100vh - 120px); */
+  background-color: #fff;
 }
 
 

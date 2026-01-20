@@ -12,7 +12,25 @@ const constantRouterMap = [
       {
         path: '/example',
         name: 'ExampleHelloIndex',
-        component: () => import('@/views/example/hello/Index.vue')
+        component: () => import('@/views/example/hello/Index.vue'),
+        redirect: { name: 'ImageProcessor' },
+        children: [
+          {
+            path: 'image-processor',
+            name: 'ImageProcessor',
+            component: () => import('@/views/example/hello/components/ImageProcessor/ImageProcessorTab.vue')
+          },
+          {
+            path: 'coloring',
+            name: 'Coloring',
+            component: () => import('@/views/example/hello/components/ColoringTab/ColoringTab.vue')
+          },
+          {
+            path: 'pathfinding',
+            name: 'Pathfinding',
+            component: () => import('@/views/example/hello/components/PathfindingTab/PathfindingTab.vue')
+          }
+        ]
       },
       {
         path: '/image-result',
