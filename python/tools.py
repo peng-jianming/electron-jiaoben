@@ -455,6 +455,7 @@ class Field:
         self.模型路径 = config.get("模型路径")
         self.颜色偏色 = config.get("颜色偏色")  # 格式如 "D7CCC6-0E0E09"
         self.查找区域 = config.get("查找区域", [0, 0, 0, 0])
+        self.偏移点击区域 = config.get("偏移点击区域")
         self.x = 0
         self.y = 0
         self.w = 0
