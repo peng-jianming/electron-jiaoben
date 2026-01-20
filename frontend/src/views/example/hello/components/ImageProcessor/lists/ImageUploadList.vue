@@ -121,7 +121,12 @@ const handleImageFileSelect = (event) => {
         // 当所有图片处理完成后，通知父组件
         if (newImages.length === imageFiles.length) {
           emit("images-updated", newImages);
-          ElMessage.success(`成功上传 ${newImages.length} 张图片`);
+          // 简化提示，避免提示过多
+          if (newImages.length === 1) {
+            ElMessage.success("图片已上传");
+          } else {
+            ElMessage.success(`已上传 ${newImages.length} 张图片`);
+          }
         }
       };
       img.onerror = () => {

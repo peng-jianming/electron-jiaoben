@@ -58,8 +58,16 @@
         <el-input v-model="regionInput" placeholder="例如: 0,0,100,100 (留空则查询全图) (x,y,w,h)" size="small" clearable />
       </el-form-item>
       <el-form-item label="偏色">
-        <el-input v-model="colorToleranceInput" placeholder="例如: C9C0B2-25211F|111111-222222 (多个用|分割)" size="small"
-          clearable />
+        <el-input
+          v-model="colorToleranceInput"
+          placeholder="例如: C9C0B2-25211F|111111-222222 (多个用|分割)"
+          size="small"
+          clearable
+        >
+          <template #append>
+            <el-button @click="handleGetDeviation">获取偏色</el-button>
+          </template>
+        </el-input>
       </el-form-item>
     </el-form>
 
@@ -99,6 +107,11 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  // 从右侧“偏色计算”标签页传入的已选偏色列表
+  selectedDeviations: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const smallImageInputRef = ref(null);
@@ -115,6 +128,19 @@ const matchResult = ref(null);
 const screenshotLoading = ref(false);
 const isScreenshotPending = ref(false);
 let matchSocket = null;
+
+// 获取偏色（与 CodeGeneratorTab 中行为保持一致）
+function handleGetDeviation() {
+  if (!props.selectedDeviations || props.selectedDeviations.length === 0) {
+    ElMessage.warning(`请先在"偏色计算"标签页中选择偏色`);
+    return;
+  }
+
+  // 将选中的偏色用 | 连接
+  const deviationStr = props.selectedDeviations.join("|");
+  colorToleranceInput.value = deviationStr;
+  ElMessage.success(`已获取 ${props.selectedDeviations.length} 个偏色`);
+}
 
 // 初始化 Socket 连接
 function initMatchSocket() {

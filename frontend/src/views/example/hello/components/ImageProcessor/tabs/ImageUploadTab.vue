@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, nextTick, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -69,6 +69,34 @@ const transparentImageUrl = ref(null);
 const handleImagesUpdated = (newImages) => {
   emit("images-updated", newImages);
 };
+
+// 监听图片列表变化，自动调用制作透明图
+let isMakingTransparent = false; // 防止重复调用
+
+watch(
+  () => props.uploadedImages?.length || 0,
+  async (newLength, oldLength) => {
+    // 只有当图片数量增加时才自动调用（避免删除图片时也调用）
+    const oldLen = oldLength ?? 0;
+    if (newLength > 0 && newLength > oldLen) {
+      if (!isMakingTransparent) {
+        isMakingTransparent = true;
+        // 等待一下，确保图片已添加到列表中
+        await nextTick();
+        // 再等待一下，确保图片已加载
+        await new Promise(resolve => setTimeout(resolve, 100));
+        try {
+          await makeTransparentImage(true); // 静默模式，不显示提示
+        } catch (error) {
+          console.error('自动制作透明图失败:', error);
+        } finally {
+          isMakingTransparent = false;
+        }
+      }
+    }
+  },
+  { immediate: false }
+);
 
 // 删除图片
 const handleRemoveImage = (index) => {
@@ -130,9 +158,11 @@ const isColorInToleranceRange = (r, g, b, baseR, baseG, baseB, toleranceR, toler
 };
 
 // 制作透明图
-const makeTransparentImage = async () => {
+const makeTransparentImage = async (silent = false) => {
   if (!props.uploadedImages || props.uploadedImages.length === 0) {
-    ElMessage.warning('请先上传图片');
+    if (!silent) {
+      ElMessage.warning('请先上传图片');
+    }
     return;
   }
 
@@ -366,11 +396,16 @@ const makeTransparentImage = async () => {
 
       // 转换为图片 URL
       transparentImageUrl.value = resultCanvas.toDataURL('image/png');
-      ElMessage.success(`透明图制作完成,共处理 ${props.uploadedImages.length} 张图片`);
+      // 只有在非静默模式下才显示成功提示
+      if (!silent) {
+        ElMessage.success(`透明图制作完成,共处理 ${props.uploadedImages.length} 张图片`);
+      }
     }
   } catch (error) {
     console.error('制作透明图时出错:', error);
-    ElMessage.error('制作透明图失败');
+    if (!silent) {
+      ElMessage.error('制作透明图失败');
+    }
   }
 };
 
@@ -430,6 +465,7 @@ const handleSaveTransparentImage = async () => {
 // 暴露透明图 URL 供外部访问
 defineExpose({
   getTransparentImageUrl: () => transparentImageUrl.value,
+  makeTransparentImage, // 暴露制作透明图方法，供外部调用
 });
 </script>
 

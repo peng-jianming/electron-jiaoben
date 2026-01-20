@@ -46,6 +46,7 @@
         <ImageMatchDebug 
           :transparent-image-url="transparentImageUrl"
           :current-device-id="currentDeviceId"
+          :selected-deviations="selectedDeviations"
         />
       </el-tab-pane>
       <el-tab-pane label="代码">
@@ -161,8 +162,13 @@ const selectedDeviations = computed(() => {
 });
 
 // 处理图片更新
-const handleImagesUpdated = (newImages) => {
+const handleImagesUpdated = async (newImages) => {
   uploadedImages.value.push(...newImages);
+  // 图片更新后，自动调用制作透明图（静默模式）
+  await nextTick();
+  if (imageUploadTabRef.value && uploadedImages.value.length > 0) {
+    imageUploadTabRef.value.makeTransparentImage?.(true);
+  }
 };
 
 // 删除图片
@@ -203,7 +209,7 @@ function initDeviceSocket() {
 }
 
 // 处理设备截图结果
-function handleDeviceScreenshot(data) {
+async function handleDeviceScreenshot(data) {
   screenshotLoading.value = false;
   isRightPanelScreenshotPending.value = false; // 清除标志
   emit("right-panel-screenshot-end"); // 通知父组件截图结束
@@ -215,7 +221,7 @@ function handleDeviceScreenshot(data) {
 
   const url = `data:image/png;base64,${data.image}`;
   const img = new Image();
-  img.onload = () => {
+  img.onload = async () => {
     // 创建缩略图
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -250,7 +256,11 @@ function handleDeviceScreenshot(data) {
       file: null, // 截图没有文件对象
     });
 
-    ElMessage.success("截图已添加到图片列表");
+    // 截图完成后，自动调用制作透明图（静默模式）
+    await nextTick();
+    if (imageUploadTabRef.value && uploadedImages.value.length > 0) {
+      imageUploadTabRef.value.makeTransparentImage?.(true);
+    }
   };
   img.onerror = () => {
     ElMessage.error("图片加载失败");
