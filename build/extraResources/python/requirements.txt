@@ -1,6 +1,0 @@
-opencv-python
-numpy
-Pillow
-ultralytics
-python-socketio
-websocket-client

@@ -660,22 +660,11 @@ class Field:
         self.y = 0
         self.w = 0
         self.h = 0
-        self.是否判断状态 = False
     
     def 查找(self):
         """查找字段"""
         url = self.大图路径 if self.大图路径 else self.controller.截图()
         if url:
-            # elif self.方式 == "opencv找透明图":
-            #     result = self.controller.opencv找透明图(url, self.图片路径, 50, self.相似度,
-            #                                             (self.查找区域["x"], self.查找区域["y"],
-            #                                              self.查找区域["w"], self.查找区域["h"]))
-            #     # print(self.标识, result, "========")
-            #     if result['similarity'] >= self.相似度:
-            #         self.x = result["x"]
-            #         self.y = result["y"]
-            #         self.w = result["w"]
-            #         self.h = result["h"]
             if self.方式 == "找图":
                 result = self.controller.找图(url, self.图片路径, self.相似度,
                                                         (self.查找区域["x"], self.查找区域["y"],
@@ -695,8 +684,6 @@ class Field:
                             self.w = math.floor(r["w"])
                             self.h = math.floor(r["h"])
                             break
-        if self.是否判断状态:
-            self.controller.写入日志(f"{self.标识}: {'是' if self.是否找到() else '否'}")
         return self
     
     def 点击(self, x=None, y=None, w=None, h=None):
@@ -706,6 +693,9 @@ class Field:
                 self.controller.随机ADB点击(x, y, w, h)
             elif x and y:
                 self.controller.ADB点击(x, y)
+            # 没有传入x,y,w,h时,则先看偏移点击区域是否存在,如果存在则点击偏移点击区域
+            elif self.偏移点击区域:
+                self.controller.随机ADB点击(*self.偏移点击区域)
             elif self.x and self.y:
                 self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
             
@@ -720,9 +710,6 @@ class Field:
                 self.controller.ADB点击(self.x + x, self.y + y)
             if w and h:
                 self.controller.随机ADB点击(self.x + x, self.y + y, w, h)
-            
-            if self.标识:
-                self.controller.写入日志(f"{self.标识}")
         return self
     
     def 随机延时(self, startMs, endMs):
@@ -741,10 +728,9 @@ class Field:
         self.大图路径 = 大图路径
         return self
     
-    def 设置标识(self, 标识, 是否判断状态=False):
+    def 设置标识(self, 标识):
         """设置标识"""
         self.标识 = 标识
-        self.是否判断状态 = 是否判断状态
         return self
     
     def 是否找到(self):
