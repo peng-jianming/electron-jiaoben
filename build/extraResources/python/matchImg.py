@@ -179,6 +179,7 @@ def opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance
     white_points = int(np.sum(template_mask))
     参数相似度 = 0.80
     # 相似度过关了,就不关注重合白点个数了, 后续关注区域内白点个数相似度, 找到最合适的点
+
     if((max_val / white_points) < 参数相似度):
         return None
 
@@ -187,22 +188,33 @@ def opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance
 
     matches = []
     for y, x in zip(locations[0], locations[1]):
+        sum_val = np.sum(search_mask[y:y+small_h, x:x+small_w])
+        diff = int(white_points) - int(sum_val)
+
         matches.append({
             'x': x,
             'y': y,
             'w': small_w,
             'h': small_h,
             'score': result[y, x], # 可以得到这个区域重合的白点个数
-            'count_similarity': 1- (abs(white_points - np.sum(search_mask[y:y+small_h, x:x+small_w]))/(small_w * small_h)) # 可以得到这个区域白点个数相似度
+            'count_similarity': 1 - (abs(diff)/(small_w * small_h)) # 可以得到这个区域白点个数相似度
         })
     # 找到白点个数相似度最高的点
     max_item = max(matches, key=lambda x: x['count_similarity'])
-
+    
     overlap_white = max_item['score']
     
     custom_similarity = overlap_white / white_points
 
-    print(f"自定义白点匹配率 - 重合白点: {overlap_white}, 小图白点: {white_points}, 个数相似度: {max_item['count_similarity']:.4f}, 重合相似度: {custom_similarity:.4f}, 位置: {max_loc}, 最终相似度: {custom_similarity * 0.8 + max_item['count_similarity'] * 0.2:.4f}")
+    # 先计算最终相似度，再保留 4 位小数
+    final_similarity = custom_similarity * 0.8 + max_item['count_similarity'] * 0.2
+    final_similarity = float(f"{final_similarity:.4f}")
+
+    print(
+        f"自定义白点匹配率 - 重合白点: {overlap_white}, 小图白点: {white_points}, "
+        f"个数相似度: {max_item['count_similarity']:.4f}, 重合相似度: {custom_similarity:.4f}, "
+        f"位置: {max_loc}, 最终相似度: {final_similarity:.4f}"
+    )
 
     # 最终确定的点的相似度,位置计算
     return {
@@ -210,7 +222,7 @@ def opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance
         "y": max_loc[1] + offset_y,
         "w": small_w,
         "h": small_h,
-        "similarity": custom_similarity * 0.8 + max_item['count_similarity'] * 0.2
+        "similarity": final_similarity
     }
 
 def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolerance=None):
