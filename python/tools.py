@@ -481,7 +481,7 @@ class Field:
             controller: DeviceController实例
         """
         self.controller = controller
-        self.标识 = config.get("标识")
+        self.日志 = config.get("日志")
         self.方式 = config.get("方式")
         self.图片路径 = config.get("图片路径")
         self.大图路径 = config.get("大图路径")
@@ -535,14 +535,11 @@ class Field:
                 self.controller.ADB点击(x, y)
             # 没有传入x,y,w,h时,则先看偏移点击区域是否存在,如果存在则点击偏移点击区域
             elif self.偏移点击区域:
-                self.controller.随机ADB点击(*self.偏移点击区域)
+                self.偏移点击(*self.偏移点击区域)
             elif self.x and self.y:
                 self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
             
-            if self.标识:
-                self.controller.写入日志(f"{self.标识}")
         return self
-    
     def 偏移点击(self, x=None, y=None, w=None, h=None):
         """偏移点击"""
         if self.是否找到():
@@ -568,9 +565,9 @@ class Field:
         self.大图路径 = 大图路径
         return self
     
-    def 设置标识(self, 标识):
-        """设置标识"""
-        self.标识 = 标识
+    def 设置日志(self, 日志):
+        """设置日志"""
+        self.日志 = 日志
         return self
     
     def 是否找到(self):
@@ -600,7 +597,7 @@ class TaskLineMachine:
     def state(self, Field):
         """装饰器：直接注册界面处理函数"""
         def decorator(func):
-            self._states[Field['标识']] = {
+            self._states[Field['界面']] = {
                 'handler': func,
                 'Field': Field
             }
@@ -670,9 +667,9 @@ class TaskLineMachine:
                         config = state['Field']
                         if Field(config, self.controller).设置大图路径(url).查找().是否找到():
                             是否找到 = True
-                            print(f"目前位于: {config['标识']}")
+                            print(f"目前位于: {config['界面']}")
                             self.update_context(上一状态=self._current_interface)
-                            self._current_interface = config['标识']
+                            self._current_interface = config['界面']
                             # 找到已知界面，重置未知界面计时器
                             self._unknown_start_time = None
                             result = handler(self._context)
