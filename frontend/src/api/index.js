@@ -14,6 +14,8 @@ const ipcApiRoute = {
   saveBase64Image: 'controller/example/saveBase64Image',
   openDirectoryDialog: 'controller/example/openDirectoryDialog',
   openFileDialog: 'controller/example/openFileDialog',
+  readTextFile: 'controller/example/readTextFile',
+  writeTextFile: 'controller/example/writeTextFile',
   // 截图功能
   openCaptureWindow: 'controller/example/openCaptureWindow',
   closeCaptureWindow: 'controller/example/closeCaptureWindow',

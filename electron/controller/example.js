@@ -3,6 +3,8 @@
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
 const { dialog } = require('electron');
+const fs = require('fs');
+const path = require('path');
 /**
  * example
  * @class
@@ -249,6 +251,70 @@ class ExampleController {
       return { success: true, filePath: result.filePaths[0] };
     } catch (error) {
       console.error('打开文件选择对话框错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 读取文本文件内容
+   * @param {Object} args - 参数对象 { filePath: string }
+   * @param {Object} event - 事件对象
+   */
+  readTextFile(args, event) {
+    try {
+      if (!args || !args.filePath) {
+        return { success: false, message: '文件路径不能为空' };
+      }
+
+      const filePath = args.filePath;
+      
+      // 检查文件是否存在
+      if (!fs.existsSync(filePath)) {
+        return { success: false, message: '文件不存在' };
+      }
+
+      // 读取文件内容
+      const content = fs.readFileSync(filePath, 'utf8');
+      const fileName = path.basename(filePath);
+
+      return {
+        success: true,
+        content: content,
+        fileName: fileName,
+        filePath: filePath
+      };
+    } catch (error) {
+      console.error('读取文件错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 写入文本文件内容
+   * @param {Object} args - 参数对象 { filePath: string, content: string }
+   * @param {Object} event - 事件对象
+   */
+  writeTextFile(args, event) {
+    try {
+      if (!args || !args.filePath) {
+        return { success: false, message: '文件路径不能为空' };
+      }
+
+      if (args.content === undefined || args.content === null) {
+        return { success: false, message: '文件内容不能为空' };
+      }
+
+      const filePath = args.filePath;
+      
+      // 写入文件内容
+      fs.writeFileSync(filePath, args.content, 'utf8');
+
+      return {
+        success: true,
+        filePath: filePath
+      };
+    } catch (error) {
+      console.error('写入文件错误:', error);
       return { success: false, message: error.message };
     }
   }

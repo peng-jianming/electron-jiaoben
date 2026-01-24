@@ -31,6 +31,25 @@
         </template>
       </el-image>
     </div>
+
+    <!-- 字库制作区域 -->
+    <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 0 5px; flex-shrink: 0;">
+      <el-input
+        v-model="fontNameInput"
+        placeholder="请输入字库名字"
+        size="small"
+        style="flex: 1;"
+        clearable
+      />
+      <el-button
+        type="success"
+        size="small"
+        @click="handleAddFontLibrary"
+        :disabled="!fontNameInput || !processedImageUrl || !selectedDeviations || selectedDeviations.length === 0"
+      >
+        加入字库
+      </el-button>
+    </div>
   </div>
 </template>
 
@@ -56,7 +75,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["remove-color", "clear-all-colors", "add-colors"]);
+const emit = defineEmits(["remove-color", "clear-all-colors", "add-colors", "add-font-library"]);
 
 const deviationColors = ref([]);
 const selectedDeviations = ref([]);
@@ -64,6 +83,7 @@ const processedImageUrl = ref(null);
 const lastRenderedImageUrl = ref(null); // 保存最后一次通过"重新渲染"生成的图片
 const isPreviewEnabled = ref(false);
 const previewDeviationValue = ref(0);
+const fontNameInput = ref("");
 
 // HEX 转 RGB
 const hexToRgb = (hex) => {;
@@ -605,9 +625,148 @@ const handleRerender = () => {
   img.src = props.currentImage.url;
 };
 
-// 暴露选中的偏色列表，供父组件使用
+// 处理加入字库
+const handleAddFontLibrary = async () => {
+  if (!processedImageUrl.value) {
+    ElMessage.warning("请先生成二值化图片");
+    return;
+  }
+
+  if (!selectedDeviations.value || selectedDeviations.value.length === 0) {
+    ElMessage.warning("请先选择偏色");
+    return;
+  }
+
+  if (!fontNameInput.value || !fontNameInput.value.trim()) {
+    ElMessage.warning("请输入字库名字");
+    return;
+  }
+
+  try {
+    // 加载图片并处理
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    
+    await new Promise((resolve, reject) => {
+      img.onload = () => {
+        try {
+          // 创建 canvas 用于处理
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          // 获取像素数据
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const data = imageData.data;
+
+          // 找到最小边界框（只包含白色像素的区域）
+          let minX = img.width, minY = img.height, maxX = 0, maxY = 0;
+          let whitePixelCount = 0;
+
+          for (let y = 0; y < img.height; y++) {
+            for (let x = 0; x < img.width; x++) {
+              const idx = (y * img.width + x) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              
+              // 判断是否为白色（RGB都接近255）
+              if (r > 200 && g > 200 && b > 200) {
+                whitePixelCount++;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+              }
+            }
+          }
+
+          // 如果没有白色像素，提示错误
+          if (whitePixelCount === 0) {
+            ElMessage.warning("二值化图片中没有白色像素");
+            reject(new Error("没有白色像素"));
+            return;
+          }
+
+          // 计算最小宽高
+          const width = maxX - minX + 1;
+          const height = maxY - minY + 1;
+
+          // 提取最小区域的像素数据
+          const binaryData = [];
+          for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+              const idx = (y * img.width + x) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+              
+              // 白色记为1，黑色记为0
+              const isWhite = r > 200 && g > 200 && b > 200;
+              binaryData.push(isWhite ? '1' : '0');
+            }
+          }
+
+          // 转换为16进制点阵字符串
+          let matrixHex = '';
+          for (let i = 0; i < binaryData.length; i += 4) {
+            const bits = binaryData.slice(i, i + 4).join('');
+            // 如果不足4位，后面补0
+            const paddedBits = bits.padEnd(4, '0');
+            const hexChar = parseInt(paddedBits, 2).toString(16).toUpperCase();
+            matrixHex += hexChar;
+          }
+
+          // 偏色信息，多个之间以|连接
+          const deviationStr = selectedDeviations.value.join('|');
+
+          // 创建字库项
+          const fontItem = {
+            id: Date.now(),
+            matrix: matrixHex,
+            width: width,
+            height: height,
+            totalCount: whitePixelCount,
+            sizeInfo: `${width}×${height} (${whitePixelCount})`,
+            deviation: deviationStr,
+            name: fontNameInput.value.trim(),
+            editing: false,
+            binaryData: binaryData // 保存二进制数据用于显示
+          };
+
+          // 清空输入框
+          fontNameInput.value = "";
+
+          // 通过事件传递给父组件，由 FontLibraryTab 处理
+          emit("add-font-library", fontItem);
+
+          ElMessage.success("字库添加成功");
+          resolve();
+        } catch (error) {
+          console.error("处理字库时出错:", error);
+          reject(error);
+        }
+      };
+
+      img.onerror = () => {
+        ElMessage.error("加载图片失败");
+        reject(new Error("加载图片失败"));
+      };
+
+      img.src = processedImageUrl.value;
+    });
+  } catch (error) {
+    console.error("加入字库失败:", error);
+    ElMessage.error("加入字库失败: " + (error.message || "未知错误"));
+  }
+};
+
+// 暴露选中的偏色列表和处理后的图片URL，供父组件使用
 defineExpose({
   getSelectedDeviations: () => selectedDeviations.value,
+  getProcessedImageUrl: () => processedImageUrl.value,
 });
 </script>
 

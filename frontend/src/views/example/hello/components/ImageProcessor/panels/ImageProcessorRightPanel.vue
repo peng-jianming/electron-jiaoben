@@ -26,10 +26,16 @@
           @remove-color="$emit('remove-color', $event)"
           @clear-all-colors="$emit('clear-all-colors')"
           @add-colors="$emit('add-colors', $event)"
+          @add-font-library="handleAddFontLibrary"
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="透明图制作">
+      <el-tab-pane label="字库制作">
+        <FontLibraryTab 
+          ref="fontLibraryTabRef"
+        />
+      </el-tab-pane>
+      <!-- <el-tab-pane label="透明图制作">
         <ImageUploadTab
           :uploaded-images="uploadedImages"
           :screenshot-loading="screenshotLoading"
@@ -41,7 +47,7 @@
           @clear-all-images="handleClearAllImages"
           ref="imageUploadTabRef"
         />
-      </el-tab-pane>
+      </el-tab-pane> -->
       <el-tab-pane label="调试">
         <ImageMatchDebug 
           :transparent-image-url="transparentImageUrl"
@@ -76,7 +82,7 @@ import ImageUploadTab from "../tabs/ImageUploadTab.vue";
 import ImageMatchDebug from "../tabs/ImageMatchDebug.vue";
 import CodeGeneratorTab from "../tabs/CodeGeneratorTab.vue";
 import ColorRecordList from "../lists/ColorRecordList.vue";
-
+import FontLibraryTab from "../tabs/FontLibraryTab.vue";
 const props = defineProps({
   magnifierVisible: {
     type: Boolean,
@@ -133,6 +139,7 @@ const magnifierCardRef = ref(null);
 const colorSelectionTabRef = ref(null);
 const imageUploadTabRef = ref(null);
 const codeGeneratorTabRef = ref(null);
+const fontLibraryTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
@@ -159,6 +166,14 @@ const selectedDeviations = computed(() => {
     return colorSelectionTabRef.value.getSelectedDeviations() || [];
   }
   return [];
+});
+
+// 获取处理后的图片 URL（从 ColorSelectionTab 组件）
+const processedImageUrl = computed(() => {
+  if (colorSelectionTabRef.value) {
+    return colorSelectionTabRef.value.getProcessedImageUrl?.() || null;
+  }
+  return null;
 });
 
 // 处理图片更新
@@ -319,6 +334,20 @@ defineExpose({
 onMounted(() => {
   initDeviceSocket();
 });
+
+// 处理添加字库
+const handleAddFontLibrary = (fontItem) => {
+  // 检查是否已选择字库文件
+  if (fontLibraryTabRef.value) {
+    const hasFile = fontLibraryTabRef.value.hasSelectedFile?.();
+    if (!hasFile) {
+      ElMessage.warning("请先在字库制作标签页中选择字库文件");
+      return;
+    }
+    // 将字库数据传递给 FontLibraryTab
+    fontLibraryTabRef.value.addFontLibraryItem?.(fontItem);
+  }
+};
 
 // 组件卸载时断开 socket
 onUnmounted(() => {
