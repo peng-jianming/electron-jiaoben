@@ -24,20 +24,39 @@
       </el-table-column>
     </el-table>
     <div style="padding: 0 5px;">
-      <el-button type="primary" size="small" class="clear-all-btn" @click="$emit('calculate-deviation')">
+      <el-button type="danger" size="small" @click="$emit('clear-all-colors')" class="clear-all-btn" style="margin-top: 5px;">
+        清空全部
+      </el-button>
+      <el-button type="primary" size="small" class="clear-all-btn" @click="$emit('calculate-deviation')" :disabled="isPreviewEnabled">
         计算偏色
       </el-button>
-      <el-button type="primary" size="small" class="clear-all-btn" @click="handleStatisticsColors">
-        统计颜色
-      </el-button>
-      <el-button type="danger" size="small" @click="$emit('clear-all-colors')" class="clear-all-btn">
-        清空全部
+      <div style="display: flex; align-items: center; margin-top: 5px; gap: 10px;">
+        <el-checkbox v-model="isPreviewEnabled" :disabled="!colors.length" @change="handlePreviewToggle">偏色</el-checkbox>
+        <el-slider 
+          v-model="deviationValue" 
+          :min="0" 
+          :max="100" 
+          :disabled="!isPreviewEnabled"
+          style="flex: 1;"
+          @input="handleDeviationChange"
+        />
+      </div>
+      <el-button 
+        type="success" 
+        size="small" 
+        class="clear-all-btn" 
+        @click="handleAddToDeviationList"
+        :disabled="!isPreviewEnabled || colors.length === 0"
+        style="margin-top: 5px;"
+      >
+        添加进偏色列表
       </el-button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { ElMessage } from "element-plus";
 
 const props = defineProps({
@@ -55,7 +74,10 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["remove-color", "calculate-deviation", "clear-all-colors", "add-colors"]);
+const emit = defineEmits(["remove-color", "calculate-deviation", "clear-all-colors", "add-colors", "preview-toggle", "deviation-change", "add-to-deviation-list"]);
+
+const isPreviewEnabled = ref(false);
+const deviationValue = ref(0);
 
 // 判断颜色是否偏白（根据亮度计算）
 const isLightColor = (hex) => {
@@ -82,109 +104,26 @@ const isLightColor = (hex) => {
   return luminance > 186;
 };
 
-// 统计颜色
-const handleStatisticsColors = () => {
-  if (!props.currentImage || !props.currentImage.url) {
-    ElMessage.warning("请先载入图片");
+// 处理预览开关
+const handlePreviewToggle = (value) => {
+  emit("preview-toggle", value);
+};
+
+// 处理偏差值变化
+const handleDeviationChange = (value) => {
+  emit("deviation-change", value);
+};
+
+// 添加进偏色列表
+const handleAddToDeviationList = () => {
+  if (props.colors.length === 0) {
+    ElMessage.warning("请先选取颜色");
     return;
   }
-
-  if (!props.selectionRect || !props.selectionRect.w || !props.selectionRect.h) {
-    ElMessage.warning("请先圈选区域");
-    return;
-  }
-
-  // 创建图片对象
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  
-  img.onload = () => {
-    try {
-      // 创建 canvas 用于处理
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-
-      // 确定处理区域
-      const startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
-      const startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
-      const width = Math.min(props.selectionRect.w, img.width - startX);
-      const height = Math.min(props.selectionRect.h, img.height - startY);
-
-      // 设置 canvas 尺寸
-      canvas.width = width;
-      canvas.height = height;
-
-      // 绘制原始图片区域到 canvas
-      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
-
-      // 获取像素数据
-      const imageData = ctx.getImageData(0, 0, width, height);
-      const data = imageData.data;
-
-      // 统计颜色
-      const colorMap = new Map(); // 使用 Map 来统计每个颜色的数量
-
-      // 遍历每个像素
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const a = data[i + 3];
-
-        // 跳过完全透明的像素
-        if (a === 0) {
-          continue;
-        }
-
-        // 转换为 HEX
-        const hex = `#${[r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-        const rgb = `rgb(${r}, ${g}, ${b})`;
-
-        // 统计颜色数量
-        if (colorMap.has(hex)) {
-          colorMap.set(hex, colorMap.get(hex) + 1);
-        } else {
-          colorMap.set(hex, 1);
-        }
-      }
-
-      // 转换为数组格式
-      const colorStats = Array.from(colorMap.entries()).map(([hex, count]) => {
-        const rgbMatch = hex.match(/^#([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/i);
-        const r = parseInt(rgbMatch[1], 16);
-        const g = parseInt(rgbMatch[2], 16);
-        const b = parseInt(rgbMatch[3], 16);
-        return {
-          hex,
-          rgb: `rgb(${r}, ${g}, ${b})`,
-          count,
-        };
-      });
-
-      if (colorStats.length === 0) {
-        ElMessage.warning("圈选区域内没有有效像素");
-        return;
-      }
-
-      // 按个数降序排序，取前10个
-      const topColors = colorStats
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10);
-
-      // 通知父组件添加颜色
-      emit("add-colors", topColors);
-      ElMessage.success(`统计完成，已添加前 ${topColors.length} 个最多的颜色（共统计 ${colorStats.length} 种颜色）`);
-    } catch (error) {
-      console.error("统计颜色时出错:", error);
-      ElMessage.error("统计颜色失败");
-    }
-  };
-
-  img.onerror = () => {
-    ElMessage.error("加载图片失败");
-  };
-
-  img.src = props.currentImage.url;
+  emit("add-to-deviation-list", {
+    baseColor: props.colors[0],
+    deviation: deviationValue.value
+  });
 };
 </script>
 

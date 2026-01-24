@@ -225,6 +225,209 @@ def opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance
         "similarity": final_similarity
     }
 
+
+
+def opencv颜色偏色找图2(large_image_path, small_image_path, color_tolerance, region=None, method='f1'):
+    """
+    使用颜色偏色二值化后进行模板匹配找图，使用F1分数评估相似度
+
+    :param large_image_path: 大图路径
+    :param small_image_path: 小图路径
+    :param color_tolerance: 颜色偏色字符串或字符串数组，格式如 "D7CCC6-0E0E09" 或 ["D7CCC6-0E0E09", "FFFFFF-101010"]
+                        其中D7CCC6为基准色(RGB)，0E0E09为RGB各通道的允许偏差
+                        支持多个颜色容差，会合并所有匹配的颜色区域
+    :param similarity: F1分数阈值，0-1之间，默认0.8
+    :param region: 检测区域 [x, y, w, h]，如果全为0则检测整个大图
+    :param method: 相似度计算方法，支持 'f1'(默认), 'precision', 'recall', 'jaccard', 'dice'
+    :return: 找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
+    """
+    # 默认使用全图区域 [0, 0, 0, 0]
+    if region is None:
+        region = [0, 0, 0, 0]
+    
+    # 读取图像
+    large_img = Image.open(large_image_path).convert('RGB')
+    small_img = Image.open(small_image_path).convert('RGB')
+
+    large_array = np.array(large_img)
+    small_array = np.array(small_img)
+
+    if large_array is None or small_array is None:
+        return None
+
+    # 获取大图尺寸
+    large_h, large_w = large_array.shape[:2]
+    small_h, small_w = small_array.shape[:2]
+
+    # 解析检测区域 [x, y, w, h]
+    x, y, width, height = region
+
+    # 判断是否指定了检测区域
+    if x == 0 and y == 0 and width == 0 and height == 0:
+        search_area = large_array
+        offset_x, offset_y = 0, 0
+    else:
+        # 确保区域在图像范围内
+        if x < 0: x = 0
+        if y < 0: y = 0
+        if width <= 0: width = large_w - x
+        if height <= 0: height = large_h - y
+
+        crop_x = max(0, x)
+        crop_y = max(0, y)
+        crop_width = min(width, large_w - crop_x)
+        crop_height = min(height, large_h - crop_y)
+
+        if crop_width <= 0 or crop_height <= 0:
+            return None
+
+        search_area = large_array[crop_y:crop_y + crop_height, crop_x:crop_x + crop_width]
+        offset_x, offset_y = crop_x, crop_y
+
+    # 检查小图是否大于检测区域
+    if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
+        return None
+
+    # 将 color_tolerance 转换为数组（支持单个字符串或数组）
+    if isinstance(color_tolerance, str):
+        color_tolerances = [color_tolerance]
+    elif isinstance(color_tolerance, (list, tuple)):
+        color_tolerances = list(color_tolerance)
+    else:
+        return None
+
+    # 初始化二值化结果
+    search_binary_combined = np.zeros((search_area.shape[0], search_area.shape[1]), dtype=np.uint8)
+    small_binary_combined = np.zeros((small_h, small_w), dtype=np.uint8)
+
+    # 对每个颜色容差进行二值化处理并合并
+    for color_tol in color_tolerances:
+        # 解析颜色偏色字符串
+        base_color_hex, tolerance_hex = color_tol.split('-')
+        base_color = np.array([
+            int(base_color_hex[0:2], 16),
+            int(base_color_hex[2:4], 16),
+            int(base_color_hex[4:6], 16)
+        ], dtype=np.int16)
+        tolerance = np.array([
+            int(tolerance_hex[0:2], 16),
+            int(tolerance_hex[2:4], 16),
+            int(tolerance_hex[4:6], 16)
+        ], dtype=np.int16)
+
+        # 二值化处理
+        search_int16 = search_area.astype(np.int16)
+        search_diff = np.abs(search_int16 - base_color)
+        search_mask = np.all(search_diff <= tolerance, axis=2)
+        search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+
+        small_int16 = small_array.astype(np.int16)
+        small_diff = np.abs(small_int16 - base_color)
+        small_mask = np.all(small_diff <= tolerance, axis=2)
+        small_binary = np.where(small_mask, 255, 0).astype(np.uint8)
+
+        # 合并多个颜色容差的二值化结果（使用 OR 操作）
+        search_binary_combined = np.bitwise_or(search_binary_combined, search_binary)
+        small_binary_combined = np.bitwise_or(small_binary_combined, small_binary)
+
+    # 将二值结果转换为 0/1 掩码
+    template_mask = (small_binary_combined == 255).astype(np.uint8)
+    search_mask = (search_binary_combined == 255).astype(np.uint8)
+    
+    # 计算模板点数（小图白点总数）
+    template_points = int(np.sum(template_mask))
+    
+    # 如果模板点数为0，直接返回None
+    if template_points == 0:
+        return None
+    
+    # 使用积分图快速计算大图中每个区域的点数
+    search_integral = cv2.integral(search_mask)
+    
+    # 使用TM_CCORR获取每个位置的重合点数
+    result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
+    h, w = result.shape
+    
+    # 计算每个位置的F1分数
+    f1_scores = np.zeros((h, w), dtype=np.float32)
+    
+    # 遍历每个位置计算F1分数
+    for y in range(h):
+        for x in range(w):
+            # 当前区域的重合点数
+            overlap = float(result[y, x])
+            
+            # 使用积分图计算当前区域的点数
+            # 积分图索引需要+1（因为积分图比原图多一行一列）
+            sum1 = search_integral[y, x]
+            sum2 = search_integral[y, x + small_w]
+            sum3 = search_integral[y + small_h, x]
+            sum4 = search_integral[y + small_h, x + small_w]
+            search_points = float(sum4 - sum2 - sum3 + sum1)
+            
+            # 计算相似度分数
+            if method == 'precision':
+                score = overlap / (search_points + 1e-5)
+            elif method == 'recall':
+                score = overlap / (template_points + 1e-5)
+            elif method == 'jaccard':
+                union = template_points + search_points - overlap
+                score = overlap / (union + 1e-5)
+            elif method == 'dice':
+                score = 2 * overlap / (template_points + search_points + 1e-5)
+            else:  # 'f1' 默认
+                precision = overlap / (search_points + 1e-5)
+                recall = overlap / (template_points + 1e-5)
+                if precision + recall == 0:
+                    score = 0
+                else:
+                    score = 2 * precision * recall / (precision + recall + 1e-5)
+            
+            f1_scores[y, x] = score
+    
+    # 找到F1分数最高的位置
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(f1_scores)
+    
+    # 输出调试信息
+    if max_val:
+        x, y = max_loc
+        # 获取该位置的详细信息
+        overlap = float(result[y, x])
+        
+        # 计算当前区域的点数
+        sum1 = search_integral[y, x]
+        sum2 = search_integral[y, x + small_w]
+        sum3 = search_integral[y + small_h, x]
+        sum4 = search_integral[y + small_h, x + small_w]
+        search_points = float(sum4 - sum2 - sum3 + sum1)
+        
+        # 计算精度和召回率
+        precision = overlap / (search_points + 1e-5)
+        recall = overlap / (template_points + 1e-5)
+        
+        print(
+            f"F1匹配结果 - 方法: {method}, "
+            f"F1分数: {max_val:.4f}, "
+            f"位置: {max_loc}, "
+            f"重合白点: {overlap:.0f}, "
+            f"小图白点: {template_points}, "
+            f"区域白点: {search_points:.0f}, "
+            f"精度: {precision:.4f}, "
+            f"召回率: {recall:.4f}"
+        )
+        
+        return {
+            "x": max_loc[0] + offset_x,
+            "y": max_loc[1] + offset_y,
+            "w": small_w,
+            "h": small_h,
+            "similarity": float(max_val)
+        }
+    
+    print(f"未找到匹配项: {max_val:.4f}")
+    return None
+
+
 def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolerance=None):
     """
     找图函数，根据是否传入颜色偏色参数自动选择找图方式
@@ -241,7 +444,7 @@ def 找图(large_image_path, small_image_path, region=(0, 0, 0, 0), color_tolera
     """
     if color_tolerance is not None:
         # 如果传入了颜色偏色参数，使用颜色偏色找图
-        return opencv颜色偏色找图(large_image_path, small_image_path, color_tolerance, region)
+        return opencv颜色偏色找图2(large_image_path, small_image_path, color_tolerance, region)
     else:
         # 如果没有传入颜色偏色参数，使用普通找图
         return opencv找图(large_image_path, small_image_path, region)

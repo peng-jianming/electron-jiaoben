@@ -12,7 +12,7 @@
       />
       <div style="display: flex; justify-content: space-between; margin-top: 5px">
         <el-button type="primary" size="small" style="width: 48%" @click="makeTransparentImage">
-          制作透明图
+          制作透明图(只保留偏色内的)
         </el-button>
         <el-button type="danger" size="small" style="width: 48%" @click="clearTransparentImage">
           删除透明图

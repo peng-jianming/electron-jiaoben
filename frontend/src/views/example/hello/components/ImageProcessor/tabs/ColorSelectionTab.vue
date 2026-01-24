@@ -9,10 +9,14 @@
         @calculate-deviation="handleCalculateDeviation"
         @clear-all-colors="$emit('clear-all-colors')"
         @add-colors="handleAddColors"
+        @preview-toggle="handlePreviewToggle"
+        @deviation-change="handleDeviationChange"
+        @add-to-deviation-list="handleAddToDeviationList"
       />
       <DeviationList 
         :deviation-colors="deviationColors"
         v-model="selectedDeviations"
+        :is-preview-enabled="isPreviewEnabled"
         @clear-deviations="handleClearDeviationColors"
         @rerender="handleRerender"
       />
@@ -57,6 +61,9 @@ const emit = defineEmits(["remove-color", "clear-all-colors", "add-colors"]);
 const deviationColors = ref([]);
 const selectedDeviations = ref([]);
 const processedImageUrl = ref(null);
+const lastRenderedImageUrl = ref(null); // 保存最后一次通过"重新渲染"生成的图片
+const isPreviewEnabled = ref(false);
+const previewDeviationValue = ref(0);
 
 // HEX 转 RGB
 const hexToRgb = (hex) => {;
@@ -217,8 +224,179 @@ const colorSegmentation = (colorList) => {
   return results;
 };
 
+// 处理预览开关
+const handlePreviewToggle = (enabled) => {
+  isPreviewEnabled.value = enabled;
+  if (enabled) {
+    // 开启预览时，保存当前的渲染图片（如果有）
+    if (processedImageUrl.value) {
+      lastRenderedImageUrl.value = processedImageUrl.value;
+    }
+    // 立即执行一次预览渲染
+    processPreviewImage();
+  } else {
+    // 关闭预览时，恢复之前的渲染图片（如果有）
+    if (lastRenderedImageUrl.value) {
+      processedImageUrl.value = lastRenderedImageUrl.value;
+    } else {
+      processedImageUrl.value = null;
+    }
+  }
+};
+
+// 处理偏差值变化
+const handleDeviationChange = (value) => {
+  previewDeviationValue.value = value;
+  if (isPreviewEnabled.value) {
+    // 如果预览已开启，立即更新预览图片
+    processPreviewImage();
+  }
+};
+
+// 处理预览图片二值化
+const processPreviewImage = () => {
+  if (!props.currentImage || !props.currentImage.url) {
+    return;
+  }
+
+  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
+    return;
+  }
+
+  // 获取第一个颜色作为基准色
+  const firstColor = props.currentSelectedColors[0];
+  const baseRgb = hexToRgb(firstColor.hex);
+
+  // 进度条值直接对应RGB偏差值
+  const deviationR = previewDeviationValue.value;
+  const deviationG = previewDeviationValue.value;
+  const deviationB = previewDeviationValue.value;
+
+  // 创建图片对象
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      // 创建 canvas 用于处理
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // 确定处理区域
+      let startX = 0;
+      let startY = 0;
+      let width = img.width;
+      let height = img.height;
+
+      if (props.selectionRect && props.selectionRect.w > 0 && props.selectionRect.h > 0) {
+        // 使用圈选范围
+        startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
+        startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
+        width = Math.min(props.selectionRect.w, img.width - startX);
+        height = Math.min(props.selectionRect.h, img.height - startY);
+      }
+
+      // 设置 canvas 尺寸
+      canvas.width = width;
+      canvas.height = height;
+
+      // 绘制原始图片区域到 canvas
+      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
+
+      // 获取像素数据
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+
+      // 计算每个通道的范围
+      const minR = Math.max(0, baseRgb.r - deviationR);
+      const maxR = Math.min(255, baseRgb.r + deviationR);
+      const minG = Math.max(0, baseRgb.g - deviationG);
+      const maxG = Math.min(255, baseRgb.g + deviationG);
+      const minB = Math.max(0, baseRgb.b - deviationB);
+      const maxB = Math.min(255, baseRgb.b + deviationB);
+
+      // 遍历每个像素进行二值化处理
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // 检查是否在偏色范围内
+        const inRange = r >= minR && r <= maxR && g >= minG && g <= maxG && b >= minB && b <= maxB;
+
+        // 在范围内设置为白色，否则设置为黑色
+        if (inRange) {
+          data[i] = 255; // R
+          data[i + 1] = 255; // G
+          data[i + 2] = 255; // B
+          data[i + 3] = 255; // A
+        } else {
+          data[i] = 0; // R
+          data[i + 1] = 0; // G
+          data[i + 2] = 0; // B
+          data[i + 3] = 255; // A
+        }
+      }
+
+      // 将处理后的数据写回 canvas
+      ctx.putImageData(imageData, 0, 0);
+
+      // 转换为图片 URL
+      processedImageUrl.value = canvas.toDataURL("image/png");
+    } catch (error) {
+      console.error("处理预览图片时出错:", error);
+    }
+  };
+
+  img.onerror = () => {
+    console.error("加载图片失败");
+  };
+
+  img.src = props.currentImage.url;
+};
+
+// 添加进偏色列表
+const handleAddToDeviationList = () => {
+  if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
+    ElMessage.warning("请先选取颜色");
+    return;
+  }
+
+  // 获取第一个颜色作为基准色
+  const firstColor = props.currentSelectedColors[0];
+  const baseRgb = hexToRgb(firstColor.hex);
+
+  // 进度条值直接对应RGB偏差值
+  const deviationR = previewDeviationValue.value;
+  const deviationG = previewDeviationValue.value;
+  const deviationB = previewDeviationValue.value;
+
+  // 格式化为 HEX 字符串
+  const baseHex = numToHex(baseRgb.r) + numToHex(baseRgb.g) + numToHex(baseRgb.b);
+  const deviationHex = numToHex(deviationR) + numToHex(deviationG) + numToHex(deviationB);
+
+  // 组合结果
+  const deviationStr = `${baseHex}-${deviationHex}`;
+
+  // 检查偏色列表中是否已存在相同的偏色
+  const existingIndex = deviationColors.value.findIndex((item) => item === deviationStr);
+  if (existingIndex !== -1) {
+    ElMessage.warning("该偏色已存在于列表中");
+    return;
+  }
+
+  // 添加到偏色列表并默认勾选
+  deviationColors.value.push(deviationStr);
+  selectedDeviations.value.push(deviationStr);
+  ElMessage.success("已添加进偏色列表");
+};
+
 // 计算偏色
 const handleCalculateDeviation = () => {
+  // 如果预览已开启，不执行计算偏色
+  if (isPreviewEnabled.value) {
+    ElMessage.warning("预览模式下无法计算偏色，请先关闭预览");
+    return;
+  }
   
   if (!props.currentSelectedColors || props.currentSelectedColors.length === 0) {
     ElMessage.warning("请先选取颜色");
@@ -316,6 +494,12 @@ const isColorInDeviationRange = (r, g, b, deviationData) => {
 
 // 处理图片二值化
 const handleRerender = () => {
+  // 如果预览已开启，不执行重新渲染
+  if (isPreviewEnabled.value) {
+    ElMessage.warning("预览模式下无法重新渲染，请先关闭预览");
+    return;
+  }
+
   if (!props.currentImage || !props.currentImage.url) {
     ElMessage.warning("请先载入图片");
     return;
@@ -405,6 +589,8 @@ const handleRerender = () => {
 
       // 转换为图片 URL
       processedImageUrl.value = canvas.toDataURL("image/png");
+      // 保存最后一次渲染的图片
+      lastRenderedImageUrl.value = processedImageUrl.value;
       ElMessage.success("图片处理完成");
     } catch (error) {
       console.error("处理图片时出错:", error);

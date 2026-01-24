@@ -58,6 +58,7 @@
         size="small"
         class="clear-all-btn"
         @click="$emit('rerender')"
+        :disabled="isPreviewEnabled"
       >
         重新渲染
       </el-button>
@@ -77,6 +78,10 @@ const props = defineProps({
   modelValue: {
     type: Array,
     default: () => [],
+  },
+  isPreviewEnabled: {
+    type: Boolean,
+    default: false,
   },
 });
 
