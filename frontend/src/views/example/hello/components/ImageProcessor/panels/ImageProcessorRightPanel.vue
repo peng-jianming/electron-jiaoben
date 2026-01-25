@@ -23,6 +23,7 @@
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
           :selection-rect="selectionRect"
+          :has-font-library-file="hasFontLibraryFile"
           @remove-color="$emit('remove-color', $event)"
           @clear-all-colors="$emit('clear-all-colors')"
           @add-colors="$emit('add-colors', $event)"
@@ -166,6 +167,14 @@ const selectedDeviations = computed(() => {
     return colorSelectionTabRef.value.getSelectedDeviations() || [];
   }
   return [];
+});
+
+// 检查是否有字库文件
+const hasFontLibraryFile = computed(() => {
+  if (fontLibraryTabRef.value) {
+    return fontLibraryTabRef.value.hasSelectedFile?.() || false;
+  }
+  return false;
 });
 
 // 获取处理后的图片 URL（从 ColorSelectionTab 组件）
@@ -336,17 +345,24 @@ onMounted(() => {
 });
 
 // 处理添加字库
-const handleAddFontLibrary = (fontItem) => {
+const handleAddFontLibrary = async (fontItem, resolveCallback) => {
   // 检查是否已选择字库文件
   if (fontLibraryTabRef.value) {
     const hasFile = fontLibraryTabRef.value.hasSelectedFile?.();
     if (!hasFile) {
       ElMessage.warning("请先在字库制作标签页中选择字库文件");
-      return;
+      if (resolveCallback) resolveCallback(false);
+      return false;
     }
-    // 将字库数据传递给 FontLibraryTab
-    fontLibraryTabRef.value.addFontLibraryItem?.(fontItem);
+    // 将字库数据传递给 FontLibraryTab，并等待结果
+    // 成功或失败的消息已在 FontLibraryTab 中显示，这里不再显示额外消息
+    const success = await fontLibraryTabRef.value.addFontLibraryItem?.(fontItem);
+    const result = success === true; // 确保只有 true 才返回 true，其他情况都返回 false
+    if (resolveCallback) resolveCallback(result);
+    return result;
   }
+  if (resolveCallback) resolveCallback(false);
+  return false;
 };
 
 // 组件卸载时断开 socket

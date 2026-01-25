@@ -45,7 +45,7 @@
         type="success"
         size="small"
         @click="handleAddFontLibrary"
-        :disabled="!fontNameInput || !processedImageUrl || !selectedDeviations || selectedDeviations.length === 0"
+        :disabled="!fontNameInput || !processedImageUrl || !selectedDeviations || selectedDeviations.length === 0 || !hasFontLibraryFile"
       >
         加入字库
       </el-button>
@@ -72,6 +72,10 @@ const props = defineProps({
   selectionRect: {
     type: Object,
     default: null,
+  },
+  hasFontLibraryFile: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -648,7 +652,7 @@ const handleAddFontLibrary = async () => {
     img.crossOrigin = "anonymous";
     
     await new Promise((resolve, reject) => {
-      img.onload = () => {
+      img.onload = async () => {
         try {
           // 创建 canvas 用于处理
           const canvas = document.createElement("canvas");
@@ -736,13 +740,23 @@ const handleAddFontLibrary = async () => {
             binaryData: binaryData // 保存二进制数据用于显示
           };
 
-          // 清空输入框
-          fontNameInput.value = "";
-
           // 通过事件传递给父组件，由 FontLibraryTab 处理
-          emit("add-font-library", fontItem);
+          // 传递一个 Promise，让父组件可以返回结果
+          const addPromise = new Promise((resolveAdd) => {
+            emit("add-font-library", fontItem, resolveAdd);
+          });
 
-          ElMessage.success("字库添加成功");
+          // 等待父组件的处理结果
+          const success = await addPromise;
+          
+          // 只有在成功时才清空输入框
+          if (success) {
+            fontNameInput.value = "";
+          } else {
+            // 如果失败，不显示任何消息（错误消息已在 FontLibraryTab 中显示）
+            // 不清空输入框，让用户可以修改后重试
+          }
+
           resolve();
         } catch (error) {
           console.error("处理字库时出错:", error);

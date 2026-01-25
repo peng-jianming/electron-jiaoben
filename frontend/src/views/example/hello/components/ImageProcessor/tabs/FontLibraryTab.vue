@@ -345,19 +345,39 @@ const addFontLibraryItem = async (fontItem) => {
     // 检查是否已选择字库文件
     if (!selectedFilePath.value) {
         ElMessage.warning("请先在字库制作标签页中选择字库文件");
-        return;
+        return false;
     }
     
-    // 添加到列表
-    fontLibraryList.value.push(fontItem);
+    // 检查点阵是否已存在
+    const existingItem = fontLibraryList.value.find(item => item.matrix === fontItem.matrix);
+    if (existingItem) {
+        ElMessage.warning(`该点阵已存在，名称为：${existingItem.name}`);
+        return false;
+    }
     
-    // 生成点阵图并显示
-    generateMatrixImage(fontItem.width, fontItem.height, fontItem.binaryData);
-    
-    // 保存到文件
-    await saveToFile(fontItem);
-    
-    ElMessage.success("字库添加成功并已保存到文件");
+    try {
+        // 添加到列表
+        fontLibraryList.value.push(fontItem);
+        
+        // 生成点阵图并显示
+        generateMatrixImage(fontItem.width, fontItem.height, fontItem.binaryData);
+        
+        // 保存到文件
+        await saveToFile(fontItem);
+        
+        // 只有在成功保存后才显示成功消息
+        ElMessage.success("字库添加成功并已保存到文件");
+        return true;
+    } catch (error) {
+        console.error("添加字库失败:", error);
+        // 如果保存失败，需要从列表中移除已添加的项
+        const index = fontLibraryList.value.findIndex(item => item.id === fontItem.id);
+        if (index !== -1) {
+            fontLibraryList.value.splice(index, 1);
+        }
+        ElMessage.error("添加字库失败: " + (error.message || "未知错误"));
+        return false;
+    }
 };
 
 // 检查是否已选择字库文件
