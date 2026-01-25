@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, nextTick, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -92,6 +92,7 @@ const handleSelectFile = async () => {
         // 第一步：使用 Electron 的文件对话框选择文件
         const dialogResult = await ipc.invoke(ipcApiRoute.openFileDialog, {
             title: "选择字库文件",
+            defaultPath: formData.value.fontLibraryPath || "",
             filters: [
                 { name: "文本文件", extensions: ["txt"] },
                 { name: "所有文件", extensions: ["*"] }
@@ -130,6 +131,9 @@ const handleSelectFile = async () => {
         // 添加到列表
         fontLibraryList.value = parsedData;
         ElMessage.success(`成功加载 ${parsedData.length} 个字库`);
+        
+        // 保存路径配置到数据库
+        await saveFontLibraryPathToDB();
     } catch (error) {
         console.error("选择或读取文件失败:", error);
         ElMessage.error("选择或读取文件失败: " + (error.message || "未知错误"));
@@ -195,6 +199,10 @@ const parseFontLibraryFile = (text) => {
 
 // 处理命名点击（进入编辑模式）
 const handleNameClick = async (row) => {
+    // 保存原始名称，用于后续判断是否修改
+    if (!row.originalName) {
+        row.originalName = row.name;
+    }
     row.editing = true;
     await nextTick();
     // 聚焦到输入框并选中所有文本
@@ -209,12 +217,106 @@ const handleNameClick = async (row) => {
     }
 };
 
+// 更新文件中的名称
+const updateNameInFile = async (row, oldName) => {
+    if (!selectedFilePath.value) {
+        return; // 如果没有选择文件，不需要保存
+    }
+
+    try {
+        // 读取文件内容
+        const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+            filePath: selectedFilePath.value
+        });
+
+        if (!readResult || !readResult.success) {
+            throw new Error(readResult?.message || "读取文件失败");
+        }
+
+        let content = readResult.content;
+        const lines = content.split('\n');
+
+        // 构建要匹配的行（使用点阵、尺寸、偏色来匹配，因为名称可能已经改变）
+        // 格式：点阵&长,宽,点阵总数量&偏色&命名
+        const targetMatrix = row.matrix;
+        const targetSizeInfo = `${row.width},${row.height},${row.totalCount}`;
+        const targetDeviation = row.deviation;
+        
+        // 查找并更新匹配的行
+        const updatedLines = lines.map(line => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) {
+                return line; // 保留空行
+            }
+
+            // 解析行内容
+            const parts = trimmedLine.split('&');
+            if (parts.length !== 4) {
+                return line; // 格式不正确的行，保持不变
+            }
+
+            const [matrix, sizeInfo, deviation] = parts.map(p => p.trim());
+            
+            // 精确匹配点阵、尺寸、偏色
+            if (matrix === targetMatrix && 
+                sizeInfo === targetSizeInfo && 
+                deviation === targetDeviation) {
+                // 构建新行，使用新的名称
+                return `${row.matrix}&${row.width},${row.height},${row.totalCount}&${row.deviation}&${row.name}`;
+            }
+            
+            return line;
+        });
+
+        // 重新组合内容
+        content = updatedLines.join('\n');
+
+        // 如果文件末尾没有换行且还有内容，添加换行
+        if (content && !content.endsWith('\n') && updatedLines.length > 0) {
+            content += '\n';
+        }
+
+        // 写入文件
+        const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
+            filePath: selectedFilePath.value,
+            content: content
+        });
+
+        if (!writeResult || !writeResult.success) {
+            throw new Error(writeResult?.message || "保存文件失败");
+        }
+    } catch (error) {
+        console.error("更新字库名称失败:", error);
+        ElMessage.error("更新字库名称失败: " + (error.message || "未知错误"));
+        throw error;
+    }
+};
+
 // 处理命名失焦（退出编辑模式）
-const handleNameBlur = (row) => {
+const handleNameBlur = async (row) => {
     row.editing = false;
+    
     // 如果名称为空，恢复默认值
     if (!row.name || !row.name.trim()) {
         row.name = `字库${fontLibraryList.value.indexOf(row) + 1}`;
+    }
+
+    // 如果名称发生了变化，保存到文件
+    const oldName = row.originalName || row.name;
+    if (row.name !== oldName && selectedFilePath.value) {
+        try {
+            await updateNameInFile(row, oldName);
+            // 更新成功后，清除原始名称标记
+            row.originalName = null;
+            ElMessage.success("名称已保存");
+        } catch (error) {
+            // 如果保存失败，恢复原始名称
+            row.name = oldName;
+            row.originalName = null;
+        }
+    } else {
+        // 如果没有变化，清除原始名称标记
+        row.originalName = null;
     }
 };
 
@@ -492,10 +594,94 @@ const hasSelectedFile = () => {
     return !!selectedFilePath.value;
 };
 
+// 获取字库列表
+const getFontLibraryList = () => {
+    return fontLibraryList.value;
+};
+
+// 保存字库路径配置到数据库
+const saveFontLibraryPathToDB = async () => {
+    try {
+        await ipc.invoke(ipcApiRoute.savePaths, {
+            fontLibraryPath: formData.value.fontLibraryPath,
+        });
+    } catch (error) {
+        console.error("保存字库路径配置失败:", error);
+        // 不显示错误提示，避免干扰用户操作
+    }
+};
+
+// 从数据库加载字库路径配置
+const loadFontLibraryPathFromDB = async () => {
+    try {
+        const result = await ipc.invoke(ipcApiRoute.getPaths);
+        if (result && result.success && result.data) {
+            if (result.data.fontLibraryPath) {
+                formData.value.fontLibraryPath = result.data.fontLibraryPath;
+                selectedFilePath.value = result.data.fontLibraryPath;
+                
+                // 自动加载字库文件内容
+                await loadFontLibraryFile(result.data.fontLibraryPath);
+            }
+        }
+    } catch (error) {
+        console.error("加载字库路径配置失败:", error);
+        // 不显示错误提示，避免干扰用户操作
+    }
+};
+
+// 加载字库文件内容
+const loadFontLibraryFile = async (filePath) => {
+    if (!filePath) {
+        return;
+    }
+
+    try {
+        fileLoading.value = true;
+        
+        // 读取文件内容
+        const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+            filePath: filePath
+        });
+
+        if (!readResult || !readResult.success) {
+            // 文件可能不存在或已被删除，清空路径
+            formData.value.fontLibraryPath = "";
+            selectedFilePath.value = "";
+            return;
+        }
+
+        const text = readResult.content;
+
+        // 解析文件内容
+        const parsedData = parseFontLibraryFile(text);
+
+        if (parsedData.length === 0) {
+            // 文件为空或格式不正确，不清空路径，只清空列表
+            fontLibraryList.value = [];
+            return;
+        }
+
+        // 添加到列表
+        fontLibraryList.value = parsedData;
+    } catch (error) {
+        console.error("加载字库文件失败:", error);
+        // 加载失败时不清空路径，让用户可以手动重新选择
+    } finally {
+        fileLoading.value = false;
+    }
+};
+
 // 暴露方法供父组件调用
 defineExpose({
     addFontLibraryItem,
-    hasSelectedFile
+    hasSelectedFile,
+    getFontLibraryList
+});
+
+// 组件挂载时加载保存的字库路径
+onMounted(() => {
+    loadFontLibraryPathFromDB();
 });
 
 

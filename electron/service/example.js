@@ -1079,7 +1079,7 @@ class ExampleService {
 
   /**
    * 保存路径配置
-   * @param {Object} paths - 路径对象 { resourcePath, configPath }
+   * @param {Object} paths - 路径对象 { resourcePath, configPath, fontLibraryPath }
    */
   savePaths(paths) {
     try {
@@ -1112,7 +1112,7 @@ class ExampleService {
   getPaths() {
     try {
       if (!fs.existsSync(this.configFilePath)) {
-        return { success: true, data: { resourcePath: '', configPath: '' } };
+        return { success: true, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
       }
       
       const content = fs.readFileSync(this.configFilePath, 'utf8');
@@ -1121,13 +1121,13 @@ class ExampleService {
       const paths = config.paths || {};
       
       if (_.isEmpty(paths)) {
-        return { success: true, data: { resourcePath: '', configPath: '' } };
+        return { success: true, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
       }
       
       return { success: true, data: paths };
     } catch (error) {
       console.error('读取路径配置错误:', error);
-      return { success: false, message: error.message, data: { resourcePath: '', configPath: '' } };
+      return { success: false, message: error.message, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
     }
   }
 }

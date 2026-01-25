@@ -50,10 +50,14 @@
         />
       </el-tab-pane> -->
       <el-tab-pane label="调试">
-        <ImageMatchDebug 
+        <!-- <ImageMatchDebug 
           :transparent-image-url="transparentImageUrl"
           :current-device-id="currentDeviceId"
           :selected-deviations="selectedDeviations"
+        /> -->
+        <FontLibraryMatchDebug 
+          :current-device-id="currentDeviceId"
+          :font-library-list="fontLibraryList"
         />
       </el-tab-pane>
       <el-tab-pane label="代码">
@@ -84,6 +88,7 @@ import ImageMatchDebug from "../tabs/ImageMatchDebug.vue";
 import CodeGeneratorTab from "../tabs/CodeGeneratorTab.vue";
 import ColorRecordList from "../lists/ColorRecordList.vue";
 import FontLibraryTab from "../tabs/FontLibraryTab.vue";
+import FontLibraryMatchDebug from "../tabs/FontLibraryMatchDebug.vue";
 const props = defineProps({
   magnifierVisible: {
     type: Boolean,
@@ -175,6 +180,14 @@ const hasFontLibraryFile = computed(() => {
     return fontLibraryTabRef.value.hasSelectedFile?.() || false;
   }
   return false;
+});
+
+// 获取字库列表
+const fontLibraryList = computed(() => {
+  if (fontLibraryTabRef.value) {
+    return fontLibraryTabRef.value.getFontLibraryList?.() || [];
+  }
+  return [];
 });
 
 // 获取处理后的图片 URL（从 ColorSelectionTab 组件）

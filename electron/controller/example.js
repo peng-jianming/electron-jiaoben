@@ -55,6 +55,15 @@ class ExampleController {
         }
         return { success: true, message: '图片匹配结果已发送' };
       }
+
+      // 字库匹配结果事件
+      if (prop === 'font-library-match-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('font-library-match-result', imageData);
+        }
+        return { success: true, message: '字库匹配结果已发送' };
+      }
       
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {
@@ -486,13 +495,14 @@ class ExampleController {
 
   /**
    * 保存路径配置
-   * @param {Object} args - 参数对象 { resourcePath, configPath }
+   * @param {Object} args - 参数对象 { resourcePath, configPath, fontLibraryPath }
    */
   savePaths(args, event) {
     try {
       return exampleService.savePaths({
         resourcePath: args.resourcePath || '',
-        configPath: args.configPath || ''
+        configPath: args.configPath || '',
+        fontLibraryPath: args.fontLibraryPath || ''
       });
     } catch (error) {
       console.error('保存路径配置错误:', error);
