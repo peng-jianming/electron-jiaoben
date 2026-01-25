@@ -255,7 +255,6 @@ class DeviceController:
                 color_tol = color_tol.strip()
                 if not color_tol:
                     continue
-                print(color_tol) 
                 # 解析颜色偏色字符串
                 try:
                     base_color_hex, tolerance_hex = color_tol.split('-')
