@@ -16,6 +16,7 @@ const ipcApiRoute = {
   openFileDialog: 'controller/example/openFileDialog',
   readTextFile: 'controller/example/readTextFile',
   writeTextFile: 'controller/example/writeTextFile',
+  openFile: 'controller/example/openFile',
   // 截图功能
   openCaptureWindow: 'controller/example/openCaptureWindow',
   closeCaptureWindow: 'controller/example/closeCaptureWindow',

@@ -1,22 +1,22 @@
 <template>
     <div style="display: flex; flex-direction: column; height: 590px;">
         <!-- 文件选择区域 -->
-        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-            <el-button type="primary" size="small" @click="handleSelectFile" :loading="fileLoading">
-                选择字库文件
-            </el-button>
-            <span v-if="selectedFileName" style="font-size: 12px; color: #909399;">
-                已选择: {{ selectedFileName }}
-            </span>
-        </div>
-
+        <el-input v-model="formData.fontLibraryPath" placeholder="请选择字库文件" readonly style="margin-bottom: 5px;"
+            size="small">
+            <template #prepend>
+                <el-button @click="handleSelectFile" :loading="fileLoading">选择字库</el-button>
+            </template>
+            <template #append>
+                <el-button @click="handleOpenFile" :disabled="!formData.fontLibraryPath">打开字库</el-button>
+            </template>
+        </el-input>
 
         <!-- 字库列表表格 -->
         <el-table :data="fontLibraryList" height="100" border size="small" empty-text="请先选择字库文件或制作字库" style="flex: 1;">
-            <el-table-column type="index" label="#" width="50" />
+            <el-table-column type="index" label="#" width="40" />
 
             <!-- 命名列（可编辑） -->
-            <el-table-column label="命名" min-width="120">
+            <el-table-column label="命名">
                 <template #default="scope">
                     <div v-if="scope.row.editing" style="display: flex; align-items: center;">
                         <el-input v-model="scope.row.name" size="small" @blur="handleNameBlur(scope.row)"
@@ -29,29 +29,21 @@
                 </template>
             </el-table-column>
 
-            <!-- 偏色列 -->
-            <el-table-column label="偏色" width="200">
-                <template #default="scope">
-                    <div v-if="scope.row.deviation" style="font-size: 11px; word-break: break-all;">
-                        {{ scope.row.deviation.split('|').length > 1 ? `${scope.row.deviation.split('|').length}个偏色` :
-                            scope.row.deviation }}
-                    </div>
-                    <span v-else>-</span>
-                </template>
-            </el-table-column>
-
             <!-- 尺寸信息列 -->
-            <el-table-column label="尺寸" width="150">
+            <el-table-column label="尺寸">
                 <template #default="scope">
                     <span>{{ scope.row.sizeInfo || '-' }}</span>
                 </template>
             </el-table-column>
 
             <!-- 操作列 -->
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作">
                 <template #default="scope">
                     <el-button type="primary" size="small" link @click="handleShow(scope.row)">
                         展示
+                    </el-button>
+                    <el-button type="primary" size="small" link @click="handleCopyDeviation(scope.row)">
+                        复制偏色
                     </el-button>
                     <el-button type="danger" size="small" link @click="handleDelete(scope.$index)">
                         删除
@@ -84,8 +76,11 @@ import { ipcApiRoute } from "@/api";
 
 const props = defineProps({});
 
-const selectedFileName = ref("");
-const selectedFilePath = ref(""); // 保存当前选择的文件路径
+const formData = ref({
+    fontLibraryPath: "", // 字库文件路径
+});
+
+const selectedFilePath = ref(""); // 保存当前选择的文件路径（用于内部逻辑）
 const fontLibraryList = ref([]);
 const fileLoading = ref(false);
 const matrixImageUrl = ref(null); // 点阵图图片URL
@@ -119,8 +114,8 @@ const handleSelectFile = async () => {
             throw new Error(readResult?.message || "读取文件失败");
         }
 
-        selectedFileName.value = readResult.fileName;
-        selectedFilePath.value = filePath; // 保存文件路径
+        formData.value.fontLibraryPath = filePath; // 保存文件路径到表单
+        selectedFilePath.value = filePath; // 保存文件路径（用于内部逻辑）
         const text = readResult.content;
 
         // 解析文件内容
@@ -277,9 +272,121 @@ const generateMatrixImage = (width, height, pixels) => {
     matrixImageUrl.value = canvas.toDataURL('image/png');
 };
 
+// 处理打开字库文件
+const handleOpenFile = async () => {
+    if (!formData.value.fontLibraryPath) {
+        ElMessage.warning("请先选择字库文件");
+        return;
+    }
+
+    try {
+        const result = await ipc.invoke(ipcApiRoute.openFile, {
+            filePath: formData.value.fontLibraryPath
+        });
+
+        if (!result || !result.success) {
+            throw new Error(result?.message || "打开文件失败");
+        }
+
+        ElMessage.success("文件已打开");
+    } catch (error) {
+        console.error("打开文件失败:", error);
+        ElMessage.error("打开文件失败: " + (error.message || "未知错误"));
+    }
+};
+
+// 处理复制偏色
+const handleCopyDeviation = async (row) => {
+    if (!row.deviation) {
+        ElMessage.warning("该字库没有偏色信息");
+        return;
+    }
+
+    try {
+        // 使用 Clipboard API 复制到剪贴板
+        await navigator.clipboard.writeText(row.deviation);
+        ElMessage.success("偏色已复制到剪贴板");
+    } catch (error) {
+        console.error("复制失败:", error);
+        // 如果 Clipboard API 不可用，使用备用方法
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = row.deviation;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            ElMessage.success("偏色已复制到剪贴板");
+        } catch (fallbackError) {
+            ElMessage.error("复制失败: " + (fallbackError.message || "未知错误"));
+        }
+    }
+};
+
 // 处理删除按钮
-const handleDelete = (index) => {
+const handleDelete = async (index) => {
+    const itemToDelete = fontLibraryList.value[index];
+    if (!itemToDelete) {
+        return;
+    }
+
+    // 如果已选择文件，需要从文件中删除对应的行
+    if (selectedFilePath.value) {
+        try {
+            // 读取文件内容
+            const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+                filePath: selectedFilePath.value
+            });
+
+            if (readResult && readResult.success) {
+                let content = readResult.content;
+                const lines = content.split('\n');
+
+                // 构建要删除的行：点阵&长,宽,点阵总数量&偏色&命名
+                const lineToDelete = `${itemToDelete.matrix}&${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}&${itemToDelete.deviation}&${itemToDelete.name}`;
+
+                // 过滤掉要删除的行（精确匹配）
+                const filteredLines = lines.filter(line => {
+                    const trimmedLine = line.trim();
+                    return trimmedLine !== lineToDelete && trimmedLine !== lineToDelete.trim();
+                });
+
+                // 重新组合内容
+                content = filteredLines.join('\n');
+
+                // 如果文件末尾没有换行且还有内容，添加换行
+                if (content && !content.endsWith('\n') && filteredLines.length > 0) {
+                    content += '\n';
+                }
+
+                // 写入文件
+                const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
+                    filePath: selectedFilePath.value,
+                    content: content
+                });
+
+                if (!writeResult || !writeResult.success) {
+                    throw new Error(writeResult?.message || "删除文件内容失败");
+                }
+            }
+        } catch (error) {
+            console.error("从文件中删除字库失败:", error);
+            ElMessage.error("从文件中删除字库失败: " + (error.message || "未知错误"));
+            return;
+        }
+    }
+
+    // 从列表中删除
     fontLibraryList.value.splice(index, 1);
+
+    // 如果删除的是当前展示的点阵图，清空展示
+    if (matrixImageUrl.value && itemToDelete.matrix) {
+        // 可以在这里添加逻辑来判断是否是当前展示的项
+        // 暂时先不清空，让用户手动点击展示其他项
+    }
+
     ElMessage.success("已删除");
 };
 
@@ -290,7 +397,7 @@ const handleClearList = () => {
         return;
     }
     fontLibraryList.value = [];
-    selectedFileName.value = "";
+    formData.value.fontLibraryPath = "";
     selectedFilePath.value = "";
     matrixImageUrl.value = null;
     ElMessage.success("已清空列表");
@@ -347,24 +454,24 @@ const addFontLibraryItem = async (fontItem) => {
         ElMessage.warning("请先在字库制作标签页中选择字库文件");
         return false;
     }
-    
+
     // 检查点阵是否已存在
     const existingItem = fontLibraryList.value.find(item => item.matrix === fontItem.matrix);
     if (existingItem) {
         ElMessage.warning(`该点阵已存在，名称为：${existingItem.name}`);
         return false;
     }
-    
+
     try {
         // 添加到列表
         fontLibraryList.value.push(fontItem);
-        
+
         // 生成点阵图并显示
         generateMatrixImage(fontItem.width, fontItem.height, fontItem.binaryData);
-        
+
         // 保存到文件
         await saveToFile(fontItem);
-        
+
         // 只有在成功保存后才显示成功消息
         ElMessage.success("字库添加成功并已保存到文件");
         return true;
@@ -434,6 +541,7 @@ const isLightColor = (hex) => {
 .el-button+.el-button {
     margin-left: 0;
 }
+
 .result-section {
     margin-top: 5px;
     flex: 1;
@@ -444,13 +552,12 @@ const isLightColor = (hex) => {
     /* 深色棋盘格背景，用于显示透明区域 */
     background: #1a1a2e;
     background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
-      linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
+        linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
+        linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
     background-size: 16px 16px;
     background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
     color: #909399;
     font-size: 12px;
-  }
-  
+}
 </style>

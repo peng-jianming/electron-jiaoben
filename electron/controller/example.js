@@ -2,7 +2,7 @@
 
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
-const { dialog } = require('electron');
+const { dialog, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 /**
@@ -508,6 +508,34 @@ class ExampleController {
       return exampleService.getPaths();
     } catch (error) {
       console.error('读取路径配置错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 使用系统默认程序打开文件
+   * @param {Object} args - 参数对象 { filePath: string }
+   * @param {Object} event - 事件对象
+   */
+  async openFile(args, event) {
+    try {
+      if (!args || !args.filePath) {
+        return { success: false, message: '文件路径不能为空' };
+      }
+
+      const filePath = args.filePath;
+      
+      // 检查文件是否存在
+      if (!fs.existsSync(filePath)) {
+        return { success: false, message: '文件不存在' };
+      }
+
+      // 使用系统默认程序打开文件
+      await shell.openPath(filePath);
+
+      return { success: true, message: '文件已打开' };
+    } catch (error) {
+      console.error('打开文件错误:', error);
       return { success: false, message: error.message };
     }
   }
