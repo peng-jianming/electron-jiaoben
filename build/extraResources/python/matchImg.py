@@ -341,12 +341,12 @@ def opencv颜色偏色找图2(large_image_path, small_image_path, color_toleranc
     if template_points == 0:
         return None
     
-    # 使用积分图快速计算大图中每个区域的点数
-    search_integral = cv2.integral(search_mask)
-    
     # 使用TM_CCORR获取每个位置的重合点数
     result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
+
     h, w = result.shape
+    # 使用积分图快速计算大图中每个区域的点数
+    search_integral = cv2.integral(search_mask)
     
     # 计算每个位置的F1分数
     f1_scores = np.zeros((h, w), dtype=np.float32)
@@ -604,22 +604,53 @@ def opencv字库找图单个(large_image_path, line, region=(0, 0, 0, 0)):
     
     # 使用 TM_CCORR 对两个 0/1 掩码做匹配
     result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
+
+
+    h, w = result.shape
+    # 使用积分图快速计算大图中每个区域的点数
+    search_integral = cv2.integral(search_mask)
+
+
+    # 计算模板点数（小图白点总数）
+    template_points = int(np.sum(template_mask))
+
+    # 计算每个位置的F1分数
+    f1_scores = np.zeros((h, w), dtype=np.float32)
     
+    # 遍历每个位置计算F1分数
+    for y in range(h):
+        for x in range(w):
+            # 当前区域的重合点数
+            overlap = float(result[y, x])
+            
+            # 使用积分图计算当前区域的点数
+            # 积分图索引需要+1（因为积分图比原图多一行一列）
+            sum1 = search_integral[y, x]
+            sum2 = search_integral[y, x + small_w]
+            sum3 = search_integral[y + small_h, x]
+            sum4 = search_integral[y + small_h, x + small_w]
+            search_points = float(sum4 - sum2 - sum3 + sum1)
+            
+            precision = overlap / (search_points + 1e-5)
+            recall = overlap / (template_points + 1e-5)
+            if precision + recall == 0:
+                score = 0
+            else:
+                score = 2 * precision * recall / (precision + recall + 1e-5)
+            
+            f1_scores[y, x] = score
+
     # 找到重合白点最多的位置
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-    # 自定义相似度：重合白点数 / 模板白点总数，范围[0,1]
-    overlap_white = max_val
-    white_points = int(np.sum(template_mask))
-    custom_similarity = overlap_white / white_points if white_points > 0 else 0
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(f1_scores)
     
-    print(f"字库行找图 - 字库名: {name}, 重合白点: {overlap_white}, 相似度: {custom_similarity:.4f}, 位置: {max_loc}")
+    print(f"字库行找图 - 字库名: {name}, 相似度: {max_val:.4f}, 位置: {max_loc}")
     
     return {
         "x": max_loc[0] + offset_x,
         "y": max_loc[1] + offset_y,
         "w": small_w,
         "h": small_h,
-        "similarity": float(custom_similarity)
+        "similarity": float(max_val)
     }
 
 
