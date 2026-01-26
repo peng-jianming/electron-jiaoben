@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image
 import socketio
 from abdTools import ADBController
-
+from resource.config import 界面集合
 
 
 class DeviceController:
@@ -26,10 +26,6 @@ class DeviceController:
         """
         self.device_id = device_id
         self.adb = ADBController(device_id)
-        self.font_library_cache = {}  # 初始化字库缓存，支持同名多个条目（使用列表存储）
-        self.加载字库文件(os.path.join(os.path.dirname(__file__), "resource", "font_library.txt"))
-        self._model_path = ""
-        self._model = None
         self._socketio_client = None
         # 初始化 Socket.IO 客户端（可选，延迟连接）
         self.init_client()
@@ -68,91 +64,164 @@ class DeviceController:
             random_x = random.randint(x, x + w)
             random_y = random.randint(y, y + h)
             self.adb.模拟点击(random_x, random_y, (0, 0.3))
-    
-    def 加载字库文件(self,font_library_path):
-        """
-        读取字库文件并缓存到全局变量中
-        
-        此函数应在程序启动时调用，将字库数据加载到内存中，避免每次找图时重复读取文件
-        
-        :param font_library_path: 字库文件路径（txt文件，格式：点阵&长,宽,点阵总数量&偏色&命名）
-        :return: 成功加载的字库数量，失败返回0
-        """
-        
-        # 读取字库文件
-        try:
-            with open(font_library_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-        except Exception as e:
-            print(f"读取字库文件失败: {e}")
-            return 0
-        print(lines)
-        loaded_count = 0
-        
-        # 解析每一行字库数据
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名
-            parts = line.split('&')
-            if len(parts) != 4:
-                continue
-            
-            matrix_hex, size_info, deviation_str, name = [p.strip() for p in parts]
-            
-            # 解析尺寸信息：长,宽,点阵总数量
-            size_parts = size_info.split(',')
-            if len(size_parts) != 3:
-                continue
-            
-            try:
-                width = int(size_parts[0])
-                height = int(size_parts[1])
-                total_count = int(size_parts[2])
-            except ValueError:
-                continue
-            
-            # 将16进制点阵转换为二值化图像
-            # 点阵格式：每4位二进制转换为1个16进制字符
-            binary_data = []
-            for hex_char in matrix_hex:
-                # 将16进制字符转换为4位二进制
-                bits = format(int(hex_char, 16), '04b')
-                binary_data.extend([int(bit) for bit in bits])
-            
-            # 只取前 width * height 位
-            total_pixels = width * height
-            binary_data = binary_data[:total_pixels]
-            
-            # 将二进制数据转换为numpy数组（重塑为图像形状）
-            # 白色(1)对应255，黑色(0)对应0
-            binary_array = np.array(binary_data, dtype=np.uint8).reshape((height, width))
-            binary_array = np.where(binary_array == 1, 255, 0).astype(np.uint8)
-            
-            # 转换为 template_mask (0/1掩码)
-            template_mask = (binary_array == 255).astype(np.uint8)
-            
-            # 存储到全局缓存（支持同名多个条目，使用列表存储）
-            if name not in self.font_library_cache:
-                self.font_library_cache[name] = []
-            
-            self.font_library_cache[name].append({
-                'template_mask': template_mask,
-                'width': width,
-                'height': height,
-                'total_count': total_count,
-                'deviation': deviation_str,
-                'matrix_hex': matrix_hex
-            })
-            
-            loaded_count += 1
-        
-        print(f"成功加载 {loaded_count} 个字库到缓存")
-        return loaded_count
 
-    def opencv字库找图(self, large_image_path, font_name, similarity=0.9, region=(0, 0, 0, 0)):
+    def init_client(self, url="http://127.0.0.1:7072"):
+        """初始化 Socket.IO 客户端"""
+        if not hasattr(self, '_socketio_client') or self._socketio_client is None:
+            self._socketio_client = socketio.Client()
+        
+        if not self._socketio_client.connected:
+            try:
+                self._socketio_client.connect(url)
+            except Exception as e:
+                print(f"Socket.IO 连接失败: {e}")
+        
+        return self._socketio_client
+    
+    def send_to_electron(self, prop, message, method="controller/example/changeProp",
+                            url="http://127.0.0.1:7072", wait_response=True):
+            """向 Electron 发送数据"""
+            try:
+                client = self.init_client(url)
+                data = {"cmd": method, "args": {"deviceId": self.device_id, "prop": prop, "message": message}}
+                
+                if not wait_response:
+                    client.emit("socket-channel", data)
+                    return None
+                
+                response_data = None
+                response_received = False
+                
+                def callback(*args):
+                    nonlocal response_data, response_received
+                    response_data = args[0] if args else None
+                    response_received = True
+                
+                client.emit("socket-channel", data, callback=callback)
+                
+                # 等待响应（最多10秒）
+                start_time = time.time()
+                while not response_received and (time.time() - start_time) < 10:
+                    time.sleep(0.1)
+                
+                if not response_received:
+                    print("等待响应超时")
+                    return None
+                
+                return response_data
+            
+            except socketio.exceptions.ConnectionError as e:
+                print(f"连接错误: {e}")
+                return None
+            except Exception as e:
+                print(f"发送数据错误: {e}")
+                return None
+
+
+class Field:
+    def __init__(self, config):
+        self.日志 = config.get("日志")
+        self.方式 = config.get("方式")
+        self.查找字符串 = config.get("查找字符串")
+        self.大图路径 = config.get("大图路径")
+        self.相似度 = config.get("相似度", 0.8)
+        self.分类名 = config.get("分类名")
+        self.查找区域 = config.get("查找区域", [0, 0, 0, 0])
+        self.偏移点击区域 = config.get("偏移点击区域")
+        self.字库集合 = {}
+        self.模型 = None
+        self.x = 0
+        self.y = 0
+        self.w = 0
+        self.h = 0
+    
+    def 查找(self):
+        if self.大图路径:
+            if self.方式 == "yolo":
+                result = self._yolo(self.大图路径, self.模型路径, self.相似度)
+                if len(result):
+                    rx, ry, _, _ = self.查找区域
+                    for r in result:
+                        if r["class_name"] == self.分类名:
+                            self.x = rx + math.ceil(r["x"])
+                            self.y = ry + math.ceil(r["y"])
+                            self.w = math.floor(r["w"])
+                            self.h = math.floor(r["h"])
+                            break
+            else:
+                result = self._opencv字库找图(
+                    self.大图路径,
+                    self.查找字符串,
+                    self.相似度,
+                    self.查找区域
+                )
+                if result:
+                    self.x = result["x"]
+                    self.y = result["y"]
+                    self.w = result["w"]
+                    self.h = result["h"]
+        return self
+    
+    def 点击(self, x=None, y=None, w=None, h=None):
+        """点击字段"""
+        if self.是否找到():
+            if x and y and w and h:
+                self.controller.随机ADB点击(x, y, w, h)
+            elif x and y:
+                self.controller.ADB点击(x, y)
+            # 没有传入x,y,w,h时,则先看偏移点击区域是否存在,如果存在则点击偏移点击区域
+            elif self.偏移点击区域:
+                self.偏移点击(*self.偏移点击区域)
+            elif self.x and self.y:
+                self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
+            
+        return self
+    
+    def 偏移点击(self, x=None, y=None, w=None, h=None):
+        """偏移点击"""
+        if self.是否找到():
+            if not w and not h:
+                self.controller.ADB点击(self.x + x, self.y + y)
+            if w and h:
+                self.controller.随机ADB点击(self.x + x, self.y + y, w, h)
+        return self
+    
+    def 随机延时(self, startMs, endMs):
+        """随机延时"""
+        if self.是否找到():
+            if startMs > endMs:
+                startMs, endMs = endMs, startMs
+                time.sleep(random.uniform(startMs, endMs))
+        return self
+    
+    def 设置查找区域(self, 查找区域):
+        """设置查找区域"""
+        self.查找区域 = 查找区域
+        return self
+    
+    def 设置大图路径(self, 大图路径):
+        """设置大图路径"""
+        self.大图路径 = 大图路径
+        return self
+    
+    def 设置日志(self, 日志):
+        """设置日志"""
+        self.日志 = 日志
+        return self
+    
+    def 设置字库(self, 字库集合):
+        self.字库集合 = 字库集合
+        return self
+
+    def 设置模型(self, 模型):
+        self.模型 = 模型
+        return self
+
+    def 是否找到(self):
+        """判断是否找到"""
+        return bool(self.x and self.y)
+
+    def _opencv字库找图(self, large_image_path, font_name, similarity=0.9, region=(0, 0, 0, 0)):
         """
         根据字库名字进行颜色偏色找图（从全局缓存中读取字库数据）
         
@@ -167,11 +236,11 @@ class DeviceController:
         """
 
         # 从全局缓存中获取字库数据（支持同名多个条目）
-        if font_name not in self.font_library_cache:
+        if font_name not in self.字库集合:
             print(f"未找到字库: {font_name}，请先调用 加载字库文件() 函数加载字库")
             return None
         
-        font_data_list = self.font_library_cache[font_name]
+        font_data_list = self.字库集合[font_name]
         if not font_data_list:
             print(f"字库 {font_name} 的条目列表为空")
             return None
@@ -312,7 +381,7 @@ class DeviceController:
         # print(f"字库找图 - 字库名: {font_name}, 遍历了 {len(font_data_list)} 个条目，均未达到相似度要求 {similarity}")
         return None
 
-    def yolo(self, image_path, model_path, conf_threshold=0.6):
+    def _yolo(self, image_path, model_path, conf_threshold=0.6):
         """
         使用YOLOv8模型检测图片中的目标
         
@@ -329,10 +398,12 @@ class DeviceController:
             - w: 边界框宽度
             - h: 边界框高度
         """
-        model = self.加载模型文件(model_path)
-        
+
+        if self.模型 is None:
+            print("未加载模型，请先调用 加载模型文件() 函数加载模型")
+            return None
         # 进行推理（YOLO 支持文件路径、PIL Image 和 numpy 数组）
-        results = model(image_path, conf=conf_threshold, verbose=False)
+        results = self.模型(image_path, conf=conf_threshold, verbose=False)
         detections = []
         
         for result in results:
@@ -350,7 +421,7 @@ class DeviceController:
                 
                 # 获取类别ID和类别名
                 class_id = int(boxes.cls[i])
-                class_name = model.names[class_id]
+                class_name = self.模型.names[class_id]
                 
                 detection = {
                     "class_name": class_name,
@@ -364,171 +435,18 @@ class DeviceController:
         
         return detections
     
-    def 加载模型文件(self, model_path):
-        """获取YOLO模型实例（懒加载）"""
-        if model_path != self._model_path:
-            self._model_path = model_path
-            self._model = YOLO(model_path)
-        
-        return self._model
-    
-    def init_client(self, url="http://127.0.0.1:7072"):
-        """初始化 Socket.IO 客户端"""
-        if not hasattr(self, '_socketio_client') or self._socketio_client is None:
-            self._socketio_client = socketio.Client()
-        
-        if not self._socketio_client.connected:
-            try:
-                self._socketio_client.connect(url)
-            except Exception as e:
-                print(f"Socket.IO 连接失败: {e}")
-        
-        return self._socketio_client
-    
-    def send_to_electron(self, prop, message, method="controller/example/changeProp",
-                            url="http://127.0.0.1:7072", wait_response=True):
-            """向 Electron 发送数据"""
-            try:
-                client = self.init_client(url)
-                data = {"cmd": method, "args": {"deviceId": self.device_id, "prop": prop, "message": message}}
-                
-                if not wait_response:
-                    client.emit("socket-channel", data)
-                    return None
-                
-                response_data = None
-                response_received = False
-                
-                def callback(*args):
-                    nonlocal response_data, response_received
-                    response_data = args[0] if args else None
-                    response_received = True
-                
-                client.emit("socket-channel", data, callback=callback)
-                
-                # 等待响应（最多10秒）
-                start_time = time.time()
-                while not response_received and (time.time() - start_time) < 10:
-                    time.sleep(0.1)
-                
-                if not response_received:
-                    print("等待响应超时")
-                    return None
-                
-                return response_data
-            
-            except socketio.exceptions.ConnectionError as e:
-                print(f"连接错误: {e}")
-                return None
-            except Exception as e:
-                print(f"发送数据错误: {e}")
-                return None
-
-
-class Field:
-    def __init__(self, config, controller):
-        self.controller = controller
-        self.日志 = config.get("日志")
-        self.方式 = config.get("方式")
-        self.查找字符串 = config.get("查找字符串")
-        self.大图路径 = config.get("大图路径")
-        self.相似度 = config.get("相似度", 0.8)
-        self.分类名 = config.get("分类名")
-        self.模型路径 = config.get("模型路径")
-        self.查找区域 = config.get("查找区域", [0, 0, 0, 0])
-        self.偏移点击区域 = config.get("偏移点击区域")
-        self.x = 0
-        self.y = 0
-        self.w = 0
-        self.h = 0
-    
-    def 查找(self):
-        if self.大图路径:
-            url = self.大图路径
-        else:
-            url = self.controller.截图到内存()
-        if url:
-            if self.方式 == "yolo":
-                result = self.controller.yolo(url, self.模型路径, self.相似度)
-                if len(result):
-                    rx, ry, _, _ = self.查找区域
-                    for r in result:
-                        if r["class_name"] == self.分类名:
-                            self.x = rx + math.ceil(r["x"])
-                            self.y = ry + math.ceil(r["y"])
-                            self.w = math.floor(r["w"])
-                            self.h = math.floor(r["h"])
-                            break
-            else:
-                result = self.controller.opencv字库找图(
-                    url,
-                    self.查找字符串,
-                    self.相似度,
-                    self.查找区域
-                )
-                if result:
-                    self.x = result["x"]
-                    self.y = result["y"]
-                    self.w = result["w"]
-                    self.h = result["h"]
-        return self
-    
-    def 点击(self, x=None, y=None, w=None, h=None):
-        """点击字段"""
-        if self.是否找到():
-            if x and y and w and h:
-                self.controller.随机ADB点击(x, y, w, h)
-            elif x and y:
-                self.controller.ADB点击(x, y)
-            # 没有传入x,y,w,h时,则先看偏移点击区域是否存在,如果存在则点击偏移点击区域
-            elif self.偏移点击区域:
-                self.偏移点击(*self.偏移点击区域)
-            elif self.x and self.y:
-                self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
-            
-        return self
-    def 偏移点击(self, x=None, y=None, w=None, h=None):
-        """偏移点击"""
-        if self.是否找到():
-            if not w and not h:
-                self.controller.ADB点击(self.x + x, self.y + y)
-            if w and h:
-                self.controller.随机ADB点击(self.x + x, self.y + y, w, h)
-        return self
-    
-    def 随机延时(self, startMs, endMs):
-        """随机延时"""
-        if self.是否找到():
-            if startMs > endMs:
-                startMs, endMs = endMs, startMs
-                time.sleep(random.uniform(startMs, endMs))
-        return self
-    
-    def 设置查找区域(self, 查找区域):
-        """设置查找区域"""
-        self.查找区域 = 查找区域
-        return self
-    
-    def 设置大图路径(self, 大图路径):
-        """设置大图路径"""
-        self.大图路径 = 大图路径
-        return self
-    
-    def 设置日志(self, 日志):
-        """设置日志"""
-        self.日志 = 日志
-        return self
-    
-    def 是否找到(self):
-        """判断是否找到"""
-        return bool(self.x and self.y)
-
 
 class TaskLineMachine:
     """任务状态机类"""
     
     def __init__(self, device_id):
+        self.font_library_cache = {} 
+        self.加载字库文件(os.path.join(os.path.dirname(__file__), "resource", "font_library.txt"))
+        self._model = None
+        self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
+
         self.controller = DeviceController(device_id)
+        self.界面集合 = 界面集合
         self._states = {}
         self._current_interface = None
         self._previous_interface = None
@@ -537,13 +455,10 @@ class TaskLineMachine:
         self._unknown_start_time = None  # 未知界面开始时间
         self._unknown_timeout = 60  # 未知界面超时时间（秒）
     
-    def state(self, Field):
+    def state(self, 界面名称):
         """装饰器：直接注册界面处理函数"""
         def decorator(func):
-            self._states[Field['界面']] = {
-                'handler': func,
-                'Field': Field
-            }
+            self._states[界面名称] = func
         return decorator
     
     def _copy_unknown_screenshot(self, image_data):
@@ -615,18 +530,16 @@ class TaskLineMachine:
                 url = self.controller.截图到内存()
                 if url:
                     是否找到 = False
-                    for state in self._states.values():
-                        handler = state['handler']
-                        config = state['Field']
+                    for 界面名称, 执行函数 in self._states.items():
                         # 传递内存截图模式参数
-                        if Field(config, self.controller).设置大图路径(url).查找().是否找到():
+                        if Field(self.界面集合[界面名称]).设置大图路径(url).设置字库(self.font_library_cache).设置模型(self._model).查找().是否找到():
                             是否找到 = True
-                            print(f"目前位于: {config['界面']}")
+                            print(f"目前位于: {界面名称}")
                             self.update_context(上一状态=self._current_interface)
-                            self._current_interface = config['界面']
+                            self._current_interface = 界面名称
                             # 找到已知界面，重置未知界面计时器
                             self._unknown_start_time = None
-                            result = handler(self._context, )
+                            result = 执行函数(self._context)
                             if isinstance(result, dict):
                                 self._context.update(result)
                             elif result is False:
@@ -636,10 +549,16 @@ class TaskLineMachine:
                     
                     if not 是否找到:
                         # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
-        
-                        # TODO 将所有未注册的界面遍历一次,找到就关闭
-                        print("目前处于: 未知界面")
-
+                        print(f"目前位于: 未知界面")
+                        # 尝试关闭未注册界面
+                        for 界面名称, 界面配置 in self.界面集合.items():
+                            if 界面名称 in self._states:
+                                continue
+                            if 关闭按钮 := 界面配置.get("按钮", {}).get("关闭"):
+                                if Field(界面配置).设置大图路径(url).设置字库(self.font_library_cache).设置模型(self._model).查找().点击(*关闭按钮).是否找到():
+                                    print(f"目前位于未注册界面: {界面名称}")
+                                    break
+                          
                         # 未知界面计时逻辑
                         if self._unknown_start_time is None:
                             self._unknown_start_time = time.time()
@@ -669,6 +588,92 @@ class TaskLineMachine:
         self._context.update(kwargs)
 
     def Field(self, config):
-        return Field(config,self.controller)
+        return Field(config).设置大图路径(self.controller.截图到内存()).设置字库(self.font_library_cache).设置模型(self._model)
 
+    def 加载字库文件(self,font_library_path):
+        """
+        读取字库文件并缓存到全局变量中
+        
+        此函数应在程序启动时调用，将字库数据加载到内存中，避免每次找图时重复读取文件
+        
+        :param font_library_path: 字库文件路径（txt文件，格式：点阵&长,宽,点阵总数量&偏色&命名）
+        :return: 成功加载的字库数量，失败返回0
+        """
+        
+        # 读取字库文件
+        try:
+            with open(font_library_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except Exception as e:
+            print(f"读取字库文件失败: {e}")
+            return 0
+        print(lines)
+        loaded_count = 0
+        
+        # 解析每一行字库数据
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名
+            parts = line.split('&')
+            if len(parts) != 4:
+                continue
+            
+            matrix_hex, size_info, deviation_str, name = [p.strip() for p in parts]
+            
+            # 解析尺寸信息：长,宽,点阵总数量
+            size_parts = size_info.split(',')
+            if len(size_parts) != 3:
+                continue
+            
+            try:
+                width = int(size_parts[0])
+                height = int(size_parts[1])
+                total_count = int(size_parts[2])
+            except ValueError:
+                continue
+            
+            # 将16进制点阵转换为二值化图像
+            # 点阵格式：每4位二进制转换为1个16进制字符
+            binary_data = []
+            for hex_char in matrix_hex:
+                # 将16进制字符转换为4位二进制
+                bits = format(int(hex_char, 16), '04b')
+                binary_data.extend([int(bit) for bit in bits])
+            
+            # 只取前 width * height 位
+            total_pixels = width * height
+            binary_data = binary_data[:total_pixels]
+            
+            # 将二进制数据转换为numpy数组（重塑为图像形状）
+            # 白色(1)对应255，黑色(0)对应0
+            binary_array = np.array(binary_data, dtype=np.uint8).reshape((height, width))
+            binary_array = np.where(binary_array == 1, 255, 0).astype(np.uint8)
+            
+            # 转换为 template_mask (0/1掩码)
+            template_mask = (binary_array == 255).astype(np.uint8)
+            
+            # 存储到全局缓存（支持同名多个条目，使用列表存储）
+            if name not in self.font_library_cache:
+                self.font_library_cache[name] = []
+            
+            self.font_library_cache[name].append({
+                'template_mask': template_mask,
+                'width': width,
+                'height': height,
+                'total_count': total_count,
+                'deviation': deviation_str,
+                'matrix_hex': matrix_hex
+            })
+            
+            loaded_count += 1
+        
+        print(f"成功加载 {loaded_count} 个字库到缓存")
+        return loaded_count
+
+    def 加载模型文件(self, model_path):
+        self._model = YOLO(model_path)
+        return self._model
     
