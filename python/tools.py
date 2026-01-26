@@ -286,23 +286,50 @@ class DeviceController:
 
             # 使用 TM_CCORR 对两个 0/1 掩码做匹配
             result = cv2.matchTemplate(search_mask, template_mask, cv2.TM_CCORR)
+
+            h, w = result.shape
+            # 使用积分图快速计算大图中每个区域的点数
+            search_integral = cv2.integral(search_mask)
+
+            # 计算每个位置的F1分数
+            f1_scores = np.zeros((h, w), dtype=np.float32)
             
+            # 遍历每个位置计算F1分数
+            for y in range(h):
+                for x in range(w):
+                    # 当前区域的重合点数
+                    overlap = float(result[y, x])
+                    
+                    # 使用积分图计算当前区域的点数
+                    # 积分图索引需要+1（因为积分图比原图多一行一列）
+                    sum1 = search_integral[y, x]
+                    sum2 = search_integral[y, x + small_w]
+                    sum3 = search_integral[y + small_h, x]
+                    sum4 = search_integral[y + small_h, x + small_w]
+                    search_points = float(sum4 - sum2 - sum3 + sum1)
+                    
+                    precision = overlap / (search_points + 1e-5)
+                    recall = overlap / (white_points + 1e-5)
+                    if precision + recall == 0:
+                        score = 0
+                    else:
+                        score = 2 * precision * recall / (precision + recall + 1e-5)
+                    
+                    f1_scores[y, x] = score
+
             # 找到重合白点最多的位置
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-            # 自定义相似度：重合白点数 / 模板白点总数，范围[0,1]
-            overlap_white = max_val
-            custom_similarity = overlap_white / white_points if white_points > 0 else 0
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(f1_scores)
             
-            print(f"字库找图 - 字库名: {font_name}, 条目索引: {idx}/{len(font_data_list)-1}, 重合白点: {overlap_white}, 相似度: {custom_similarity:.4f}, 位置: {max_loc}")
+            print(f"字库找图 - 字库名: {font_name}, 条目索引: {idx}/{len(font_data_list)-1}, 相似度: {max_val:.4f}, 位置: {max_loc}")
             
             # 如果符合相似度要求，立即返回
-            if custom_similarity >= similarity:
+            if max_val >= similarity:
                 return {
                     "x": max_loc[0] + offset_x,
                     "y": max_loc[1] + offset_y,
                     "w": small_w,
                     "h": small_h,
-                    "similarity": float(custom_similarity)
+                    "similarity": float(max_val)
                 }
         
         # 所有条目都遍历完，没有找到符合相似度的，返回 None
@@ -326,7 +353,7 @@ class DeviceController:
             - w: 边界框宽度
             - h: 边界框高度
         """
-        model = self._获取模型(model_path)
+        model = self.加载模型文件(model_path)
         
         # 进行推理
         results = model(image_path, conf=conf_threshold, verbose=False)
@@ -361,7 +388,7 @@ class DeviceController:
         
         return detections
     
-    def _获取模型(self, model_path):
+    def 加载模型文件(self, model_path):
         """获取YOLO模型实例（懒加载）"""
         if model_path != self._model_path:
             self._model_path = model_path
@@ -632,9 +659,11 @@ class TaskLineMachine:
                             break
                     
                     if not 是否找到:
-                        # 可以在这里设置时长,如果长时间处于未知界面,那么就报警,或者调用关闭函数关闭所有界面等
+                        # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
+        
+                        # TODO 将所有未注册的界面遍历一次,找到就关闭
                         print("目前处于: 未知界面")
-                        
+
                         # 未知界面计时逻辑
                         if self._unknown_start_time is None:
                             self._unknown_start_time = time.time()

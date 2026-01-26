@@ -1,232 +1,63 @@
-[![star](https://gitee.com/dromara/electron-egg/badge/star.svg?theme=gvp)](https://gitee.com/dromara/electron-egg/stargazers)
-[![GitHub](https://img.shields.io/github/stars/dromara/electron-egg.svg?style=social&label=Stars)](https://github.com/dromara/electron-egg)
-[![Star](https://gitcode.com/dromara/electron-egg/star/badge.svg)](https://gitcode.com/dromara/electron-egg)
-[![License](https://img.shields.io/badge/License-Apache-blue.svg)](https://gitee.com/dromara/electron-egg/blob/master/LICENSE)
+# TaskLineMachine 任务状态机逻辑
 
-<div align=center>
-<h3>🎉🎉🎉 ElectronEgg v4 已发布! 🎉🎉🎉</h3>
-</div>
-<br>
+## 核心机制
 
-<div align=center>
-<img src="./public/images/example/logo.png" width="150" height="150" />
-</div>
+### 1. 界面注册
+- 使用 `@state(Field)` 装饰器注册需要处理的界面
+- 每个界面包含：
+  - **Field配置**：定义如何识别该界面（字库找图或YOLO检测）
+  - **处理函数**：识别到该界面后执行的逻辑
 
-<div align=center>
-<h3><strong>一个入门简单、跨平台、企业级桌面软件开发框架</strong></h3>
-</div>
-<br>
+### 2. 状态机运行流程
 
-<!-- ## 🌏 [English](https://www.yuque.com/u34495/ee-doc) | [中文](https://www.kaka996.com/) -->
+#### 主循环（`start()` 方法）
+1. **持续截图**：不断调用 `controller.截图()` 获取当前屏幕
+2. **遍历已注册界面**：按顺序检查每个已注册的界面是否匹配
+3. **识别成功**：
+   - 执行对应界面的处理函数
+   - 更新当前界面状态
+   - 重置未知界面计时器
+   - 处理函数可以返回字典更新上下文，或返回 `False` 表示处理失败
+4. **识别失败（未知界面）**：
+   - 记录进入未知界面的时间
+   - 启动60秒超时计时器
+   - **TODO**: 遍历所有未注册的界面，尝试找到并关闭（功能待实现）
+   - 如果60秒内仍未识别到已注册界面：
+     - 保存截图到 `resource/unknown/` 目录
+     - 播放提示音乐（`resource/music.mp3`）
+     - 重置计时器，继续监控
 
-## 📋 介绍
+### 3. 上下文管理
+- 使用 `_context` 字典存储任务执行过程中的上下文信息
+- 处理函数可以通过返回字典来更新上下文
+- 支持通过 `update_context()` 方法手动更新上下文
+- 自动记录 `上一状态` 信息
 
-> 框架已经广泛应用于记账、政务、企业、医疗、学校、股票交易、ERP、娱乐、视频等领域客户端，请放心使用！
+### 4. 界面识别方式
+- **字库找图**：使用 `opencv字库找图()` 方法，支持颜色偏色匹配
+- **YOLO检测**：使用 `yolo()` 方法进行目标检测
 
-## 👦 谁可以使用
+### 5. 状态机控制
+- `start()`: 启动状态机，进入主循环
+- `stop()`: 停止状态机，设置 `_is_running = False`
+- 异常处理：运行异常时自动停止状态机
 
-项目已经有 5 个交流群，覆盖`前端`、`java`、`go`、`python`、`php` 等开发者。
+## 待实现功能
 
-无论你是前端、服务端、运维、游戏、客户端等，都可以很快入门，
+- [ ] 未知界面处理：遍历所有未注册的界面集合，找到匹配的界面后调用其关闭函数
+- [ ] 界面集合管理：需要设计一个全局界面集合机制，用于存储所有可能的界面定义
 
-## 🐶 精彩案例
+## 使用示例
 
-- [**点击查看**](#项目案例)
+```python
+machine = TaskLineMachine(device_id)
 
-## 📺 特点
-- 🍩 **为什么使用？** 桌面软件（办公方向、 个人工具），仍然是未来十几年PC端需求之一，提高工作效率
-- 🍉 **简单：** 支持 js、ts 
-- 🍑 **愿景：** 所有开发者都能学会桌面软件研发
-- 🍰 **gitee：** https://gitee.com/dromara/electron-egg **5600+**
-- 🍨 **github：** https://github.com/dromara/electron-egg **2200+**
-- 🍰 **gitcode：** https://gitcode.com/dromara/electron-egg 
-- 🏆 码云最有价值开源项目
-    ![](./public/images/example/ee-zs.png)  
-    ![](./public/images/example/ee-zs2.jpg)  
+@machine.state(Field配置)
+def 处理函数(context):
+    # 处理逻辑
+    # 可以返回字典更新上下文
+    # 可以返回 False 表示处理失败
+    return {"key": "value"}
 
-## 📚 文档
-- 快速体验：[教程文档](https://www.kaka996.com/)
-    ![](./public/images/example/v3-home.png) 
-
-## 📦 特性
-1. 🍄 跨平台：一套代码，可以打包成windows版、Mac版、Linux版、国产UOS、Deepin、麒麟等
-2. 🌹 架构：单业务进程/模块化/多任务(进程，线程，渲染进程)，让开发大型项目变的简单。
-3. 🌱 简单高效：支持 js、ts 
-4. 🌴 前端独立：理论上支持任何前端技术，如：vue、react、html等等
-5. 🍁 工程化：可以用前端、服务端的开发思维，来编写桌面软件
-6. 🌷 高性能：事件驱动、非阻塞式IO
-7. 🌰 功能丰富：配置、通信、插件、数据库、升级、打包、工具... 应有尽有
-8. 💐 安全：支持字节码加密、压缩混淆加密
-9. 🌻 功能demo：桌面软件常见功能，框架集成或提供demo
-
-## ✈️ 使用场景
-
-### 1. 🚀 常规桌面软件
-- 🚖 windows平台
-
-    ![](./public/images/example/ee-win-home.png)
-
-- 🚍 macOS平台    
-    ![](./public/images/example/ee-mac-home.png)
-
-- 🚔 linux平台 - 国产UOS、Deepin
-    ![](./public/images/example/uos-home.png)
-
-- 🚔 linux平台 - ubuntu
-    ![](./public/images/example/ubuntu-db.png)
-
-### 🚐 2. vue、react、angular、web 转换成桌面软件
-- 🚙 vue-ant-design（本地）
-
-    ![](./public/images/example/vue-antd.png)
-
-- 🚙 禅道项目管理（web项目地址）
-
-    ![](./public/images/example/ee-project-7.png)
-
-### 🚂 3. 游戏（h5相关技术开发）
-- 🚊 忍者100层
-
-    ![](./public/images/example/ee_game_1.png)
-
-
-## 📒 开始使用
-
-- ✒️ [安装文档](https://www.kaka996.com/pages/e64ff6/)
-    
-## 项目案例
-- 🐟 框架已经应用于医疗、学校、政务、股票交易、ERP、娱乐、视频、企业等领域客户端
-
-### 🐸 知识笔记
-
-- [概言](https://gaiyan.net?from=electron-egg) 
-![](./public/images/example/gaiyan-1.jpg)
-![](./public/images/example/gaiyan-2.png)
-
-### 🐸 远控
-
-- RQ Center
-![](./public/images/example/rq-1.png)
-![](./public/images/example/rq-2.png)
-
-### 🐸 云盘
-
-- FM Cloud
-![](./public/images/example/fm-p2.png)
-![](./public/images/example/fm-p1.png)
-![](./public/images/example/fm-p4.png)
-
-### 🐸 IM
-
-- Cede IM
-![](./public/images/example/im-p1.png)
-![](./public/images/example/im-p5.png)
-![](./public/images/example/im-p1.png)
-
-### 🐸 壁纸
-
-- warpar
-![](./public/images/example/aw-3.png)
-
-### 🐸 英雄联盟助手
-
-- Serendlplty
-![](./public/images/example/lol-zhanji.png)
-
-### 🐸 更多
-
-- [更多案例](https://www.kaka996.com/pages/eadf46/)
-
-## 💬 交流
-1. [讨论](https://www.kaka996.com/pages/c2720e/)
-
-## 📌 关于pr
-请前往[GitHub项目](https://github.com/dromara/electron-egg)提pr（避免代码同步后，pr被覆盖掉），感谢！
-
-地址：https://github.com/dromara/electron-egg
-
-## 📔 框架核心包 ee-core
-ee-core：[https://github.com/wallace5303/ee-core](https://github.com/wallace5303/ee-core)
-
-## 📚 Dromara 成员项目
-
-<p align="center">
-<a href="https://gitee.com/dromara/TLog" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/tlog2.png" title="一个轻量级的分布式日志标记追踪神器，10分钟即可接入，自动对日志打标签完成微服务的链路追踪" width="15%">
-</a>
-<a href="https://gitee.com/dromara/liteFlow" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/liteflow.png" title="轻量，快速，稳定，可编排的组件式流程引擎" width="15%">
-</a>
-<a href="https://hutool.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/hutool.jpg" title="小而全的Java工具类库，使Java拥有函数式语言般的优雅，让Java语言也可以“甜甜的”。" width="15%">
-</a>
-<a href="https://sa-token.dev33.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/sa-token.png" title="一个轻量级 java 权限认证框架，让鉴权变得简单、优雅！" width="15%">
-</a>
-<a href="https://gitee.com/dromara/hmily" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/hmily.png" title="高性能一站式分布式事务解决方案。" width="15%">
-</a>
-<a href="https://gitee.com/dromara/Raincat" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/raincat.png" title="强一致性分布式事务解决方案。" width="15%">
-</a>
-</p>
-<p align="center">
-<a href="https://gitee.com/dromara/myth" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/myth.png" title="可靠消息分布式事务解决方案。" width="15%">
-</a>
-<a href="https://cubic.jiagoujishu.com/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/cubic.png" title="一站式问题定位平台，以agent的方式无侵入接入应用，完整集成arthas功能模块，致力于应用级监控，帮助开发人员快速定位问题" width="15%">
-</a>
-<a href="https://maxkey.top/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/maxkey.png" title="业界领先的身份管理和认证产品" width="15%">
-</a>
-<a href="http://forest.dtflyx.com/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/forest-logo.png" title="Forest能够帮助您使用更简单的方式编写Java的HTTP客户端" width="15%">
-</a>
-<a href="https://jpom.io/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/jpom.png" title="一款简而轻的低侵入式在线构建、自动部署、日常运维、项目监控软件" width="15%">
-</a>
-<a href="https://su.usthe.com/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/sureness.png" title="面向 REST API 的高性能认证鉴权框架" width="15%">
-</a>
-</p>
-<p align="center">
-<a href="https://easy-es.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/easy-es2.png" title="傻瓜级ElasticSearch搜索引擎ORM框架" width="15%">
-</a>
-<a href="https://gitee.com/dromara/northstar" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/northstar_logo.png" title="Northstar盈富量化交易平台" width="15%">
-</a>
-<a href="https://hertzbeat.com/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/hertzbeat_brand.jpg" title="易用友好的云监控系统" width="15%">
-</a>
-<a href="https://plugins.sheng90.wang/fast-request/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/fast-request.gif" title="Idea 版 Postman，为简化调试API而生" width="15%">
-</a>
-<a href="https://www.jeesuite.com/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/mendmix.png" title="开源分布式云原生架构一站式解决方案" width="15%">
-</a>
-<a href="https://gitee.com/dromara/koalas-rpc" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/koalas-rpc2.png" title="企业生产级百亿日PV高可用可拓展的RPC框架。" width="15%">
-</a>
-</p>
-<p align="center">
-<a href="https://async.sizegang.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/gobrs-async.png" title="配置极简功能强大的异步任务动态编排框架" width="15%">
-</a>
-<a href="https://dynamictp.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/dynamic-tp.png" title="基于配置中心的轻量级动态可监控线程池" width="15%">
-</a>
-<a href="https://www.x-easypdf.cn" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/x-easypdf.png" title="一个用搭积木的方式构建pdf的框架（基于pdfbox）" width="15%">
-</a>
-<a href="http://dromara.gitee.io/image-combiner" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/image-combiner.png" title="一个专门用于图片合成的工具，没有很复杂的功能，简单实用，却不失强大" width="15%">
-</a>
-<a href="https://www.herodotus.cn/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/dante-cloud2.png" title="Dante-Cloud 是一款企业级微服务架构和服务能力开发平台。" width="15%">
-</a>
-<a href="https://dromara.org/zh/projects/" target="_blank">
-<img src="https://oss.dev33.cn/sa-token/link/dromara.png" title="让每一位开源爱好者，体会到开源的快乐。" width="15%">
-</a>
-</p>
+machine.start()  # 启动状态机
+```
