@@ -10,6 +10,7 @@ import math
 import numpy as np
 from PIL import Image
 import socketio
+from abdTools import ADBController
 
 
 
@@ -24,6 +25,7 @@ class DeviceController:
             device_id: 设备ID
         """
         self.device_id = device_id
+        self.adb = ADBController(device_id)
         self.font_library_cache = {}  # 初始化字库缓存，支持同名多个条目（使用列表存储）
         self.加载字库文件(os.path.join(os.path.dirname(__file__), "resource", "font_library.txt"))
         self._model_path = ""

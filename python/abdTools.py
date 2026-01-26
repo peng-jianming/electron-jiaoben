@@ -66,7 +66,7 @@ class ADBController:
         success, output = self._run_command(f"{self._adb_prefix} get-state")
         return success and "device" in output
     
-    def get_devices(self):
+    def 获取所有已连接的设备列表(self):
         """
         获取所有已连接的设备列表
         
