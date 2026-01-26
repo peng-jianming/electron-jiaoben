@@ -164,6 +164,42 @@ class ADBController:
             print(f"点击失败: {output}")
         return success
     
+    def 模拟点击(self, x, y, press_duration=(0, 0.3)):
+        """
+        模拟真实点击（使用 motionevent，更像人为操作）
+        
+        参数:
+            x: X 坐标
+            y: Y 坐标
+            press_duration: 按下持续时间（秒），可以是单个值或(min, max)元组，默认(0, 0.3)
+        """
+        if not x or not y:
+            return False
+        
+        # 按下
+        success1, output1 = self._run_command(
+            f"{self._adb_prefix} shell input motionevent DOWN {x} {y}"
+        )
+        if not success1:
+            print(f"模拟点击按下失败: {output1}")
+            return False
+        
+        # 随机延时（模拟手指接触屏幕的时间）
+        if isinstance(press_duration, (tuple, list)) and len(press_duration) == 2:
+            self.随机延时(press_duration[0], press_duration[1])
+        else:
+            time.sleep(press_duration if isinstance(press_duration, (int, float)) else 0.1)
+        
+        # 抬起
+        success2, output2 = self._run_command(
+            f"{self._adb_prefix} shell input motionevent UP {x} {y}"
+        )
+        if not success2:
+            print(f"模拟点击抬起失败: {output2}")
+            return False
+        
+        return True
+    
     def 长按(self, x, y, duration_ms=1000):
         """
         长按屏幕指定坐标

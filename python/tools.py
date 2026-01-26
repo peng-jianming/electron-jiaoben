@@ -1,9 +1,9 @@
-import json
+# import json
 import random
-import websockets
+# import websockets
 import os
 import time
-import asyncio
+# import asyncio
 import cv2
 from ultralytics import YOLO
 import math
@@ -38,60 +38,36 @@ class DeviceController:
         """写入日志"""
         self.send_to_electron('logs', info)
     
-    async def _send_to_gc(self, payload):
-        """发送消息到GC服务器"""
-        try:
-            async with websockets.connect("ws://127.0.0.1:33332") as qc_ws:
-                await qc_ws.send(json.dumps(payload))
-                response = await qc_ws.recv()
-                return json.loads(response)
-        except Exception as e:
-            print(f"GC Error: {e}")
-            return None
-    
-    def 截图(self):
-        """截图"""
-        # 获取保存路径
-        save_dir = os.path.join(os.path.dirname(__file__), "resource", "cache")
-        os.makedirs(save_dir, exist_ok=True)
-        save_path = save_dir  # 存储截图的目录
+    def 截图到内存(self):
+        """
+        截图并直接返回 PIL Image 对象（不保存到文件，性能更好）
         
-        payload = {
-            "action": "screen",
-            "comm": {"deviceIds": self.device_id, "savePath": save_path, "onlyDeviceName": 1},
-        }
-        response = asyncio.run(self._send_to_gc(payload))
-        # 检查返回值是否成功
-        if response and response.get("StatusCode") == 200 and response.get("result") == "OK" and response.get("data"):
-            safe_device_id = self.device_id.replace(".", "_").replace(":", "_")
-            file_path = os.path.join(save_path, f"{safe_device_id}.png")
-            return file_path
-        return None
-    
-    def 调用ADB(self, command):
-        """调用ADB命令"""
-        payload = {"action": "adb", "comm": {"deviceIds": self.device_id, "command": command}}
-        asyncio.run(self._send_to_gc(payload))
-    
+        返回:
+            PIL Image 对象，失败返回 None
+        """
+        try:
+            # 使用 ADB 直接获取图像字节流
+            image_bytes = self.adb.截图到内存()
+            if image_bytes is None:
+                return None
+            # 从字节流创建 PIL Image 对象
+            from io import BytesIO
+            image = Image.open(BytesIO(image_bytes))
+            return image.convert('RGB')
+        except Exception as e:
+            print(f"内存截图失败: {e}")
+            return None
+
     def ADB点击(self, x, y):
-        """ADB点击"""
         if x and y:
-            self.调用ADB(f"input motionevent DOWN {x} {y}")
-            self.随机延时(0, 0.3)
-            self.调用ADB(f"input motionevent UP {x} {y}")
+            self.adb.模拟点击(x, y, (0, 0.3))
     
     def 随机ADB点击(self, x, y, w, h):
         """随机ADB点击"""
         if x and y and w and h:
             random_x = random.randint(x, x + w)
             random_y = random.randint(y, y + h)
-            self.ADB点击(random_x, random_y)
-    
-    def 随机延时(self, startMs, endMs):
-        """随机延时"""
-        if startMs > endMs:
-            startMs, endMs = endMs, startMs
-        time.sleep(random.uniform(startMs, endMs))
+            self.adb.模拟点击(random_x, random_y, (0, 0.3))
     
     def 加载字库文件(self,font_library_path):
         """
@@ -183,12 +159,13 @@ class DeviceController:
         注意：使用此函数前，需要先调用 加载字库文件() 函数将字库加载到全局缓存中
         支持同名多个字库条目，会遍历所有同名条目，只要有一个符合相似度就返回
         
-        :param large_image_path: 大图路径
+        :param large_image_path: 大图路径（字符串）或 PIL Image 对象
         :param font_name: 字库名字（需要在全局缓存中存在）
         :param similarity: 相似度阈值，0-1之间，默认0.9
         :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
         :return: 找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
         """
+
         # 从全局缓存中获取字库数据（支持同名多个条目）
         if font_name not in self.font_library_cache:
             print(f"未找到字库: {font_name}，请先调用 加载字库文件() 函数加载字库")
@@ -199,16 +176,21 @@ class DeviceController:
             print(f"字库 {font_name} 的条目列表为空")
             return None
         
-        # 读取大图（只需要读取一次）
-        large_img = Image.open(large_image_path).convert('RGB')
+        # 读取大图（支持文件路径或 PIL Image 对象）
+        if isinstance(large_image_path, Image.Image):
+            # 如果传入的是 PIL Image 对象，直接使用
+            large_img = large_image_path.convert('RGB')
+        else:
+            # 如果是文件路径，从文件读取
+            large_img = Image.open(large_image_path).convert('RGB')
         large_array = np.array(large_img)
-        
+      
         if large_array is None:
             return None
         
         # 获取大图尺寸
         large_h, large_w = large_array.shape[:2]
-        
+    
         # 解析检测区域
         x, y, width, height = region
         
@@ -235,7 +217,7 @@ class DeviceController:
             offset_x, offset_y = crop_x, crop_y
         
         # 遍历所有同名字库条目
-        for idx, font_data in enumerate(font_data_list):
+        for idx, font_data in enumerate(font_data_list):        
             template_mask = font_data['template_mask']
             white_points = font_data['total_count']
             small_w = font_data['width']
@@ -293,35 +275,27 @@ class DeviceController:
             # 使用积分图快速计算大图中每个区域的点数
             search_integral = cv2.integral(search_mask)
 
-            # 计算每个位置的F1分数
-            f1_scores = np.zeros((h, w), dtype=np.float32)
+            H, W = search_mask.shape[:2]
+            h, w = template_mask.shape[:2]
             
-            # 遍历每个位置计算F1分数
-            for y in range(h):
-                for x in range(w):
-                    # 当前区域的重合点数
-                    overlap = float(result[y, x])
-                    
-                    # 使用积分图计算当前区域的点数
-                    # 积分图索引需要+1（因为积分图比原图多一行一列）
-                    sum1 = search_integral[y, x]
-                    sum2 = search_integral[y, x + small_w]
-                    sum3 = search_integral[y + small_h, x]
-                    sum4 = search_integral[y + small_h, x + small_w]
-                    search_points = float(sum4 - sum2 - sum3 + sum1)
-                    
-                    precision = overlap / (search_points + 1e-5)
-                    recall = overlap / (white_points + 1e-5)
-                    if precision + recall == 0:
-                        score = 0
-                    else:
-                        score = 2 * precision * recall / (precision + recall + 1e-5)
-                    
-                    f1_scores[y, x] = score
+            # 使用向量化计算每个区域的点数
+            # 计算积分图的四个角
+            result_h, result_w = result.shape
+            
+            # 预计算积分图的四个角区域
+            A = search_integral[0:result_h, 0:result_w]
+            B = search_integral[0:result_h, w:w+result_w]
+            C = search_integral[h:h+result_h, 0:result_w]
+            D = search_integral[h:h+result_h, w:w+result_w]
 
+            search_points_matrix = D - B - C + A
+            # 遍历每个位置计算F1分数
+            precision = result / (search_points_matrix + 1e-5)
+            recall = result / (white_points + 1e-5)
+            scores = 2 * precision * recall / (precision + recall + 1e-5)
             # 找到重合白点最多的位置
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(f1_scores)
-            
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(scores)
+
             print(f"字库找图 - 字库名: {font_name}, 条目索引: {idx}/{len(font_data_list)-1}, 相似度: {max_val:.4f}, 位置: {max_loc}")
             
             # 如果符合相似度要求，立即返回
@@ -343,7 +317,7 @@ class DeviceController:
         使用YOLOv8模型检测图片中的目标
         
         参数:
-            image_path: 图片路径
+            image_path: 图片路径（字符串）或 PIL Image 对象或 numpy 数组
             conf_threshold: 置信度阈值，默认0.6
         
         返回:
@@ -357,7 +331,7 @@ class DeviceController:
         """
         model = self.加载模型文件(model_path)
         
-        # 进行推理
+        # 进行推理（YOLO 支持文件路径、PIL Image 和 numpy 数组）
         results = model(image_path, conf=conf_threshold, verbose=False)
         detections = []
         
@@ -452,16 +426,7 @@ class DeviceController:
 
 
 class Field:
-    """字段查找类"""
-    
     def __init__(self, config, controller):
-        """
-        初始化字段
-        
-        参数:
-            config: 配置字典
-            controller: DeviceController实例
-        """
         self.controller = controller
         self.日志 = config.get("日志")
         self.方式 = config.get("方式")
@@ -478,8 +443,10 @@ class Field:
         self.h = 0
     
     def 查找(self):
-        """查找字段"""
-        url = self.大图路径 if self.大图路径 else self.controller.截图()
+        if self.大图路径:
+            url = self.大图路径
+        else:
+            url = self.controller.截图到内存()
         if url:
             if self.方式 == "yolo":
                 result = self.controller.yolo(url, self.模型路径, self.相似度)
@@ -532,7 +499,9 @@ class Field:
     def 随机延时(self, startMs, endMs):
         """随机延时"""
         if self.是否找到():
-            self.controller.随机延时(startMs, endMs)
+            if startMs > endMs:
+                startMs, endMs = endMs, startMs
+                time.sleep(random.uniform(startMs, endMs))
         return self
     
     def 设置查找区域(self, 查找区域):
@@ -559,12 +528,6 @@ class TaskLineMachine:
     """任务状态机类"""
     
     def __init__(self, device_id):
-        """
-        初始化任务状态机
-        
-        参数:
-            controller: DeviceController实例
-        """
         self.controller = DeviceController(device_id)
         self._states = {}
         self._current_interface = None
@@ -583,9 +546,13 @@ class TaskLineMachine:
             }
         return decorator
     
-    def _copy_unknown_screenshot(self, url):
-        """复制未知界面截图到unknown文件夹"""
-        import shutil
+    def _copy_unknown_screenshot(self, image_data):
+        """
+        保存未知界面截图到unknown文件夹
+        
+        参数:
+            image_data: 文件路径（字符串）或 PIL Image 对象
+        """
         try:
             # 创建unknown文件夹
             unknown_dir = os.path.join(os.path.dirname(__file__), "resource", "unknown")
@@ -596,11 +563,17 @@ class TaskLineMachine:
             filename = f"unknown_{timestamp}.png"
             dest_path = os.path.join(unknown_dir, filename)
             
-            # 复制文件
-            shutil.copy(url, dest_path)
+            # 如果是 PIL Image 对象，直接保存
+            if isinstance(image_data, Image.Image):
+                image_data.save(dest_path)
+            else:
+                # 如果是文件路径，复制文件
+                import shutil
+                shutil.copy(image_data, dest_path)
+            
             print(f"未知界面截图已保存: {dest_path}")
         except Exception as e:
-            print(f"复制未知界面截图失败: {e}")
+            print(f"保存未知界面截图失败: {e}")
     
     def _play_alert_music(self):
         """播放提示音乐"""
@@ -639,12 +612,13 @@ class TaskLineMachine:
         
         while self._is_running:
             try:
-                url = self.controller.截图()
+                url = self.controller.截图到内存()
                 if url:
                     是否找到 = False
                     for state in self._states.values():
                         handler = state['handler']
                         config = state['Field']
+                        # 传递内存截图模式参数
                         if Field(config, self.controller).设置大图路径(url).查找().是否找到():
                             是否找到 = True
                             print(f"目前位于: {config['界面']}")
@@ -652,7 +626,7 @@ class TaskLineMachine:
                             self._current_interface = config['界面']
                             # 找到已知界面，重置未知界面计时器
                             self._unknown_start_time = None
-                            result = handler(self._context)
+                            result = handler(self._context, )
                             if isinstance(result, dict):
                                 self._context.update(result)
                             elif result is False:
@@ -673,7 +647,7 @@ class TaskLineMachine:
                             elapsed = time.time() - self._unknown_start_time
                             if elapsed >= self._unknown_timeout:
                                 print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
-                                # 截图
+                                # 保存截图（支持文件路径和 PIL Image 对象）
                                 self._copy_unknown_screenshot(url)
                                 # 播放提示音乐
                                 self._play_alert_music()
