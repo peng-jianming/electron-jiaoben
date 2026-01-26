@@ -86,7 +86,7 @@ class ADBController:
                 devices.append(device_id)
         return devices
     
-    def 截图(self, save_path=None):
+    def 截图(self, save_path):
         """
         截取手机屏幕截图
         
@@ -96,12 +96,6 @@ class ADBController:
         返回:
             截图保存的完整路径，失败返回 None
         """
-        # 默认保存路径
-        if save_path is None:
-            save_dir = os.path.join(os.path.dirname(__file__), "resource", "cache")
-            os.makedirs(save_dir, exist_ok=True)
-            timestamp = int(time.time() * 1000)
-            save_path = os.path.join(save_dir, f"screenshot_{timestamp}.png")
         
         # 方法1: 直接截图到电脑 (推荐，更快)
         # 先在手机上截图，然后拉取到电脑
