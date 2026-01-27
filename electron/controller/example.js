@@ -25,7 +25,7 @@ class ExampleController {
       this.sendToPython({
         type: 'start',
         device_id: item.deviceId,
-        task_queue: ['shimen']
+        task_queue: ['baotu']
       });
     });
   }

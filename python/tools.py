@@ -32,8 +32,8 @@ class DeviceController:
         # 初始化 Socket.IO 客户端（可选，延迟连接）
         self.init_client()
         # 点击位置监控，记录最后一次点击的位置和时间
-        self._last_click_position = None  # 记录最后点击的位置 (x, y, w, h)
-        self._last_click_time = None  # 记录最后点击的时间
+        # self._last_click_position = None  # 记录最后点击的位置 (x, y, w, h)
+        # self._last_click_time = None  # 记录最后点击的时间
 
     def 写入日志(self, info):
         """写入日志"""
@@ -82,19 +82,19 @@ class DeviceController:
             h: 点击区域高度
         """
         if x and y and w and h:
-            # 使用区域坐标作为键来标识点击位置
-            click_key = (x, y)
-            current_time = time.time()
+            # # 使用区域坐标作为键来标识点击位置
+            # click_key = (x, y)
+            # current_time = time.time()
             
-            # 只有当当前点击位置和最后一次点击位置相同时，才检查8秒限制
-            if (self._last_click_position == click_key and 
-                self._last_click_time is not None):
-                time_since_last_click = current_time - self._last_click_time
+            # # 只有当当前点击位置和最后一次点击位置相同时，才检查8秒限制
+            # if (self._last_click_position == click_key and 
+            #     self._last_click_time is not None):
+            #     time_since_last_click = current_time - self._last_click_time
                 
-                if time_since_last_click < 25:
-                    # 25秒内重复点击同一位置，跳过
-                    print(f"跳过重复点击: 位置({x}, {y}, {w}, {h}) 距离上次点击仅 {time_since_last_click:.2f} 秒")
-                    return
+            #     if time_since_last_click < 25:
+            #         # 25秒内重复点击同一位置，跳过
+            #         print(f"跳过重复点击: 位置({x}, {y}, {w}, {h}) 距离上次点击仅 {time_since_last_click:.2f} 秒")
+            #         return
             
             # 执行点击
             random_x = random.randint(x, x + w)
@@ -102,8 +102,8 @@ class DeviceController:
             self.adb.模拟点击(random_x, random_y, (0, 0.3))
             
             # 记录本次点击位置和时间（如果点击了其他位置，会更新这里，从而清除之前位置的限制）
-            self._last_click_position = click_key
-            self._last_click_time = current_time
+            # self._last_click_position = click_key
+            # self._last_click_time = current_time
 
     def init_client(self, url="http://127.0.0.1:7072"):
         """初始化 Socket.IO 客户端"""
@@ -273,6 +273,8 @@ class Field:
         return self
 
     def 设置字库(self, 字库集合):
+        if self.查找字符串 not in 字库集合:
+            print(f"{self.查找字符串},不在字库里")
         self.字库集合 = 字库集合
         return self
 
@@ -539,7 +541,7 @@ class TaskLineMachine:
         # self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
 
         self.controller = DeviceController(device_id)
-
+        time.sleep(2)
         self.界面集合 = self.加载界面配置(界面集合)
         self._states = {}
         self._current_interface = None
@@ -728,9 +730,9 @@ class TaskLineMachine:
             if not line:
                 continue
 
-            # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名
+            # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
             parts = line.split("&")
-            if len(parts) != 4:
+            if len(parts) != 5:
                 continue
 
             matrix_hex, size_info, deviation_str, name, target_offset = [p.strip() for p in parts]
@@ -826,11 +828,11 @@ class TaskLineMachine:
                 config[界面名称]["按钮"] = {}
                 for 按钮名称, 按钮配置 in 界面配置.get("按钮").items():
                     if isinstance(按钮配置, list):
-                        config[界面名称]['按钮'][按钮名称] = Field({"点击区域": 按钮配置}, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
+                        config[界面名称]['按钮'][按钮名称] = Field({"固定点击区域": 按钮配置}, self.controller)
                     else:
                         # 将按钮配置拍平和查找字符串一起传入Field
                         button_field_config = {"查找字符串": 按钮名称}
                         button_field_config.update(按钮配置)
-                        config[界面名称]["按钮"][按钮名称] = Field(button_field_config, self.controller)
+                        config[界面名称]["按钮"][按钮名称] = Field(button_field_config, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
         return config
  
