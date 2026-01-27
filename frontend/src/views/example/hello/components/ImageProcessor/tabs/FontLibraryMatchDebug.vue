@@ -266,9 +266,9 @@
       return;
     }
   
-    // 构建字库信息数组（格式：点阵&长,宽,点阵总数量&偏色&命名）
+    // 构建字库信息数组（格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域）
     const fontLibraryInfoArray = matchedFontLibraries.map(item => {
-      return `${item.matrix}&${item.width},${item.height},${item.totalCount}&${item.deviation}&${item.name}`;
+      return `${item.matrix}&${item.width},${item.height},${item.totalCount}&${item.deviation}&${item.name}&${item.clickOffsetArea}`;
     });
   
     matching.value = true;

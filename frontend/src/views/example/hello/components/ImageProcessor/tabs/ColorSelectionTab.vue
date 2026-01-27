@@ -32,8 +32,30 @@
       </el-image>
     </div>
 
-    <!-- 字库制作区域 -->
+    <!-- 字库制作区域：偏移点击区域（单独一行，可圈选） -->
     <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 0 5px; flex-shrink: 0;">
+      <el-input
+        v-model="fontClickOffsetAreaInput"
+        placeholder="请输入偏移点击区域，格式：x,y,w,h（可不填，默认 0,0,0,0）"
+        size="small"
+        style="flex: 1;"
+        clearable
+      >
+        <template #append>
+          <el-button
+            :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
+            :disabled="!hasSelectionRect"
+            size="small"
+            @click="toggleFontClickOffsetAreaSelection"
+          >
+            {{ fontClickOffsetAreaSelectionEnabled ? '取消圈选范围' : '启动圈选范围' }}
+          </el-button>
+        </template>
+      </el-input>
+    </div>
+
+    <!-- 字库制作区域：字库名称 + 加入按钮 -->
+    <div style="margin-top: 5px; display: flex; align-items: center; gap: 10px; padding: 0 5px; flex-shrink: 0;">
       <el-input
         v-model="fontNameInput"
         placeholder="请输入字库名字"
@@ -54,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, nextTick, computed } from "vue";
 import { ElMessage } from "element-plus";
 import ColorList from "../lists/ColorList.vue";
 import DeviationList from "../lists/DeviationList.vue";
@@ -79,7 +101,14 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["remove-color", "clear-all-colors", "add-colors", "add-font-library"]);
+const emit = defineEmits([
+  "remove-color",
+  "clear-all-colors",
+  "add-colors",
+  "add-font-library",
+  "start-code-generator-selection",
+  "stop-code-generator-selection",
+]);
 
 const deviationColors = ref([]);
 const selectedDeviations = ref([]);
@@ -87,7 +116,35 @@ const processedImageUrl = ref(null);
 const lastRenderedImageUrl = ref(null); // 保存最后一次通过"重新渲染"生成的图片
 const isPreviewEnabled = ref(false);
 const previewDeviationValue = ref(0);
+const fontClickOffsetAreaInput = ref("");
 const fontNameInput = ref("");
+
+// 偏移点击区域圈选状态
+const fontClickOffsetAreaSelectionEnabled = ref(false);
+
+// 是否存在左侧圈选范围（用于偏移点击区域的基准）
+const hasSelectionRect = computed(() => {
+  return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
+});
+
+// 切换偏移点击区域圈选模式（交互风格与 CodeGeneratorTab 保持一致）
+const toggleFontClickOffsetAreaSelection = () => {
+  if (!hasSelectionRect.value) {
+    ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
+    return;
+  }
+
+  if (fontClickOffsetAreaSelectionEnabled.value) {
+    fontClickOffsetAreaSelectionEnabled.value = false;
+    emit("stop-code-generator-selection");
+    ElMessage.info("已取消圈选模式");
+  } else {
+    fontClickOffsetAreaSelectionEnabled.value = true;
+    // 使用专门的类型标识，方便上层区分来源
+    emit("start-code-generator-selection", "fontClickOffsetArea");
+    ElMessage.info("请在图片上圈选偏移点击区域");
+  }
+};
 
 // HEX 转 RGB
 const hexToRgb = (hex) => {;
@@ -629,6 +686,31 @@ const handleRerender = () => {
   img.src = props.currentImage.url;
 };
 
+// 通过圈选结果设置偏移点击区域（由父组件调用）
+const setFontClickOffsetAreaFromSelection = (rect) => {
+  if (!rect || !rect.w || !rect.h) {
+    return;
+  }
+
+  // 偏移点击区域需要基于左侧圈选范围计算偏移值
+  if (!props.selectionRect || !props.selectionRect.w || !props.selectionRect.h) {
+    ElMessage.warning("请先在左侧进行圈选，然后再圈选偏移点击区域");
+    // 不取消圈选模式，让用户可以继续操作
+    return;
+  }
+
+  // 计算偏移值：偏移点击区域的坐标 - 左侧圈选范围的坐标
+  const offsetX = rect.x - props.selectionRect.x;
+  const offsetY = rect.y - props.selectionRect.y;
+  const areaStr = `${offsetX},${offsetY},${rect.w},${rect.h}`;
+  fontClickOffsetAreaInput.value = areaStr;
+  ElMessage.success("已获取偏移点击区域范围（已计算偏移值）");
+
+  // 自动取消圈选模式
+  fontClickOffsetAreaSelectionEnabled.value = false;
+  emit("stop-code-generator-selection");
+};
+
 // 处理加入字库
 const handleAddFontLibrary = async () => {
   if (!processedImageUrl.value) {
@@ -644,6 +726,23 @@ const handleAddFontLibrary = async () => {
   if (!fontNameInput.value || !fontNameInput.value.trim()) {
     ElMessage.warning("请输入字库名字");
     return;
+  }
+
+  // 处理偏移点击区域，格式为 x,y,w,h，若未填写则默认 0,0,0,0
+  let clickOffsetArea = "0,0,0,0";
+  if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
+    const raw = fontClickOffsetAreaInput.value.trim();
+    const parts = raw.split(",").map((s) => s.trim());
+    if (parts.length !== 4 || parts.some((p) => p === "" || isNaN(parseInt(p, 10)))) {
+      ElMessage.warning("偏移点击区域格式不正确，应为：x,y,w,h");
+      return;
+    }
+    const [x, y, w, h] = parts.map((p) => parseInt(p, 10));
+    if (w < 0 || h < 0) {
+      ElMessage.warning("偏移点击区域宽高必须为非负整数");
+      return;
+    }
+    clickOffsetArea = `${x},${y},${w},${h}`;
   }
 
   try {
@@ -736,6 +835,7 @@ const handleAddFontLibrary = async () => {
             sizeInfo: `${width}×${height} (${whitePixelCount})`,
             deviation: deviationStr,
             name: fontNameInput.value.trim(),
+            clickOffsetArea,
             editing: false,
             binaryData: binaryData // 保存二进制数据用于显示
           };
@@ -751,6 +851,7 @@ const handleAddFontLibrary = async () => {
           
           // 只有在成功时才清空输入框
           if (success) {
+            fontClickOffsetAreaInput.value = "";
             fontNameInput.value = "";
           } else {
             // 如果失败，不显示任何消息（错误消息已在 FontLibraryTab 中显示）
@@ -781,6 +882,7 @@ const handleAddFontLibrary = async () => {
 defineExpose({
   getSelectedDeviations: () => selectedDeviations.value,
   getProcessedImageUrl: () => processedImageUrl.value,
+  setFontClickOffsetAreaFromSelection,
 });
 </script>
 

@@ -143,7 +143,8 @@ const handleSelectFile = async () => {
 };
 
 // 解析字库文件
-// 格式：点阵&长,宽,点阵总数量&偏色&命名
+// 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+// 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名（偏移点击区域默认为 0,0,0,0）
 const parseFontLibraryFile = (text) => {
     const lines = text.split('\n');
     const result = [];
@@ -153,12 +154,12 @@ const parseFontLibraryFile = (text) => {
         if (!line) continue; // 跳过空行
 
         const parts = line.split('&');
-        if (parts.length !== 4) {
+        if (parts.length < 4 || parts.length > 5) {
             console.warn(`第 ${i + 1} 行格式不正确，已跳过: ${line}`);
             continue;
         }
 
-        const [matrix, sizeInfo, deviation, name] = parts.map(p => p.trim());
+        const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
 
         // 验证尺寸信息格式：长,宽,点阵总数量
         const sizeMatch = sizeInfo.match(/^(\d+),(\d+),(\d+)$/);
@@ -169,6 +170,9 @@ const parseFontLibraryFile = (text) => {
 
         const [, width, height, totalCount] = sizeMatch;
         const sizeInfoFormatted = `${width}×${height} (${totalCount})`;
+
+        // 偏移点击区域，旧格式没有该字段时默认 0,0,0,0
+        const clickOffsetArea = (parts.length === 5 && offsetStr) ? offsetStr : "0,0,0,0";
 
         // 从matrix还原binaryData用于显示
         const binaryData = [];
@@ -190,6 +194,7 @@ const parseFontLibraryFile = (text) => {
             deviation: deviation,
             name: name || `字库${i + 1}`,
             editing: false,
+            clickOffsetArea,
             binaryData: pixels // 保存二进制数据用于显示
         });
     }
@@ -236,11 +241,13 @@ const updateNameInFile = async (row, oldName) => {
         let content = readResult.content;
         const lines = content.split('\n');
 
-        // 构建要匹配的行（使用点阵、尺寸、偏色来匹配，因为名称可能已经改变）
-        // 格式：点阵&长,宽,点阵总数量&偏色&命名
+        // 构建要匹配的条件（使用点阵、尺寸、偏色来匹配，因为名称可能已经改变）
+        // 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+        // 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名
         const targetMatrix = row.matrix;
         const targetSizeInfo = `${row.width},${row.height},${row.totalCount}`;
         const targetDeviation = row.deviation;
+        const targetClickOffsetArea = row.clickOffsetArea || "0,0,0,0";
         
         // 查找并更新匹配的行
         const updatedLines = lines.map(line => {
@@ -251,18 +258,19 @@ const updateNameInFile = async (row, oldName) => {
 
             // 解析行内容
             const parts = trimmedLine.split('&');
-            if (parts.length !== 4) {
+            if (parts.length < 4 || parts.length > 5) {
                 return line; // 格式不正确的行，保持不变
             }
 
-            const [matrix, sizeInfo, deviation] = parts.map(p => p.trim());
+            const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
             
             // 精确匹配点阵、尺寸、偏色
             if (matrix === targetMatrix && 
                 sizeInfo === targetSizeInfo && 
                 deviation === targetDeviation) {
-                // 构建新行，使用新的名称
-                return `${row.matrix}&${row.width},${row.height},${row.totalCount}&${row.deviation}&${row.name}`;
+                // 构建新行，使用新的名称，并写入偏移点击区域（无则默认 0,0,0,0）
+                const newClickOffsetArea = targetClickOffsetArea || "0,0,0,0";
+                return `${row.matrix}&${row.width},${row.height},${row.totalCount}&${row.deviation}&${row.name}&${newClickOffsetArea}`;
             }
             
             return line;
@@ -446,13 +454,42 @@ const handleDelete = async (index) => {
                 let content = readResult.content;
                 const lines = content.split('\n');
 
-                // 构建要删除的行：点阵&长,宽,点阵总数量&偏色&命名
-                const lineToDelete = `${itemToDelete.matrix}&${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}&${itemToDelete.deviation}&${itemToDelete.name}`;
-
-                // 过滤掉要删除的行（精确匹配）
+                // 过滤掉要删除的行（精确匹配字段，而不是整行字符串）
+                // 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+                // 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名
                 const filteredLines = lines.filter(line => {
                     const trimmedLine = line.trim();
-                    return trimmedLine !== lineToDelete && trimmedLine !== lineToDelete.trim();
+                    if (!trimmedLine) {
+                        return true;
+                    }
+
+                    const parts = trimmedLine.split('&');
+                    if (parts.length < 4 || parts.length > 5) {
+                        return true;
+                    }
+
+                    const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
+                    const sizeInfoExpected = `${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}`;
+                    const clickOffsetAreaExpected = itemToDelete.clickOffsetArea || "0,0,0,0";
+
+                    const isMatchBase =
+                        matrix === itemToDelete.matrix &&
+                        sizeInfo === sizeInfoExpected &&
+                        deviation === itemToDelete.deviation &&
+                        name === itemToDelete.name;
+
+                    if (!isMatchBase) {
+                        return true;
+                    }
+
+                    // 如果文件中没有偏移点击区域字段（旧格式），也认为匹配
+                    if (parts.length === 4) {
+                        return false;
+                    }
+
+                    // 有第 5 个字段时，要求偏移点击区域也一致
+                    const fileOffset = offsetStr || "0,0,0,0";
+                    return fileOffset !== clickOffsetAreaExpected;
                 });
 
                 // 重新组合内容
@@ -513,8 +550,9 @@ const saveToFile = async (fontItem) => {
     }
 
     try {
-        // 构建字库行：点阵&长,宽,点阵总数量&偏色&命名
-        const line = `${fontItem.matrix}&${fontItem.width},${fontItem.height},${fontItem.totalCount}&${fontItem.deviation}&${fontItem.name}`;
+        // 构建字库行：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+        const clickOffsetArea = fontItem.clickOffsetArea || "0,0,0,0";
+        const line = `${fontItem.matrix}&${fontItem.width},${fontItem.height},${fontItem.totalCount}&${fontItem.deviation}&${fontItem.name}&${clickOffsetArea}`;
 
         // 读取现有文件内容
         const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {

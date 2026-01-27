@@ -545,7 +545,7 @@ function handleRightPanelScreenshotEnd() {
 // 启动代码生成器圈选模式
 function handleStartCodeGeneratorSelection(type) {
   codeGeneratorSelectionEnabled.value = true;
-  codeGeneratorSelectionType.value = type; // 'searchArea' | 'clickOffsetArea'
+  codeGeneratorSelectionType.value = type; // 'searchArea' | 'clickOffsetArea' | 'clickArea' | 'fontClickOffsetArea'
   codeGeneratorSelectionStart.value = null;
   codeGeneratorSelectionCurrent.value = null;
   codeGeneratorSelectionRect.value = null;
@@ -893,12 +893,30 @@ function handleMouseUp(event) {
         naturalY,
       };
       updateCodeGeneratorSelectionRects();
-      
-      // 将结果传递给 CodeGeneratorTab
+
+      // 将结果传递给对应的右侧 Tab
       if (codeGeneratorSelectionRect.value && rightPanelRef.value) {
-        const codeGeneratorTabRef = rightPanelRef.value.getCodeGeneratorTabRef?.();
-        if (codeGeneratorTabRef && codeGeneratorTabRef.setSearchAreaFromSelection) {
-          codeGeneratorTabRef.setSearchAreaFromSelection(codeGeneratorSelectionRect.value);
+        const rect = codeGeneratorSelectionRect.value;
+        // 来自代码生成 Tab 的圈选
+        if (
+          codeGeneratorSelectionType.value === "searchArea" ||
+          codeGeneratorSelectionType.value === "clickArea" ||
+          codeGeneratorSelectionType.value === "clickOffsetArea"
+        ) {
+          const codeGeneratorTabRef = rightPanelRef.value.getCodeGeneratorTabRef?.();
+          if (codeGeneratorTabRef && codeGeneratorTabRef.setSearchAreaFromSelection) {
+            codeGeneratorTabRef.setSearchAreaFromSelection(rect);
+          }
+        }
+        // 来自偏色计算 Tab 的偏移点击区域圈选
+        else if (codeGeneratorSelectionType.value === "fontClickOffsetArea") {
+          const colorSelectionTabRef = rightPanelRef.value.getColorSelectionTabRef?.();
+          if (
+            colorSelectionTabRef &&
+            typeof colorSelectionTabRef.setFontClickOffsetAreaFromSelection === "function"
+          ) {
+            colorSelectionTabRef.setFontClickOffsetAreaFromSelection(rect);
+          }
         }
       }
     } else {

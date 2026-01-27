@@ -28,6 +28,8 @@
           @clear-all-colors="$emit('clear-all-colors')"
           @add-colors="$emit('add-colors', $event)"
           @add-font-library="handleAddFontLibrary"
+          @start-code-generator-selection="(type) => $emit('start-code-generator-selection', type)"
+          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
@@ -350,6 +352,7 @@ defineExpose({
     return isRightPanelScreenshotPending.value;
   },
   getCodeGeneratorTabRef: () => codeGeneratorTabRef.value,
+  getColorSelectionTabRef: () => colorSelectionTabRef.value,
 });
 
 // 组件挂载时初始化 socket

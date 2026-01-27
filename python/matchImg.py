@@ -3,7 +3,9 @@ import numpy as np
 from PIL import Image
 
 # 全局变量：存储字库数据
-# 格式: {font_name: {'template_mask': numpy数组, 'width': int, 'height': int, 'deviation': str, 'matrix_hex': str}}
+# 新格式: 点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+# 兼容旧格式: 点阵&长,宽,点阵总数量&偏色&命名（偏移点击区域默认为 0,0,0,0）
+# 缓存结构: {font_name: {'template_mask': numpy数组, 'width': int, 'height': int, 'deviation': str, 'matrix_hex': str, 'click_offset_area': str}}
 font_library_cache = {}
 
 def opencv找图(large_image_path, small_image_path, region=(0, 0, 0, 0)):
@@ -226,7 +228,7 @@ def 加载字库文件(font_library_path):
     
     此函数应在程序启动时调用，将字库数据加载到内存中，避免每次找图时重复读取文件
     
-    :param font_library_path: 字库文件路径（txt文件，格式：点阵&长,宽,点阵总数量&偏色&命名）
+    :param font_library_path: 字库文件路径（txt文件，新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域，兼容旧格式：无偏移点击区域字段）
     :return: 成功加载的字库数量，失败返回0
     """
     global font_library_cache
@@ -247,13 +249,15 @@ def 加载字库文件(font_library_path):
         if not line:
             continue
         
-        # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名
+        # 解析字库行：
+        # 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+        # 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名（偏移点击区域默认为 0,0,0,0）
         parts = line.split('&')
-        if len(parts) != 4:
+        if len(parts) != 5:
             continue
-        
-        matrix_hex, size_info, deviation_str, name = [p.strip() for p in parts]
-        
+
+        # 统一提取字段
+        matrix_hex, size_info, deviation_str, name, click_offset_area = [p.strip() for p in parts]
         # 解析尺寸信息：长,宽,点阵总数量
         size_parts = size_info.split(',')
         if len(size_parts) != 3:
@@ -293,7 +297,8 @@ def 加载字库文件(font_library_path):
             'height': height,
             'total_count': total_count,
             'deviation': deviation_str,
-            'matrix_hex': matrix_hex
+            'matrix_hex': matrix_hex,
+            'click_offset_area': click_offset_area
         }
         
         loaded_count += 1
@@ -432,7 +437,7 @@ def opencv字库行找图(large_image_path, line, region=(0, 0, 0, 0)):
     根据字库行字符串进行颜色偏色找图（直接解析字库行，不需要预先加载到缓存）
     
     :param large_image_path: 大图路径
-    :param line: 字库行字符串，格式：点阵&长,宽,点阵总数量&偏色&命名
+    :param line: 字库行字符串，新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域（兼容旧格式：无偏移点击区域字段）
     :param region: 检测区域 (x, y, width, height)，如果全为0则检测整个大图
     :return: 找到的位置 {"x": x, "y": y, "w": w, "h": h, "similarity": similarity} 或 None
     """
@@ -442,13 +447,17 @@ def opencv字库行找图(large_image_path, line, region=(0, 0, 0, 0)):
         print("字库行为空")
         return None
     
-    # 解析字库行：点阵&长,宽,点阵总数量&偏色&命名
+    # 解析字库行：
+    # 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+    # 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名
     parts = line.split('&')
-    if len(parts) != 4:
-        print(f"字库行格式错误，应为4部分，实际为{len(parts)}部分: {line}")
+    if len(parts) != 5:
+        print(f"字库行格式错误，应为5部分，实际为{len(parts)}部分: {line}")
         return None
-    
-    matrix_hex, size_info, deviation_str, name = [p.strip() for p in parts]
+
+ 
+    matrix_hex, size_info, deviation_str, name, click_offset_area = [p.strip() for p in parts]
+    # 第 5 段偏移点击区域目前未在此函数中使用，如有需要可在上层逻辑中解析
     
     # 解析尺寸信息：长,宽,点阵总数量
     size_parts = size_info.split(',')
@@ -462,6 +471,21 @@ def opencv字库行找图(large_image_path, line, region=(0, 0, 0, 0)):
         total_count = int(size_parts[2])
     except ValueError as e:
         print(f"解析尺寸信息失败: {e}")
+        return None
+
+    # 目标偏移信息
+    target_offset_parts = click_offset_area.split(",")
+    if len(target_offset_parts) != 4:
+        print(f"目标偏移信息格式错误: {click_offset_area}")
+        return None
+        
+    try:
+        target_offset_x = int(target_offset_parts[0])
+        target_offset_y = int(target_offset_parts[1])
+        target_offset_w = int(target_offset_parts[2])
+        target_offset_h = int(target_offset_parts[3])
+    except ValueError:
+        print(f"解析目标偏移信息失败: {click_offset_area}")
         return None
     
     # 将16进制点阵转换为二值化图像
@@ -583,6 +607,10 @@ def opencv字库行找图(large_image_path, line, region=(0, 0, 0, 0)):
         "y": max_loc[1] + offset_y,
         "w": small_w,
         "h": small_h,
+        "target_x": max_loc[0] + offset_x + target_offset_x,
+        "target_y": max_loc[1] + offset_y + target_offset_y,
+        "target_w": target_offset_w,
+        "target_h": target_offset_h,
         "similarity": float(custom_similarity)
     }
 
