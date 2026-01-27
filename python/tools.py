@@ -173,11 +173,13 @@ class Field:
         self.日志 = config.get("日志")
         self.方式 = config.get("方式")
         self.查找字符串 = config.get("查找字符串")
+        self.分类名 = config.get("分类名")
         self.大图路径 = config.get("大图路径")
         self.相似度 = config.get("相似度", 0.8)
-        self.分类名 = config.get("分类名")
         self.查找区域 = config.get("查找区域", [0, 0, 0, 0])
         self.偏移点击区域 = config.get("偏移点击区域")
+        self.点击区域 = config.get("点击区域") # 找到后才会点击
+        self.固定点击区域 = config.get("固定点击区域") # 不需要找到,直接点击
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
@@ -186,8 +188,14 @@ class Field:
         self.h = 0
 
     def 查找(self):
+        if not self.查找字符串:
+            return self
         if not self.大图路径:
             self.大图路径 = self.controller.截图到内存()
+        self.x = 0
+        self.y = 0
+        self.w = 0
+        self.h = 0
         if self.大图路径:
             if self.方式 == "yolo":
                 result = self._yolo(self.大图路径, self.模型路径, self.相似度)
@@ -205,24 +213,30 @@ class Field:
                     self.大图路径, self.查找字符串, self.相似度, self.查找区域
                 )
                 if result:
-                    self.x = result["x"]
-                    self.y = result["y"]
-                    self.w = result["w"]
-                    self.h = result["h"]
+                    self.x = result["target_x"]
+                    self.y = result["target_y"]
+                    self.w = result["target_w"]
+                    self.h = result["target_h"]
         return self
 
     def 点击(self, x=None, y=None, w=None, h=None):
         """点击字段"""
+        # 找到目标, 但是需要点击的位置需要根据找到目标位置进行划定,那么就需要偏移点击区域,
+        # 找到目标, 但是需要点击的目标是固定位置, 那么就需要点击区域,
+        # 找到目标, 点击目标位置就是找到的位置,那就直接点击找到的位置
         if self.是否找到():
             if x and y and w and h:
                 self.controller.随机ADB点击(x, y, w, h)
             elif x and y:
                 self.controller.ADB点击(x, y)
-            # 没有传入x,y,w,h时,则先看偏移点击区域是否存在,如果存在则点击偏移点击区域
             elif self.偏移点击区域:
                 self.偏移点击(*self.偏移点击区域)
-            elif self.x and self.y:
+            elif self.点击区域:
+                self.controller.随机ADB点击(self.点击区域[0], self.点击区域[1], self.点击区域[2], self.点击区域[3])
+            else :
                 self.controller.随机ADB点击(self.x, self.y, self.w, self.h)
+        elif self.固定点击区域:
+            self.controller.随机ADB点击(self.固定点击区域[0], self.固定点击区域[1], self.固定点击区域[2], self.固定点击区域[3])
 
         return self
 
@@ -237,7 +251,7 @@ class Field:
 
     def 随机延时(self, startMs, endMs):
         """随机延时"""
-        if self.是否找到():
+        if self.是否找到() or self.固定点击区域:
             if startMs > endMs:
                 startMs, endMs = endMs, startMs
                 time.sleep(random.uniform(startMs, endMs))
@@ -348,6 +362,10 @@ class Field:
             white_points = font_data["total_count"]
             small_w = font_data["width"]
             small_h = font_data["height"]
+            target_offset_x = font_data["target_offset_x"]
+            target_offset_y = font_data["target_offset_y"]
+            target_offset_w = font_data["target_offset_w"]
+            target_offset_h = font_data["target_offset_h"]
 
             # 检查小图是否大于检测区域
             if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
@@ -439,10 +457,14 @@ class Field:
             # 如果符合相似度要求，立即返回
             if max_val >= similarity:
                 return {
-                    "x": max_loc[0] + offset_x,
-                    "y": max_loc[1] + offset_y,
-                    "w": small_w,
-                    "h": small_h,
+                    "origin_x": max_loc[0] + offset_x,
+                    "origin_y": max_loc[1] + offset_y,
+                    "origin_w": small_w,
+                    "origin_h": small_h,
+                    "target_x": max_loc[0] + offset_x + target_offset_x,
+                    "target_y": max_loc[1] + offset_y + target_offset_y,
+                    "target_w": target_offset_w,
+                    "target_h": target_offset_h,
                     "similarity": float(max_val),
                 }
 
@@ -517,7 +539,8 @@ class TaskLineMachine:
         # self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
 
         self.controller = DeviceController(device_id)
-        self.界面集合 = 界面集合
+
+        self.界面集合 = self.加载界面配置(界面集合)
         self._states = {}
         self._current_interface = None
         self._previous_interface = None
@@ -606,14 +629,14 @@ class TaskLineMachine:
 
         while self._is_running:
             try:
-                url = self.controller.截图到内存()
-                if url:
+                截图 = self.controller.截图到内存()
+                if 截图:
                     是否找到 = False
                     for 界面名称, 执行函数 in self._states.items():
                         # 传递内存截图模式参数
                         if (
                             Field(self.界面集合[界面名称], self.controller)
-                            .设置大图路径(url)
+                            .设置大图路径(截图)
                             .设置字库(self.font_library_cache)
                             .设置模型(self._model)
                             .查找()
@@ -625,7 +648,7 @@ class TaskLineMachine:
                             self._current_interface = 界面名称
                             # 找到已知界面，重置未知界面计时器
                             self._unknown_start_time = None
-                            result = 执行函数(self._context)
+                            result = 执行函数(self._context, self.界面集合[界面名称], 截图)
                             if isinstance(result, dict):
                                 self._context.update(result)
                             elif result is False:
@@ -641,17 +664,9 @@ class TaskLineMachine:
                             if 界面名称 in self._states:
                                 continue
                             if 关闭按钮 := 界面配置.get("按钮", {}).get("关闭"):
-                                if (
-                                    Field(界面配置, self.controller)
-                                    .设置大图路径(url)
-                                    .设置字库(self.font_library_cache)
-                                    .设置模型(self._model)
-                                    .查找()
-                                    .点击(*关闭按钮)
-                                    .是否找到()
-                                ):
-                                    print(f"目前位于未注册界面: {界面名称}")
-                                    break
+                                关闭按钮.点击()
+                                print(f"目前位于未注册界面: {界面名称}")
+                                break
 
                         # 未知界面计时逻辑
                         if self._unknown_start_time is None:
@@ -661,7 +676,7 @@ class TaskLineMachine:
                             if elapsed >= self._unknown_timeout:
                                 print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
                                 # 保存截图（支持文件路径和 PIL Image 对象）
-                                self._copy_unknown_screenshot(url)
+                                self._copy_unknown_screenshot(截图)
                                 # 播放提示音乐
                                 self._play_alert_music()
                                 # 重置计时器，避免重复保存
@@ -718,7 +733,7 @@ class TaskLineMachine:
             if len(parts) != 4:
                 continue
 
-            matrix_hex, size_info, deviation_str, name = [p.strip() for p in parts]
+            matrix_hex, size_info, deviation_str, name, target_offset = [p.strip() for p in parts]
 
             # 解析尺寸信息：长,宽,点阵总数量
             size_parts = size_info.split(",")
@@ -729,6 +744,19 @@ class TaskLineMachine:
                 width = int(size_parts[0])
                 height = int(size_parts[1])
                 total_count = int(size_parts[2])
+            except ValueError:
+                continue
+
+            # 目标偏移信息
+            target_offset_parts = target_offset.split(",")
+            if len(target_offset_parts) != 4:
+                continue
+                
+            try:
+                target_offset_x = int(target_offset_parts[0])
+                target_offset_y = int(target_offset_parts[1])
+                target_offset_w = int(target_offset_parts[2])
+                target_offset_h = int(target_offset_parts[3])
             except ValueError:
                 continue
 
@@ -766,6 +794,10 @@ class TaskLineMachine:
                     "total_count": total_count,
                     "deviation": deviation_str,
                     "matrix_hex": matrix_hex,
+                    "target_offset_x": target_offset_x,
+                    "target_offset_y": target_offset_y,
+                    "target_offset_w": target_offset_w,
+                    "target_offset_h": target_offset_h,
                 }
             )
 
@@ -777,3 +809,28 @@ class TaskLineMachine:
     def 加载模型文件(self, model_path):
         self._model = YOLO(model_path)
         return self._model
+
+    def 加载界面配置(self, 界面集合):
+        config = {}
+        for 界面名称, 界面配置 in 界面集合.items():
+            button_field_config = {"查找字符串": 界面名称}
+            button_field_config.update(界面配置)
+            config[界面名称] = button_field_config
+            if 界面配置.get("状态"):
+                config[界面名称]["状态"] = {}
+                for 状态名称, 状态配置 in 界面配置.get("状态").items():
+                    button_field_config = {"查找字符串": 状态名称}
+                    button_field_config.update(状态配置)
+                    config[界面名称]["状态"][状态名称] = Field(button_field_config, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
+            if 界面配置.get("按钮"):
+                config[界面名称]["按钮"] = {}
+                for 按钮名称, 按钮配置 in 界面配置.get("按钮").items():
+                    if isinstance(按钮配置, list):
+                        config[界面名称]['按钮'][按钮名称] = Field({"点击区域": 按钮配置}, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
+                    else:
+                        # 将按钮配置拍平和查找字符串一起传入Field
+                        button_field_config = {"查找字符串": 按钮名称}
+                        button_field_config.update(按钮配置)
+                        config[界面名称]["按钮"][按钮名称] = Field(button_field_config, self.controller)
+        return config
+ 

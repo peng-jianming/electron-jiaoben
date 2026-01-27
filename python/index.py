@@ -8,7 +8,7 @@ _client = None
 def start(data):
     """
     启动任务队列（按顺序执行多个任务）
-    
+
     消息格式:
     {
         "type": "start",
@@ -18,15 +18,15 @@ def start(data):
     """
     device_id = data.get("device_id")
     task_queue = data.get("task_queue")
-    
+
     if not device_id:
         print("错误: 缺少 device_id")
         return
-    
+
     if not isinstance(task_queue, list) or not task_queue:
         print("错误: task_queue 必须是非空列表")
         return
-    
+
     success = get_task_manager().start_task_queue(device_id, task_queue)
     status = "成功" if success else "失败"
     print(f"{status}启动任务队列: 设备={device_id}, 队列={task_queue}")
@@ -35,7 +35,7 @@ def start(data):
 def stop(data):
     """
     停止任务队列
-    
+
     消息格式:
     {
         "type": "stop",
@@ -47,7 +47,7 @@ def stop(data):
     if not device_id:
         print("错误: 缺少 device_id")
         return
-    
+
     success = get_task_manager().stop_task(device_id)
     status = "成功停止" if success else "停止失败"
     print(f"{status}设备的所有任务: 设备={device_id}")
@@ -81,6 +81,7 @@ if __name__ == "__main__":
     init_client()
     try:
         import time
+
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
