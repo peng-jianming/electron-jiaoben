@@ -329,13 +329,12 @@ class Field:
         返回:
             bool: 是否找到并点击成功
         """
-        if 日志:
-            self.日志 = 日志
-            print(日志)
-        
         self.查找()
         if self.是否找到():
             self.点击()
+            if 日志:
+                self.日志 = 日志
+                print(日志)
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
@@ -352,12 +351,12 @@ class Field:
         返回:
             bool: 是否点击成功
         """
-        if 日志:
-            self.日志 = 日志
-            print(日志)
         
         if self.固定点击区域:
             self.controller.随机ADB点击(*self.固定点击区域)
+            if 日志:
+                self.日志 = 日志
+                print(日志)
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
@@ -465,10 +464,6 @@ class Field:
                 tolerance = color_tol["tolerance"]
 
                 # 二值化处理
-                # search_int16 = search_area.astype(np.int16)
-                # search_diff = np.abs(search_int16 - base_color)
-                # search_mask = np.all(search_diff <= tolerance, axis=2)
-                # search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
                 lower = (base_color - tolerance).clip(0, 255).astype(np.uint8)
                 upper = (base_color + tolerance).clip(0, 255).astype(np.uint8)
                 search_binary = cv2.inRange(search_area, lower, upper)
@@ -602,7 +597,7 @@ class 界面配置:
                     field = Field({"固定点击区域": 配置}, controller, 截图上下文)
                 else:
                     # 需要查找的按钮
-                    field_config = {"查找字符串": 名称}
+                    field_config = {"查找字符串": f'{界面名称}_按钮_{名称}'}
                     field_config.update(配置)
                     field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
                 setattr(self.按钮, 名称, field)
@@ -613,7 +608,7 @@ class 界面配置:
         if '状态' in config_dict:
             self.状态 = type('状态集合', (), {})()
             for 名称, 配置 in config_dict['状态'].items():
-                field_config = {"查找字符串": 名称}
+                field_config = {"查找字符串": f'{界面名称}_状态_{名称}'}
                 field_config.update(配置)
                 field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
                 setattr(self.状态, 名称, field)
@@ -787,7 +782,7 @@ class TaskLineMachine:
                         # 重置计时器，避免重复保存
                         self._unknown_start_time = time.time()
 
-            time.sleep(1)
+            time.sleep(0.2)
 
     def stop(self):
         """停止状态机"""
