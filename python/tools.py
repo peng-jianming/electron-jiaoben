@@ -16,6 +16,26 @@ from abdTools import ADBController
 from resource.config import 界面集合
 from io import BytesIO
 
+
+class ScreenshotContext:
+    """截图上下文管理器，同一轮次复用截图"""
+    
+    def __init__(self, controller):
+        self._controller = controller
+        self._当前截图 = None
+    
+    def 新轮次(self):
+        """开始新一轮检测，清除缓存的截图"""
+        self._当前截图 = None
+    
+    def get_截图(self):
+        """懒加载截图，同轮次内复用"""
+        if self._当前截图 is None:
+            self._当前截图 = self._controller.截图到内存()
+        return self._当前截图
+
+
+
 class DeviceController:
     """设备控制器类，封装所有设备操作功能"""
 
@@ -166,8 +186,9 @@ class DeviceController:
 
 
 class Field:
-    def __init__(self, config, controller):
+    def __init__(self, config, controller, 截图上下文=None):
         self.controller = controller
+        self._截图上下文 = 截图上下文  # 共享截图上下文
         self.日志 = config.get("日志")
         self.方式 = config.get("方式")
         self.查找字符串 = config.get("查找字符串")
@@ -184,19 +205,32 @@ class Field:
         self.y = 0
         self.w = 0
         self.h = 0
+    
+    def 设置截图上下文(self, 截图上下文):
+        """设置截图上下文"""
+        self._截图上下文 = 截图上下文
+        return self
+    
+    def _获取截图(self):
+        """自动获取截图：优先使用已设置的大图路径，其次从上下文获取，最后直接截图"""
+        if self.大图路径:
+            return self.大图路径
+        if self._截图上下文:
+            return self._截图上下文.get_截图()
+        return self.controller.截图到内存()
 
     def 查找(self):
         if not self.查找字符串:
             return self
-        if not self.大图路径:
-            self.大图路径 = self.controller.截图到内存()
+        # 使用自动获取截图
+        截图 = self._获取截图()
         self.x = 0
         self.y = 0
         self.w = 0
         self.h = 0
-        if self.大图路径:
+        if 截图:
             if self.方式 == "yolo":
-                result = self._yolo(self.大图路径, self.模型路径, self.相似度)
+                result = self._yolo(截图, self.模型路径, self.相似度)
                 if len(result):
                     rx, ry, _, _ = self.查找区域
                     for r in result:
@@ -208,7 +242,7 @@ class Field:
                             break
             else:
                 result = self._opencv字库找图(
-                    self.大图路径, self.查找字符串, self.相似度, self.查找区域
+                    截图, self.查找字符串, self.相似度, self.查找区域
                 )
                 if result:
                     self.x = result["target_x"]
@@ -283,6 +317,51 @@ class Field:
     def 是否找到(self):
         """判断是否找到"""
         return bool(self.x and self.y)
+
+    def 点击如果找到(self, 延时=(1, 3), 日志=None) -> bool:
+        """
+        简化API：查找目标，如果找到则点击并延时
+        
+        参数:
+            延时: 点击后的随机延时范围，元组 (最小秒数, 最大秒数)
+            日志: 可选的日志信息
+        
+        返回:
+            bool: 是否找到并点击成功
+        """
+        if 日志:
+            self.日志 = 日志
+            print(日志)
+        
+        self.查找()
+        if self.是否找到():
+            self.点击()
+            if 延时:
+                time.sleep(random.uniform(*延时))
+            return True
+        return False
+    
+    def 必须点击(self, 延时=(1, 3), 日志=None) -> bool:
+        """
+        简化API：固定位置点击（不需要查找）或查找后点击
+        
+        参数:
+            延时: 点击后的随机延时范围，元组 (最小秒数, 最大秒数)
+            日志: 可选的日志信息
+        
+        返回:
+            bool: 是否点击成功
+        """
+        if 日志:
+            self.日志 = 日志
+            print(日志)
+        
+        if self.固定点击区域:
+            self.controller.随机ADB点击(*self.固定点击区域)
+            if 延时:
+                time.sleep(random.uniform(*延时))
+            return True
+        return self.点击如果找到(延时)
 
     def _opencv字库找图(
         self, large_image_path, font_name, similarity=0.9, region=(0, 0, 0, 0)
@@ -507,6 +586,49 @@ class Field:
         return detections
 
 
+class 界面配置:
+    """界面配置类，在初始化时直接将配置转换为对象属性访问"""
+    
+    def __init__(self, 界面名称, config_dict, controller, 截图上下文, 字库集合, 模型):
+        self._名称 = 界面名称
+        self._config = config_dict
+        
+        # 动态创建按钮属性
+        if '按钮' in config_dict:
+            self.按钮 = type('按钮集合', (), {})()
+            for 名称, 配置 in config_dict['按钮'].items():
+                if isinstance(配置, list):
+                    # 固定点击区域
+                    field = Field({"固定点击区域": 配置}, controller, 截图上下文)
+                else:
+                    # 需要查找的按钮
+                    field_config = {"查找字符串": 名称}
+                    field_config.update(配置)
+                    field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
+                setattr(self.按钮, 名称, field)
+        else:
+            self.按钮 = type('按钮集合', (), {})()
+        
+        # 动态创建状态属性
+        if '状态' in config_dict:
+            self.状态 = type('状态集合', (), {})()
+            for 名称, 配置 in config_dict['状态'].items():
+                field_config = {"查找字符串": 名称}
+                field_config.update(配置)
+                field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
+                setattr(self.状态, 名称, field)
+        else:
+            self.状态 = type('状态集合', (), {})()
+    
+    def get(self, name, default=None):
+        """兼容字典访问"""
+        if name == "按钮":
+            return self.按钮
+        if name == "状态":
+            return self.状态
+        return self._config.get(name, default)
+
+
 class TaskLineMachine:
     """任务状态机类"""
 
@@ -515,10 +637,11 @@ class TaskLineMachine:
         self.加载字库文件(
             os.path.join(os.path.dirname(__file__), "resource", "font_library.txt")
         )
-        # self._model = None
+        self._model = None
         # self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
 
         self.controller = DeviceController(device_id)
+        self._截图上下文 = ScreenshotContext(self.controller)  # 截图上下文管理器
         self.界面识别缓存 = {}
         self.界面集合 = self.加载界面配置(界面集合)
         self._states = {}
@@ -607,7 +730,9 @@ class TaskLineMachine:
         """启动状态机"""
         self._is_running = True
         while self._is_running:
-            截图 = self.controller.截图到内存()
+            # 每轮开始时重置截图上下文
+            self._截图上下文.新轮次()
+            截图 = self._截图上下文.get_截图()
             是否找到 = False
             # 优先检测当前/上一个界面 (利用局部性原理)
             优先检测列表 = []
@@ -617,14 +742,15 @@ class TaskLineMachine:
                 优先检测列表.append(self._previous_interface)
             for 界面名称 in 优先检测列表 + [k for k in self._states.keys() if k not in 优先检测列表]:
 
-                if self.界面识别缓存[界面名称].设置大图路径(截图).查找().是否找到():
+                if self.界面识别缓存[界面名称].查找().是否找到():
                     是否找到 = True
                     print(f"目前位于: {界面名称}")
                     self.update_context(上一状态=self._current_interface)
                     self._current_interface = 界面名称
                     # 找到已知界面，重置未知界面计时器
                     self._unknown_start_time = None
-                    result = self._states[界面名称](self._context, self.界面集合[界面名称], 截图)
+                    # 直接使用已转换的界面配置对象
+                    result = self._states[界面名称](self._context, self.界面集合[界面名称])
                     if isinstance(result, dict):
                         self._context.update(result)
                     elif result is False:
@@ -637,12 +763,13 @@ class TaskLineMachine:
                 # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
                 print(f"目前位于: 未知界面")
                 # 尝试关闭未注册界面
-                for 界面名称, 界面配置 in self.界面集合.items():
+                for 界面名称, 界面配置对象 in self.界面集合.items():
                     if 界面名称 in self._states:
                         continue
-                    if 关闭按钮 := 界面配置.get("按钮", {}).get("关闭"):
-                        if self.界面识别缓存[界面名称].设置大图路径(截图).查找().是否找到():
-                            关闭按钮.点击()
+                    # 检查是否有关闭按钮
+                    if hasattr(界面配置对象.按钮, '关闭'):
+                        if self.界面识别缓存[界面名称].查找().是否找到():
+                            界面配置对象.按钮.关闭.点击()
                             print(f"目前位于未注册界面: {界面名称}")
                             break
 
@@ -808,28 +935,25 @@ class TaskLineMachine:
         return self._model
 
     def 加载界面配置(self, 界面集合):
+        """加载界面配置，直接转换为对象属性访问"""
         config = {}
-        for 界面名称, 界面配置 in 界面集合.items():
-            button_field_config = {"查找字符串": 界面名称}
-            button_field_config.update(界面配置)
-            config[界面名称] = button_field_config
-            # 界面只创建一次Field实例,避免每次都创建
-            self.界面识别缓存[界面名称] = Field(界面配置, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
-            if 界面配置.get("状态"):
-                config[界面名称]["状态"] = {}
-                for 状态名称, 状态配置 in 界面配置.get("状态").items():
-                    button_field_config = {"查找字符串": 状态名称}
-                    button_field_config.update(状态配置)
-                    config[界面名称]["状态"][状态名称] = Field(button_field_config, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
-            if 界面配置.get("按钮"):
-                config[界面名称]["按钮"] = {}
-                for 按钮名称, 按钮配置 in 界面配置.get("按钮").items():
-                    if isinstance(按钮配置, list):
-                        config[界面名称]['按钮'][按钮名称] = Field({"固定点击区域": 按钮配置}, self.controller)
-                    else:
-                        # 将按钮配置拍平和查找字符串一起传入Field
-                        button_field_config = {"查找字符串": 按钮名称}
-                        button_field_config.update(按钮配置)
-                        config[界面名称]["按钮"][按钮名称] = Field(button_field_config, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
+        for 界面名称, 原始配置 in 界面集合.items():
+            # 创建界面识别用的 Field
+            识别配置 = {"查找字符串": 界面名称}
+            识别配置.update(原始配置)
+            self.界面识别缓存[界面名称] = (
+                Field(识别配置, self.controller, self._截图上下文)
+                .设置字库(self.font_library_cache)
+                .设置模型(self._model)
+            )
+            # 创建界面配置对象（直接转换为属性访问）
+            config[界面名称] = 界面配置(
+                界面名称, 
+                原始配置, 
+                self.controller, 
+                self._截图上下文, 
+                self.font_library_cache, 
+                self._model
+            )
         return config
  
