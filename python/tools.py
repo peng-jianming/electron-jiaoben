@@ -14,7 +14,7 @@ from PIL import Image
 import socketio
 from abdTools import ADBController
 from resource.config import 界面集合
-
+from io import BytesIO
 
 class DeviceController:
     """设备控制器类，封装所有设备操作功能"""
@@ -51,8 +51,6 @@ class DeviceController:
             image_bytes = self.adb.截图到内存()
             if image_bytes is None:
                 return None
-            # 从字节流创建 PIL Image 对象
-            from io import BytesIO
 
             image = Image.open(BytesIO(image_bytes))
             return image.convert("RGB")
@@ -254,7 +252,7 @@ class Field:
         if self.是否找到() or self.固定点击区域:
             if startMs > endMs:
                 startMs, endMs = endMs, startMs
-                time.sleep(random.uniform(startMs, endMs))
+            time.sleep(random.uniform(startMs, endMs))
         return self
 
     def 设置查找区域(self, 查找区域):
@@ -374,8 +372,8 @@ class Field:
                 continue
 
             # 解析偏色信息（多个偏色用|连接）
-            deviation_str = font_data["deviation"]
-            color_tolerances = deviation_str.split("|")
+            color_tolerances_parsed = font_data["color_tolerances_parsed"]
+            # color_tolerances = deviation_str.split("|")
 
             # 初始化二值化结果
             search_binary_combined = np.zeros(
@@ -383,38 +381,18 @@ class Field:
             )
 
             # 对每个颜色容差进行二值化处理并合并
-            for color_tol in color_tolerances:
-                color_tol = color_tol.strip()
-                if not color_tol:
-                    continue
-                # 解析颜色偏色字符串
-                try:
-                    base_color_hex, tolerance_hex = color_tol.split("-")
-                    base_color = np.array(
-                        [
-                            int(base_color_hex[0:2], 16),
-                            int(base_color_hex[2:4], 16),
-                            int(base_color_hex[4:6], 16),
-                        ],
-                        dtype=np.int16,
-                    )
-                    tolerance = np.array(
-                        [
-                            int(tolerance_hex[0:2], 16),
-                            int(tolerance_hex[2:4], 16),
-                            int(tolerance_hex[4:6], 16),
-                        ],
-                        dtype=np.int16,
-                    )
-                except Exception as e:
-                    print(f"解析偏色字符串失败: {color_tol}, 错误: {e}")
-                    continue
+            for color_tol in color_tolerances_parsed:
+                base_color = color_tol["base_color"]
+                tolerance = color_tol["tolerance"]
 
                 # 二值化处理
-                search_int16 = search_area.astype(np.int16)
-                search_diff = np.abs(search_int16 - base_color)
-                search_mask = np.all(search_diff <= tolerance, axis=2)
-                search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+                # search_int16 = search_area.astype(np.int16)
+                # search_diff = np.abs(search_int16 - base_color)
+                # search_mask = np.all(search_diff <= tolerance, axis=2)
+                # search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+                lower = (base_color - tolerance).clip(0, 255).astype(np.uint8)
+                upper = (base_color + tolerance).clip(0, 255).astype(np.uint8)
+                search_binary = cv2.inRange(search_area, lower, upper)
 
                 # 合并多个颜色容差的二值化结果（使用 OR 操作）
                 search_binary_combined = np.bitwise_or(
@@ -537,11 +515,11 @@ class TaskLineMachine:
         self.加载字库文件(
             os.path.join(os.path.dirname(__file__), "resource", "font_library.txt")
         )
-        self._model = None
+        # self._model = None
         # self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
 
         self.controller = DeviceController(device_id)
-        time.sleep(2)
+        self.界面识别缓存 = {}
         self.界面集合 = self.加载界面配置(界面集合)
         self._states = {}
         self._current_interface = None
@@ -628,67 +606,61 @@ class TaskLineMachine:
     def start(self):
         """启动状态机"""
         self._is_running = True
-
         while self._is_running:
-            try:
-                截图 = self.controller.截图到内存()
-                if 截图:
-                    是否找到 = False
-                    for 界面名称, 执行函数 in self._states.items():
-                        # 传递内存截图模式参数
-                        if (
-                            Field(self.界面集合[界面名称], self.controller)
-                            .设置大图路径(截图)
-                            .设置字库(self.font_library_cache)
-                            .设置模型(self._model)
-                            .查找()
-                            .是否找到()
-                        ):
-                            是否找到 = True
-                            print(f"目前位于: {界面名称}")
-                            self.update_context(上一状态=self._current_interface)
-                            self._current_interface = 界面名称
-                            # 找到已知界面，重置未知界面计时器
-                            self._unknown_start_time = None
-                            result = 执行函数(self._context, self.界面集合[界面名称], 截图)
-                            if isinstance(result, dict):
-                                self._context.update(result)
-                            elif result is False:
-                                # 处理函数返回False，表示操作失败或需要重试
-                                print(f"界面 {self._current_interface} 处理失败")
+            截图 = self.controller.截图到内存()
+            是否找到 = False
+            # 优先检测当前/上一个界面 (利用局部性原理)
+            优先检测列表 = []
+            if self._current_interface:
+                优先检测列表.append(self._current_interface)
+            if self._previous_interface and self._previous_interface != self._current_interface:
+                优先检测列表.append(self._previous_interface)
+            for 界面名称 in 优先检测列表 + [k for k in self._states.keys() if k not in 优先检测列表]:
+
+                if self.界面识别缓存[界面名称].设置大图路径(截图).查找().是否找到():
+                    是否找到 = True
+                    print(f"目前位于: {界面名称}")
+                    self.update_context(上一状态=self._current_interface)
+                    self._current_interface = 界面名称
+                    # 找到已知界面，重置未知界面计时器
+                    self._unknown_start_time = None
+                    result = self._states[界面名称](self._context, self.界面集合[界面名称], 截图)
+                    if isinstance(result, dict):
+                        self._context.update(result)
+                    elif result is False:
+                        # 处理函数返回False，表示操作失败或需要重试
+                        print(f"界面 {self._current_interface} 处理失败")
+                    break
+                
+
+            if not 是否找到:
+                # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
+                print(f"目前位于: 未知界面")
+                # 尝试关闭未注册界面
+                for 界面名称, 界面配置 in self.界面集合.items():
+                    if 界面名称 in self._states:
+                        continue
+                    if 关闭按钮 := 界面配置.get("按钮", {}).get("关闭"):
+                        if self.界面识别缓存[界面名称].设置大图路径(截图).查找().是否找到():
+                            关闭按钮.点击()
+                            print(f"目前位于未注册界面: {界面名称}")
                             break
 
-                    if not 是否找到:
-                        # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
-                        print(f"目前位于: 未知界面")
-                        # 尝试关闭未注册界面
-                        for 界面名称, 界面配置 in self.界面集合.items():
-                            if 界面名称 in self._states:
-                                continue
-                            if 关闭按钮 := 界面配置.get("按钮", {}).get("关闭"):
-                                关闭按钮.点击()
-                                print(f"目前位于未注册界面: {界面名称}")
-                                break
+                # 未知界面计时逻辑
+                if self._unknown_start_time is None:
+                    self._unknown_start_time = time.time()
+                else:
+                    elapsed = time.time() - self._unknown_start_time
+                    if elapsed >= self._unknown_timeout:
+                        print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
+                        # 保存截图（支持文件路径和 PIL Image 对象）
+                        self._copy_unknown_screenshot(截图)
+                        # 播放提示音乐
+                        self._play_alert_music()
+                        # 重置计时器，避免重复保存
+                        self._unknown_start_time = time.time()
 
-                        # 未知界面计时逻辑
-                        if self._unknown_start_time is None:
-                            self._unknown_start_time = time.time()
-                        else:
-                            elapsed = time.time() - self._unknown_start_time
-                            if elapsed >= self._unknown_timeout:
-                                print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
-                                # 保存截图（支持文件路径和 PIL Image 对象）
-                                self._copy_unknown_screenshot(截图)
-                                # 播放提示音乐
-                                self._play_alert_music()
-                                # 重置计时器，避免重复保存
-                                self._unknown_start_time = time.time()
-                    # 短暂延迟，避免CPU占用过高
-                    # time.sleep(1)
-
-            except Exception as e:
-                print(f"状态机运行异常: {e}")
-                self.stop()
+            time.sleep(1)
 
     def stop(self):
         """停止状态机"""
@@ -736,6 +708,28 @@ class TaskLineMachine:
                 continue
 
             matrix_hex, size_info, deviation_str, name, target_offset = [p.strip() for p in parts]
+
+    
+            # 预解析偏色信息
+            color_tolerances_parsed = []
+            for color_tol in deviation_str.split("|"):
+                color_tol = color_tol.strip()
+                if not color_tol:
+                    continue
+                base_color_hex, tolerance_hex = color_tol.split("-")
+                color_tolerances_parsed.append({
+                    "base_color": np.array([
+                        int(base_color_hex[0:2], 16),
+                        int(base_color_hex[2:4], 16),
+                        int(base_color_hex[4:6], 16),
+                    ], dtype=np.int16),
+                    "tolerance": np.array([
+                        int(tolerance_hex[0:2], 16),
+                        int(tolerance_hex[2:4], 16),
+                        int(tolerance_hex[4:6], 16),
+                    ], dtype=np.int16),
+                })
+
 
             # 解析尺寸信息：长,宽,点阵总数量
             size_parts = size_info.split(",")
@@ -795,6 +789,7 @@ class TaskLineMachine:
                     "height": height,
                     "total_count": total_count,
                     "deviation": deviation_str,
+                    "color_tolerances_parsed": color_tolerances_parsed,
                     "matrix_hex": matrix_hex,
                     "target_offset_x": target_offset_x,
                     "target_offset_y": target_offset_y,
@@ -818,6 +813,8 @@ class TaskLineMachine:
             button_field_config = {"查找字符串": 界面名称}
             button_field_config.update(界面配置)
             config[界面名称] = button_field_config
+            # 界面只创建一次Field实例,避免每次都创建
+            self.界面识别缓存[界面名称] = Field(界面配置, self.controller).设置字库(self.font_library_cache).设置模型(self._model)
             if 界面配置.get("状态"):
                 config[界面名称]["状态"] = {}
                 for 状态名称, 状态配置 in 界面配置.get("状态").items():
