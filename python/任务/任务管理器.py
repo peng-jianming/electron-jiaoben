@@ -1,11 +1,9 @@
 """
 任务管理器 - 多线程任务管理
 
-任务类型由 任务发现 自动发现，新增任务只需在 任务 文件夹新建模块并定义 任务类型名、创建任务，无需在此处引入。
 """
 import threading
 import time
-from .任务发现 import 发现所有任务
 
 
 class 任务管理器类:
@@ -19,7 +17,7 @@ class 任务管理器类:
         self._锁 = threading.Lock()
 
         # 任务类型映射（由任务发现自动收集）
-        self._任务类型映射 = 发现所有任务()
+        self._任务类型映射 = 发现所有任务模块()
 
     def _获取任务键(self, 设备ID, 任务类型):
         """生成任务唯一标识"""
@@ -256,3 +254,50 @@ def 获取任务管理器():
     if _任务管理器 is None:
         _任务管理器 = 任务管理器类()
     return _任务管理器
+
+
+
+
+
+def 发现所有任务模块():
+    import pkgutil
+    import importlib
+    import sys
+    """
+    扫描 任务 包下所有模块，以文件名作为任务名，收集 文件下的 创建任务 函数。
+
+    返回:
+        dict: { 任务名: 创建任务函数 }
+    """
+    任务包 = sys.modules[__name__].__package__
+    任务包模块 = sys.modules.get(任务包)
+    if 任务包模块 is None:
+        return {}
+
+    结果 = {}
+    忽略模块名 = {'任务管理器', '__init__'}
+
+    for 查找器, 模块全名, 是否包 in pkgutil.iter_modules(任务包模块.__path__, 任务包 + '.'):
+        # 文件名（不含 .py）即任务名
+        任务名 = 模块全名.split('.')[-1]
+        if 任务名 in 忽略模块名:
+            continue
+        try:
+            模块 = importlib.import_module(模块全名)
+        except Exception as e:
+            print(f"[任务发现] 导入模块 {模块全名} 失败: {e}")
+            continue
+
+        创建任务 = getattr(模块, '创建任务', None)
+
+        if 创建任务 is None:
+            print(f"[任务发现] 跳过 {任务名}: 缺少 创建任务")
+            continue
+        if not callable(创建任务):
+            print(f"[任务发现] 跳过 {任务名}: 创建任务 不可调用")
+            continue
+
+        结果[任务名] = 创建任务
+        print(f"[任务发现] 已注册任务: {任务名}")
+
+    return 结果
