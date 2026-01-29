@@ -17,7 +17,7 @@ from resource.config import 界面集合
 from io import BytesIO
 
 
-class ScreenshotContext:
+class 截图上下文管理器类:
     """截图上下文管理器，同一轮次复用截图"""
     
     def __init__(self, controller):
@@ -35,8 +35,7 @@ class ScreenshotContext:
         return self._当前截图
 
 
-
-class DeviceController:
+class 设备控制器类:
     """设备控制器类，封装所有设备操作功能"""
 
     def __init__(self, device_id):
@@ -185,7 +184,7 @@ class DeviceController:
             return None
 
 
-class Field:
+class 动作管理器类:
     def __init__(self, config, controller, 截图上下文=None):
         self.controller = controller
         self._截图上下文 = 截图上下文  # 共享截图上下文
@@ -318,7 +317,7 @@ class Field:
         """判断是否找到"""
         return bool(self.x and self.y)
 
-    def 点击如果找到(self, 延时=(1, 3), 日志=None) -> bool:
+    def 找到则点击(self, 延时=(1, 3), 日志=None) -> bool:
         """
         简化API：查找目标，如果找到则点击并延时
         
@@ -340,7 +339,7 @@ class Field:
             return True
         return False
     
-    def 必须点击(self, 延时=(1, 3), 日志=None) -> bool:
+    def 直接点击(self, 延时=(1, 3), 日志=None) -> bool:
         """
         简化API：固定位置点击（不需要查找）或查找后点击
         
@@ -360,7 +359,7 @@ class Field:
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
-        return self.点击如果找到(延时)
+        return self.找到则点击(延时)
 
     def _opencv字库找图(
         self, large_image_path, font_name, similarity=0.9, region=(0, 0, 0, 0)
@@ -581,7 +580,7 @@ class Field:
         return detections
 
 
-class 界面配置:
+class 界面配置管理器类:
     """界面配置类，在初始化时直接将配置转换为对象属性访问"""
     
     def __init__(self, 界面名称, config_dict, controller, 截图上下文, 字库集合, 模型):
@@ -594,12 +593,12 @@ class 界面配置:
             for 名称, 配置 in config_dict['按钮'].items():
                 if isinstance(配置, list):
                     # 固定点击区域
-                    field = Field({"固定点击区域": 配置}, controller, 截图上下文)
+                    field = 动作管理器类({"固定点击区域": 配置}, controller, 截图上下文)
                 else:
                     # 需要查找的按钮
                     field_config = {"查找字符串": f'{界面名称}_按钮_{名称}'}
                     field_config.update(配置)
-                    field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
+                    field = 动作管理器类(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
                 setattr(self.按钮, 名称, field)
         else:
             self.按钮 = type('按钮集合', (), {})()
@@ -610,7 +609,7 @@ class 界面配置:
             for 名称, 配置 in config_dict['状态'].items():
                 field_config = {"查找字符串": f'{界面名称}_状态_{名称}'}
                 field_config.update(配置)
-                field = Field(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
+                field = 动作管理器类(field_config, controller, 截图上下文).设置字库(字库集合).设置模型(模型)
                 setattr(self.状态, 名称, field)
         else:
             self.状态 = type('状态集合', (), {})()
@@ -624,7 +623,7 @@ class 界面配置:
         return self._config.get(name, default)
 
 
-class TaskLineMachine:
+class 任务执行器类:
     """任务状态机类"""
 
     def __init__(self, device_id):
@@ -635,8 +634,8 @@ class TaskLineMachine:
         self._model = None
         # self.加载模型文件(os.path.join(os.path.dirname(__file__), "resource", "model.pt"))
 
-        self.controller = DeviceController(device_id)
-        self._截图上下文 = ScreenshotContext(self.controller)  # 截图上下文管理器
+        self.controller = 设备控制器类(device_id)
+        self._截图上下文 = 截图上下文管理器类(self.controller)  # 截图上下文管理器
         self.界面识别缓存 = {}
         self.界面集合 = self.加载界面配置(界面集合)
         self._states = {}
@@ -647,7 +646,7 @@ class TaskLineMachine:
         self._unknown_start_time = None  # 未知界面开始时间
         self._unknown_timeout = 60  # 未知界面超时时间（秒）
 
-    def state(self, 界面名称):
+    def 注册界面(self, 界面名称):
         """装饰器：直接注册界面处理函数"""
 
         def decorator(func):
@@ -655,7 +654,7 @@ class TaskLineMachine:
 
         return decorator
 
-    def _copy_unknown_screenshot(self, image_data):
+    def 保存未知图片(self, image_data):
         """
         保存未知界面截图到unknown文件夹
 
@@ -685,7 +684,7 @@ class TaskLineMachine:
         except Exception as e:
             print(f"保存未知界面截图失败: {e}")
 
-    def _play_alert_music(self):
+    def 播放音乐(self):
         """播放提示音乐"""
         import threading
 
@@ -721,7 +720,7 @@ class TaskLineMachine:
         except Exception as e:
             print(f"播放音乐出错: {e}")
 
-    def start(self):
+    def 开始(self):
         """启动状态机"""
         self._is_running = True
         while self._is_running:
@@ -740,7 +739,7 @@ class TaskLineMachine:
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     是否找到 = True
                     print(f"目前位于: {界面名称}")
-                    self.update_context(上一状态=self._current_interface)
+                    self.更新上下文(上一状态=self._current_interface)
                     self._current_interface = 界面名称
                     # 找到已知界面，重置未知界面计时器
                     self._unknown_start_time = None
@@ -756,7 +755,7 @@ class TaskLineMachine:
 
             if not 是否找到:
                 # 如果长时间处于未知界面,先尽可能关闭当前界面, 如果还是一直处于未知界面,然后就报警
-                print(f"目前位于: 未知界面")
+                print("搜索未注册界面")
                 # 尝试关闭未注册界面
                 for 界面名称, 界面配置对象 in self.界面集合.items():
                     if 界面名称 in self._states:
@@ -776,28 +775,21 @@ class TaskLineMachine:
                     if elapsed >= self._unknown_timeout:
                         print(f"未知界面已持续 {elapsed:.1f} 秒，保存截图")
                         # 保存截图（支持文件路径和 PIL Image 对象）
-                        self._copy_unknown_screenshot(截图)
+                        self.保存未知图片(截图)
                         # 播放提示音乐
-                        self._play_alert_music()
+                        self.播放音乐()
                         # 重置计时器，避免重复保存
                         self._unknown_start_time = time.time()
 
             time.sleep(0.2)
 
-    def stop(self):
+    def 停止(self):
         """停止状态机"""
         self._is_running = False
 
-    def update_context(self, **kwargs):
+    def 更新上下文(self, **kwargs):
         """更新上下文"""
         self._context.update(kwargs)
-
-    def Field(self, config):
-        return (
-            Field(config, self.controller)
-            .设置字库(self.font_library_cache)
-            .设置模型(self._model)
-        )
 
     def 加载字库文件(self, font_library_path):
         """
@@ -933,16 +925,16 @@ class TaskLineMachine:
         """加载界面配置，直接转换为对象属性访问"""
         config = {}
         for 界面名称, 原始配置 in 界面集合.items():
-            # 创建界面识别用的 Field
+            # 创建界面识别用的 动作管理器类
             识别配置 = {"查找字符串": 界面名称}
             识别配置.update(原始配置)
             self.界面识别缓存[界面名称] = (
-                Field(识别配置, self.controller, self._截图上下文)
+                动作管理器类(识别配置, self.controller, self._截图上下文)
                 .设置字库(self.font_library_cache)
                 .设置模型(self._model)
             )
             # 创建界面配置对象（直接转换为属性访问）
-            config[界面名称] = 界面配置(
+            config[界面名称] = 界面配置管理器类(
                 界面名称, 
                 原始配置, 
                 self.controller, 

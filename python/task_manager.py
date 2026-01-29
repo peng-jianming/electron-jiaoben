@@ -4,7 +4,7 @@ from baotu import create_baotu_task
 from zhuagui import create_zhuagui_task
 from shimen import create_shimen_task
 
-class TaskManager:
+class 全局任务管理器类:
     """多线程任务管理器"""
     
     def __init__(self):
@@ -84,23 +84,23 @@ class TaskManager:
                 traceback.print_exc()
                 return False
     
-    def start_task_queue(self, device_id, task_queue):
+    def start_task_queue(self, device_id, 任务队列):
         """
         启动任务队列（按顺序执行多个任务）
         
         参数:
             device_id: 设备ID
-            task_queue: 任务类型列表，例如 ['shimen', 'baotu']
+            任务队列: 任务类型列表，例如 ['shimen', 'baotu']
         
         返回:
             bool: 是否成功启动
         """
-        if not isinstance(task_queue, list) or not task_queue:
-            print(f"无效的任务队列: {task_queue}")
+        if not isinstance(任务队列, list) or not 任务队列:
+            print(f"无效的任务队列: {任务队列}")
             return False
         
         # 验证所有任务类型
-        invalid_types = [t for t in task_queue if t not in self._task_classes]
+        invalid_types = [t for t in 任务队列 if t not in self._task_classes]
         if invalid_types:
             print(f"未知的任务类型: {invalid_types}")
             return False
@@ -109,10 +109,10 @@ class TaskManager:
             if device_id in self._task_queues:
                 print(f"设备 {device_id} 已有任务队列在运行")
                 return False
-            self._task_queues[device_id] = task_queue.copy()
+            self._task_queues[device_id] = 任务队列.copy()
             self._current_queue_index[device_id] = 0
         
-        return self._start_task(device_id, task_queue[0])
+        return self._start_task(device_id, 任务队列[0])
     
     def _run_task(self, task_instance, device_id, task_type, task_key):
         """
@@ -126,11 +126,11 @@ class TaskManager:
         """
         try:
             print(f"[{task_key}] 任务开始执行")
-            # 调用任务的 start 方法
-            if hasattr(task_instance, 'start'):
-                task_instance.start()
+            # 调用任务的 开始 方法
+            if hasattr(task_instance, '开始'):
+                task_instance.开始()
             else:
-                print(f"[{task_key}] 任务实例没有 start 方法")
+                print(f"[{task_key}] 任务实例没有 开始 方法")
         except Exception as e:
             print(f"[{task_key}] 任务执行出错: {e}")
             import traceback
@@ -217,12 +217,12 @@ class TaskManager:
             del self._tasks[task_key]
             return True
         
-        # 尝试调用任务的 stop 方法
+        # 尝试调用任务的 停止 方法
         try:
-            if hasattr(task_instance, 'stop'):
-                task_instance.stop()
+            if hasattr(task_instance, '停止'):
+                task_instance.停止()
         except Exception as e:
-            print(f"调用任务 stop 方法失败 {task_key}: {e}")
+            print(f"调用任务 停止 方法失败 {task_key}: {e}")
         
         # 等待线程结束（最多等待5秒）
         thread.join(timeout=5.0)
@@ -296,13 +296,13 @@ class TaskManager:
 
 
 # 全局任务管理器实例
-_task_manager = None
+全局任务管理器 = None
 
 
 def get_task_manager():
     """获取全局任务管理器实例（单例模式）"""
-    global _task_manager
-    if _task_manager is None:
-        _task_manager = TaskManager()
-    return _task_manager
+    global 全局任务管理器
+    if 全局任务管理器 is None:
+        全局任务管理器 = 全局任务管理器类()
+    return 全局任务管理器
 

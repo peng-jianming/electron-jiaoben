@@ -1,4 +1,5 @@
 import socketio
+import time
 from task_manager import get_task_manager
 
 # Socket.IO 客户端实例
@@ -80,8 +81,6 @@ def init_client(url="http://127.0.0.1:7072"):
 if __name__ == "__main__":
     init_client()
     try:
-        import time
-
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
