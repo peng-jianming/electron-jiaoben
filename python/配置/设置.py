@@ -7,22 +7,22 @@ import os
 项目根目录 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 资源目录
-资源目录 = os.path.join(项目根目录, "resource")
+资源目录 = os.path.join(项目根目录, "资源")
 
 # 缓存目录
-缓存目录 = os.path.join(资源目录, "cache")
+缓存目录 = os.path.join(资源目录, "截图缓存目录")
 
 # 未知界面截图目录
-未知截图目录 = os.path.join(资源目录, "unknown")
+未知截图目录 = os.path.join(资源目录, "未知界面截图目录")
 
 # 字库文件路径
-字库文件路径 = os.path.join(资源目录, "font_library.txt")
+字库文件路径 = os.path.join(资源目录, "字库.txt")
 
 # YOLO 模型路径
-模型文件路径 = os.path.join(资源目录, "best.pt")
+模型文件路径 = os.path.join(资源目录, "模型.pt")
 
 # 提示音乐路径
-音乐文件路径 = os.path.join(资源目录, "music.mp3")
+音乐文件路径 = os.path.join(资源目录, "提示音乐.mp3")
 
 # ADB 路径
 ADB路径 = r"C:\platform-tools\adb.exe"
