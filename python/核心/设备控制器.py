@@ -1,6 +1,7 @@
 """
 设备控制器 - 封装所有设备操作功能
 """
+
 import os
 import random
 import time
@@ -67,61 +68,28 @@ class 设备控制器类:
             随机y = random.randint(y, y + 高)
             self.adb.模拟点击(随机x, 随机y, (0, 0.3))
 
-    def _初始化客户端(self, url=None):
+    def _初始化客户端(self):
         """初始化 Socket.IO 客户端"""
-        url = url or 服务器地址
         if not hasattr(self, "_socketio客户端") or self._socketio客户端 is None:
             self._socketio客户端 = socketio.Client()
 
         if not self._socketio客户端.connected:
             try:
-                self._socketio客户端.connect(url)
+                self._socketio客户端.connect(服务器地址)
             except Exception as e:
                 print(f"Socket.IO 连接失败: {e}")
 
         return self._socketio客户端
 
-    def 发送到Electron(
-        self,
-        属性,
-        消息,
-        方法="controller/example/changeProp",
-        url=None,
-        等待响应=True,
-    ):
+    def 发送到Electron(self, 前端接收事件名, 数据):
         """向 Electron 发送数据"""
-        url = url or 服务器地址
         try:
-            客户端 = self._初始化客户端(url)
-            数据 = {
-                "cmd": 方法,
-                "args": {"deviceId": self.设备ID, "prop": 属性, "message": 消息},
+            客户端 = self._初始化客户端()
+            data = {
+                "cmd": "controller/example/从后端接收数据",
+                "args": {"事件名": 前端接收事件名, "数据": 数据},
             }
-
-            if not 等待响应:
-                客户端.emit("socket-channel", 数据)
-                return None
-
-            响应数据 = None
-            已收到响应 = False
-
-            def 回调(*args):
-                nonlocal 响应数据, 已收到响应
-                响应数据 = args[0] if args else None
-                已收到响应 = True
-
-            客户端.emit("socket-channel", 数据, callback=回调)
-
-            # 等待响应（最多10秒）
-            开始时间 = time.time()
-            while not 已收到响应 and (time.time() - 开始时间) < 10:
-                time.sleep(0.1)
-
-            if not 已收到响应:
-                print("等待响应超时")
-                return None
-
-            return 响应数据
+            客户端.emit("socket-channel", data)
 
         except socketio.exceptions.ConnectionError as e:
             print(f"连接错误: {e}")

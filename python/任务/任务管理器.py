@@ -118,14 +118,14 @@ class 任务管理器类:
             if 有队列:
                 self._启动下一个任务(设备ID)
 
-    def 停止任务(self, 设备ID):
-        """停止任务队列"""
+    def 结束任务(self, 设备ID):
+        """结束任务队列"""
         with self._锁:
             if 设备ID not in self._任务队列集合:
                 print(f"设备 {设备ID} 没有运行中的任务队列")
                 return False
 
-            print(f"[{设备ID}] 停止任务队列")
+            print(f"[{设备ID}] 结束任务队列")
             self._清理队列(设备ID)
 
             要停止的任务键列表 = [

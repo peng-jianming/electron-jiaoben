@@ -4,9 +4,10 @@
       <el-table-column type="selection" width="55"> </el-table-column>
       <el-table-column type="index" label="序号"> </el-table-column>
       <el-table-column label="设备ID" prop="设备ID"> </el-table-column>
-      <el-table-column label="账号"> </el-table-column>
-      <el-table-column label="即将执行的操作"> </el-table-column>
-      <el-table-column label="当前在操作"> </el-table-column>
+      <el-table-column label="下一任务"> </el-table-column>
+      <el-table-column label="当前任务"> </el-table-column>
+      <el-table-column label="金币"> </el-table-column>
+      <el-table-column label="等级"> </el-table-column>
       <el-table-column label="操作">
         <template #default="scope">
           <el-button type="text" size="small" @click="handleStartTask(scope.row)"
@@ -70,7 +71,7 @@ const handleStartTask = (row) => {
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "开始任务",
     设备ID: row.设备ID,
-    任务队列: ["师门任务", "宝图任务"],
+    任务队列: ["师门任务", "宝图任务", "抓鬼任务"],
   });
 };
 
