@@ -148,42 +148,42 @@ class 任务管理器类:
     def 结束任务(self, 设备ID):
         """结束任务队列"""
         with self._锁:
-            if 设备ID not in self._任务队列集合:
-                print(f"设备 {设备ID} 没有运行中的任务队列")
-                return False
-
-            print(f"[{设备ID}] 结束任务队列")
-            self._清理队列(设备ID)
-
+            # 检查是否有任务队列或运行中的任务
+            有队列 = 设备ID in self._任务队列集合
             要结束的任务键列表 = [
                 键 for 键, 信息 in self._任务集合.items()
                 if 信息['设备ID'] == 设备ID
             ]
+            
+            if not 有队列 and not 要结束的任务键列表:
+                print(f"设备 {设备ID} 没有运行中的任务")
+                return False
 
+            print(f"[{设备ID}] 结束任务队列")
+            # 先清理队列，防止任务结束后触发下一个任务
+            self._清理队列(设备ID)
+
+        # 在锁外停止任务（因为停止可能需要等待线程结束）
         结束数量 = 0
         for 任务键 in 要结束的任务键列表:
             if self._结束单个任务(任务键):
                 结束数量 += 1
 
-        # 发送清空状态到前端
+        # 发送清空状态到前端（包括清除暂停状态）
         self._发送任务状态更新(设备ID, 清空=True)
+        self._发送暂停状态更新(设备ID, 已暂停=False)
 
         if 结束数量 > 0:
             print(f"已结束设备 {设备ID} 的 {结束数量} 个任务")
             return True
-        print(f"设备 {设备ID} 没有运行中的任务")
-        return False
+        return True  # 即使没有任务要停止，队列已清理也算成功
 
     def 暂停任务(self, 设备ID):
         """暂停设备的当前任务"""
         with self._锁:
-            if 设备ID not in self._任务队列集合:
-                print(f"设备 {设备ID} 没有运行中的任务队列")
-                return False
-
-            # 查找该设备的任务
+            # 查找该设备正在运行的任务
             for 任务键, 任务信息 in self._任务集合.items():
-                if 任务信息['设备ID'] == 设备ID:
+                if 任务信息['设备ID'] == 设备ID and 任务信息['线程'].is_alive():
                     任务实例 = 任务信息['任务实例']
                     if hasattr(任务实例, '暂停'):
                         任务实例.暂停()
@@ -198,13 +198,9 @@ class 任务管理器类:
     def 恢复任务(self, 设备ID):
         """恢复设备的当前任务"""
         with self._锁:
-            if 设备ID not in self._任务队列集合:
-                print(f"设备 {设备ID} 没有运行中的任务队列")
-                return False
-
-            # 查找该设备的任务
+            # 查找该设备正在运行的任务
             for 任务键, 任务信息 in self._任务集合.items():
-                if 任务信息['设备ID'] == 设备ID:
+                if 任务信息['设备ID'] == 设备ID and 任务信息['线程'].is_alive():
                     任务实例 = 任务信息['任务实例']
                     if hasattr(任务实例, '恢复'):
                         任务实例.恢复()
@@ -260,10 +256,11 @@ class 任务管理器类:
             return True
 
         try:
-            if hasattr(任务实例, '结束'):
-                任务实例.结束()
+            # 调用停止方法（会设置 _运行中=False 并唤醒暂停等待）
+            if hasattr(任务实例, '停止'):
+                任务实例.停止()
         except Exception as e:
-            print(f"调用任务结束方法失败 {任务键}: {e}")
+            print(f"调用任务停止方法失败 {任务键}: {e}")
 
         线程.join(timeout=5.0)
 
