@@ -3,14 +3,18 @@
     <el-table :data="list" border size="small" empty-text="没有发现设备~">
       <el-table-column type="selection" width="55"> </el-table-column>
       <el-table-column type="index" label="序号"> </el-table-column>
-      <el-table-column label="设备"> </el-table-column>
+      <el-table-column label="设备ID" prop="设备ID"> </el-table-column>
       <el-table-column label="账号"> </el-table-column>
       <el-table-column label="即将执行的操作"> </el-table-column>
       <el-table-column label="当前在操作"> </el-table-column>
       <el-table-column label="操作">
         <template #default="scope">
-          <el-button type="text" size="small">开始</el-button>
-          <el-button type="text" size="small">结束</el-button>
+          <el-button type="text" size="small" @click="handleStartTask(scope.row)"
+            >开始</el-button
+          >
+          <el-button type="text" size="small" @click="handleEndTask(scope.row)"
+            >结束</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
@@ -28,35 +32,59 @@ const list = ref([]);
 
 let matchSocket = null;
 
- // 初始化 Socket 连接
- function initMatchSocket() {
+// 初始化 Socket 连接
+function initMatchSocket() {
+  return new Promise((resolve, reject) => {
     if (matchSocket) {
+      resolve();
       return;
     }
 
     matchSocket = io("ws://localhost:7072");
-  
+
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
+      resolve();
     });
-  
+
     // 接收设备列表
     matchSocket.on("device-list", (data) => {
       console.log("收到设备id列表:", data);
-      list.value = data;
+      list.value = data.map((item) => {
+        return {
+          设备ID: item,
+        };
+      });
+      resolve();
     });
-  
-  }
-
-const handleGetDeviceList = () => {
-  ipc.invoke(ipcApiRoute.发送到后端, {
-    "类型": "获取设备列表",
   });
 }
 
-onMounted(() => {
-  initMatchSocket();
-})
+const handleGetDeviceList = () => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "获取设备列表",
+  });
+};
+
+const handleStartTask = (row) => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "开始任务",
+    设备ID: row.设备ID,
+    任务队列: ["师门任务", "宝图任务"],
+  });
+};
+
+const handleEndTask = (row) => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "结束任务",
+    设备ID: row.设备ID,
+  });
+};
+
+onMounted(async () => {
+  await initMatchSocket();
+  handleGetDeviceList();
+});
 </script>
 
 <style scoped></style>
