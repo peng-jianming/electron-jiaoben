@@ -155,24 +155,74 @@ class 任务管理器类:
             print(f"[{设备ID}] 结束任务队列")
             self._清理队列(设备ID)
 
-            要停止的任务键列表 = [
+            要结束的任务键列表 = [
                 键 for 键, 信息 in self._任务集合.items()
                 if 信息['设备ID'] == 设备ID
             ]
 
-        停止数量 = 0
-        for 任务键 in 要停止的任务键列表:
-            if self._停止单个任务(任务键):
-                停止数量 += 1
+        结束数量 = 0
+        for 任务键 in 要结束的任务键列表:
+            if self._结束单个任务(任务键):
+                结束数量 += 1
 
         # 发送清空状态到前端
         self._发送任务状态更新(设备ID, 清空=True)
 
-        if 停止数量 > 0:
-            print(f"已停止设备 {设备ID} 的 {停止数量} 个任务")
+        if 结束数量 > 0:
+            print(f"已结束设备 {设备ID} 的 {结束数量} 个任务")
             return True
         print(f"设备 {设备ID} 没有运行中的任务")
         return False
+
+    def 暂停任务(self, 设备ID):
+        """暂停设备的当前任务"""
+        with self._锁:
+            if 设备ID not in self._任务队列集合:
+                print(f"设备 {设备ID} 没有运行中的任务队列")
+                return False
+
+            # 查找该设备的任务
+            for 任务键, 任务信息 in self._任务集合.items():
+                if 任务信息['设备ID'] == 设备ID:
+                    任务实例 = 任务信息['任务实例']
+                    if hasattr(任务实例, '暂停'):
+                        任务实例.暂停()
+                        print(f"[{设备ID}] 任务已暂停")
+                        # 发送暂停状态到前端
+                        self._发送暂停状态更新(设备ID, 已暂停=True)
+                        return True
+
+        print(f"设备 {设备ID} 没有可暂停的任务")
+        return False
+
+    def 恢复任务(self, 设备ID):
+        """恢复设备的当前任务"""
+        with self._锁:
+            if 设备ID not in self._任务队列集合:
+                print(f"设备 {设备ID} 没有运行中的任务队列")
+                return False
+
+            # 查找该设备的任务
+            for 任务键, 任务信息 in self._任务集合.items():
+                if 任务信息['设备ID'] == 设备ID:
+                    任务实例 = 任务信息['任务实例']
+                    if hasattr(任务实例, '恢复'):
+                        任务实例.恢复()
+                        print(f"[{设备ID}] 任务已恢复")
+                        # 发送恢复状态到前端
+                        self._发送暂停状态更新(设备ID, 已暂停=False)
+                        return True
+
+        print(f"设备 {设备ID} 没有可恢复的任务")
+        return False
+
+    def _发送暂停状态更新(self, 设备ID, 已暂停):
+        """发送暂停状态更新到前端"""
+        try:
+            控制器 = 设备控制器类(设备ID)
+            控制器.更新设备状态(已暂停=已暂停)
+        except Exception as e:
+            print(f"发送暂停状态更新失败: {e}")
 
     def _启动下一个任务(self, 设备ID):
         """启动任务队列中的下一个任务"""
@@ -195,8 +245,8 @@ class 任务管理器类:
                 # 任务队列完成，发送清空状态
                 self._发送任务状态更新(设备ID, 清空=True)
 
-    def _停止单个任务(self, 任务键):
-        """停止单个任务"""
+    def _结束单个任务(self, 任务键):
+        """结束单个任务"""
         if 任务键 not in self._任务集合:
             return False
 
@@ -205,15 +255,15 @@ class 任务管理器类:
         任务实例 = 任务信息['任务实例']
 
         if not 线程.is_alive():
-            print(f"任务 {任务键} 已经停止")
+            print(f"任务 {任务键} 已经结束")
             del self._任务集合[任务键]
             return True
 
         try:
-            if hasattr(任务实例, '停止'):
-                任务实例.停止()
+            if hasattr(任务实例, '结束'):
+                任务实例.结束()
         except Exception as e:
-            print(f"调用任务停止方法失败 {任务键}: {e}")
+            print(f"调用任务结束方法失败 {任务键}: {e}")
 
         线程.join(timeout=5.0)
 
@@ -221,7 +271,7 @@ class 任务管理器类:
             print(f"警告: 任务 {任务键} 的线程在5秒后仍未结束")
             return False
         else:
-            print(f"任务 {任务键} 已停止")
+            print(f"任务 {任务键} 已结束")
             del self._任务集合[任务键]
             return True
 

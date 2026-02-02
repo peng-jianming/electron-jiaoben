@@ -8,10 +8,24 @@
       <el-table-column label="下一任务" prop="下一任务"> </el-table-column>
       <el-table-column label="金币" prop="金币"> </el-table-column>
       <el-table-column label="等级" prop="等级"> </el-table-column>
-      <el-table-column label="操作">
+      <el-table-column label="操作" width="200">
         <template #default="scope">
           <el-button type="text" size="small" @click="handleStartTask(scope.row)"
             >开始</el-button
+          >
+          <el-button
+            v-if="!scope.row.已暂停"
+            type="text"
+            size="small"
+            @click="handlePauseTask(scope.row)"
+            >暂停</el-button
+          >
+          <el-button
+            v-else
+            type="text"
+            size="small"
+            @click="handleResumeTask(scope.row)"
+            >恢复</el-button
           >
           <el-button type="text" size="small" @click="handleEndTask(scope.row)"
             >结束</el-button
@@ -73,6 +87,7 @@ function initMatchSocket() {
           下一任务: "",
           金币: "",
           等级: "",
+          已暂停: false,
         };
       });
       resolve();
@@ -103,6 +118,20 @@ const handleStartTask = (row) => {
 const handleEndTask = (row) => {
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "结束任务",
+    设备ID: row.设备ID,
+  });
+};
+
+const handlePauseTask = (row) => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "暂停任务",
+    设备ID: row.设备ID,
+  });
+};
+
+const handleResumeTask = (row) => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "恢复任务",
     设备ID: row.设备ID,
   });
 };

@@ -40,6 +40,9 @@ class 任务执行器类:
         self._当前界面 = None
         self._上一界面 = None
         self._运行中 = False
+        self._暂停中 = False
+        self._暂停事件 = threading.Event()
+        self._暂停事件.set()  # 初始为非暂停状态
         self._上下文 = {}
         self._未知开始时间 = None
         self._未知超时时间 = 未知界面超时时间
@@ -99,6 +102,11 @@ class 任务执行器类:
         """启动状态机"""
         self._运行中 = True
         while self._运行中:
+            # 检查暂停状态，如果暂停则等待
+            self._暂停事件.wait()
+            if not self._运行中:
+                break
+            
             # 每轮开始时重置截图上下文
             self._截图上下文.新轮次()
             截图 = self._截图上下文.获取截图()
@@ -154,6 +162,26 @@ class 任务执行器类:
     def 停止(self):
         """停止状态机"""
         self._运行中 = False
+        self._暂停事件.set()  # 确保退出等待状态
+
+    def 暂停(self):
+        """暂停状态机"""
+        if self._运行中 and not self._暂停中:
+            self._暂停中 = True
+            self._暂停事件.clear()
+            print("任务已暂停")
+            return True
+        return False
+
+    def 恢复(self):
+        """恢复状态机"""
+        if self._运行中 and self._暂停中:
+            self._暂停中 = False
+            self._暂停事件.set()
+            print("任务已恢复")
+            return True
+        return False
+
 
     def 更新上下文(self, **kwargs):
         """更新上下文"""
