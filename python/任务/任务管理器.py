@@ -5,6 +5,8 @@
 import threading
 import time
 
+from 核心.设备控制器 import 设备控制器类
+
 
 class 任务管理器类:
     """多线程任务管理器"""
@@ -29,6 +31,27 @@ class 任务管理器类:
             del self._任务队列集合[设备ID]
         if 设备ID in self._当前队列索引:
             del self._当前队列索引[设备ID]
+
+    def _发送任务状态更新(self, 设备ID, 清空=False):
+        """发送任务状态更新到前端"""
+        try:
+            控制器 = 设备控制器类(设备ID)
+            if 清空:
+                控制器.更新设备状态(当前任务="", 下一任务="")
+            else:
+                """获取队列中的当前任务和下一任务"""
+                if 设备ID not in self._任务队列集合:
+                    return None, None
+                
+                队列 = self._任务队列集合[设备ID]
+                索引 = self._当前队列索引.get(设备ID, 0)
+                
+                当前任务 = 队列[索引] if 索引 < len(队列) else None
+                下一任务 = 队列[索引 + 1] if 索引 + 1 < len(队列) else None
+                控制器.更新设备状态(当前任务=当前任务 or "", 下一任务=下一任务 or "")
+        except Exception as e:
+            print(f"发送任务状态更新失败: {e}")
+
 
     def _启动任务(self, 设备ID, 任务类型):
         """内部方法：启动任务"""
@@ -61,6 +84,10 @@ class 任务管理器类:
                 }
                 线程.start()
                 print(f"已启动任务: {任务键}")
+                
+                # 发送任务状态更新到前端
+                self._发送任务状态更新(设备ID, 清空=False)
+                
                 return True
             except Exception as e:
                 print(f"启动任务失败 {任务键}: {e}")
@@ -138,6 +165,9 @@ class 任务管理器类:
             if self._停止单个任务(任务键):
                 停止数量 += 1
 
+        # 发送清空状态到前端
+        self._发送任务状态更新(设备ID, 清空=True)
+
         if 停止数量 > 0:
             print(f"已停止设备 {设备ID} 的 {停止数量} 个任务")
             return True
@@ -162,6 +192,8 @@ class 任务管理器类:
             else:
                 print(f"[{设备ID}] 任务队列执行完毕，共完成 {len(队列)} 个任务")
                 self._清理队列(设备ID)
+                # 任务队列完成，发送清空状态
+                self._发送任务状态更新(设备ID, 清空=True)
 
     def _停止单个任务(self, 任务键):
         """停止单个任务"""

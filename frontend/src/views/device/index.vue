@@ -3,11 +3,11 @@
     <el-table :data="list" border size="small" empty-text="没有发现设备~">
       <el-table-column type="selection" width="55"> </el-table-column>
       <el-table-column type="index" label="序号"> </el-table-column>
-      <el-table-column label="设备ID" prop="设备ID"> </el-table-column>
-      <el-table-column label="下一任务"> </el-table-column>
-      <el-table-column label="当前任务"> </el-table-column>
-      <el-table-column label="金币"> </el-table-column>
-      <el-table-column label="等级"> </el-table-column>
+      <el-table-column label="设备ID" prop="设备ID" width="180"> </el-table-column>
+      <el-table-column label="当前任务" prop="当前任务"> </el-table-column>
+      <el-table-column label="下一任务" prop="下一任务"> </el-table-column>
+      <el-table-column label="金币" prop="金币"> </el-table-column>
+      <el-table-column label="等级" prop="等级"> </el-table-column>
       <el-table-column label="操作">
         <template #default="scope">
           <el-button type="text" size="small" @click="handleStartTask(scope.row)"
@@ -33,6 +33,21 @@ const list = ref([]);
 
 let matchSocket = null;
 
+// 更新设备状态
+function updateDeviceStatus(statusData) {
+  const deviceId = statusData.设备ID;
+  if (!deviceId) return;
+
+  const index = list.value.findIndex((item) => item.设备ID === deviceId);
+  if (index !== -1) {
+    // 合并更新状态数据
+    list.value[index] = {
+      ...list.value[index],
+      ...statusData,
+    };
+  }
+}
+
 // 初始化 Socket 连接
 function initMatchSocket() {
   return new Promise((resolve, reject) => {
@@ -54,9 +69,19 @@ function initMatchSocket() {
       list.value = data.map((item) => {
         return {
           设备ID: item,
+          当前任务: "",
+          下一任务: "",
+          金币: "",
+          等级: "",
         };
       });
       resolve();
+    });
+
+    // 接收设备状态更新
+    matchSocket.on("device-status-update", (data) => {
+      console.log("收到设备状态更新:", data);
+      updateDeviceStatus(data);
     });
   });
 }
