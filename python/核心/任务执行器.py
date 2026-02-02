@@ -159,8 +159,8 @@ class 任务执行器类:
 
             time.sleep(0.2)
 
-    def 停止(self):
-        """停止状态机"""
+    def 结束(self):
+        """结束状态机"""
         self._运行中 = False
         self._暂停事件.set()  # 确保退出等待状态
 

@@ -4,6 +4,7 @@
       <el-table-column type="selection" width="55"> </el-table-column>
       <el-table-column type="index" label="序号"> </el-table-column>
       <el-table-column label="设备ID" prop="设备ID" width="180"> </el-table-column>
+      <el-table-column label="是否暂停" prop="已暂停"> </el-table-column>
       <el-table-column label="当前任务" prop="当前任务"> </el-table-column>
       <el-table-column label="下一任务" prop="下一任务"> </el-table-column>
       <el-table-column label="金币" prop="金币"> </el-table-column>
