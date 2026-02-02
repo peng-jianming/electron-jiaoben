@@ -35,7 +35,8 @@
 </template> -->
 
 <script setup>
-
+import Account from './account/index.vue';
+import Device from './device/index.vue';
 </script>
 
 <style scoped>
