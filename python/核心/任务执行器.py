@@ -3,6 +3,7 @@
 """
 import os
 import time
+import random
 import threading
 import numpy as np
 from PIL import Image
@@ -52,6 +53,30 @@ class 任务执行器类:
         def 装饰器(函数):
             self._状态集合[界面名称] = 函数
         return 装饰器
+
+    def _尝试执行误触(self):
+        
+        # 根据概率决定是否触发误触
+        if random.random() > 0.03:
+            return False
+        
+        # 随机选择误触类型
+        误触类型 = random.choices(
+            ['点击', '滑动', '等待'],
+            weights=[0.5, 0.2, 0.3],  # 点击50%, 滑动20%, 等待30%
+            k=1
+        )[0]
+        
+        print(f"[误触模拟] 误触 - 类型: {误触类型}")
+        
+        if 误触类型 == '点击':
+            self.控制器.随机误触()
+        elif 误触类型 == '滑动':
+            self.控制器.随机空白滑动()
+        else:  # 等待
+            self.控制器.随机等待(0.3, 1.5)
+        
+        return True
 
     def 保存未知图片(self, 图像数据):
         """保存未知界面截图"""
@@ -106,6 +131,9 @@ class 任务执行器类:
             self._暂停事件.wait()
             if not self._运行中:
                 break
+            
+            # 尝试执行随机误触（模拟人为操作）
+            self._尝试执行误触()
             
             # 每轮开始时重置截图上下文
             self._截图上下文.新轮次()
