@@ -79,15 +79,6 @@ class ExampleController {
       return false;
     }
   }
-
-  删除账号(args, event) {
-    try {
-      return exampleService.删除账号(args);
-    } catch (error) {
-      console.error('删除账号错误:', error);
-      return false;
-    }
-  }
 }
 ExampleController.toString = () => '[class ExampleController]';
 
