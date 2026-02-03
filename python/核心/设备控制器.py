@@ -26,7 +26,43 @@ class 设备控制器类:
         self.设备ID = 设备ID
         self.adb = ADB控制器类(设备ID)
         self._socketio客户端 = None
+        self._上次操作目标 = None
+        self._上次操作时间 = 0
+        self._操作冷却秒数 = 8
         self._初始化客户端()
+
+    def 是否允许操作(self, 目标标识):
+        """
+        判断是否允许对当前目标进行操作。
+        8 秒内对同一目标不重复操作，同一时间只记录一个目标。
+
+        参数:
+            目标标识: 用于区分不同操作目标的字符串（如查找字符串、分类名等）
+
+        返回:
+            bool: True 表示允许操作，False 表示 8 秒内已操作过同一目标，应跳过
+        """
+        if 目标标识 is None:
+            return True
+        现在 = time.time()
+        if self._上次操作目标 is None:
+            return True
+        if self._上次操作目标 != 目标标识:
+            return True
+        if 现在 - self._上次操作时间 >= self._操作冷却秒数:
+            return True
+        return False
+
+    def 记录操作(self, 目标标识):
+        """
+        记录已对某目标执行操作，用于 8 秒内同目标不重复操作。
+
+        参数:
+            目标标识: 与 是否允许操作 使用的同一标识
+        """
+        if 目标标识 is not None:
+            self._上次操作目标 = 目标标识
+            self._上次操作时间 = time.time()
 
     def 写入日志(self, 信息):
         """写入日志"""
