@@ -3,6 +3,7 @@
     <el-tab-pane label="设备列表"
       ><Device
         :list="deviceList"
+        :taskList="taskList"
         @startTask="handleStartTask"
         @pauseTask="handlePauseTask"
         @resumeTask="handleResumeTask"
@@ -27,6 +28,7 @@ import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
 
 const deviceList = ref([]);
+const taskList = ref([]);
 
 let matchSocket = null;
 
@@ -78,6 +80,13 @@ function initMatchSocket() {
           已暂停: false,
         };
       });
+      resolve();
+    });
+
+    // 接收任务列表 
+    matchSocket.on("task-list", (data) => {
+      console.log("收到任务列表:", data);
+      taskList.value = data;
       resolve();
     });
 
@@ -182,11 +191,21 @@ async function updateAccountInfo(statusData) {
   }
 }
 
+
+const handleGetTaskList = () => {
+  ipc.invoke(ipcApiRoute.发送到后端, {
+    类型: "获取任务列表",
+  });
+};
+
 onMounted(async () => {
   await initMatchSocket();
   handleGetDeviceList();
   loadAccountList();
+  handleGetTaskList();
 });
 </script>
 
-<style scoped></style>
+<style lang="less">
+
+</style>

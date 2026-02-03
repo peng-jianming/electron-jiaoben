@@ -1,12 +1,11 @@
 <template>
   <div>
     <el-table :data="list" border size="small" empty-text="没有发现设备~">
-      <el-table-column type="selection" width="55"> </el-table-column>
       <el-table-column type="index" label="序号"> </el-table-column>
       <el-table-column label="设备ID" prop="设备ID" width="180"> </el-table-column>
       <el-table-column label="当前账号" width="120">
         <template #default="scope">
-          {{ scope.row.当前账号?.账号 || '-' }}
+          {{ scope.row.当前账号?.账号 || "-" }}
         </template>
       </el-table-column>
       <el-table-column label="是否暂停" prop="已暂停"> </el-table-column>
@@ -38,21 +37,38 @@
       </el-table-column>
     </el-table>
 
+    <el-button >全部开始</el-button>
+    <el-button >全部暂停</el-button>
+    <el-button >全部恢复</el-button>
+    <el-button >全部结束</el-button>
     <el-button @click="emit('getDeviceList')">设备检测</el-button>
+    {{ taskList }}
+    
   </div>
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from "vue";
+import { defineProps, defineEmits, ref } from "vue";
 
 const props = defineProps({
   list: {
     type: Array,
     default: () => [],
   },
-})
+  taskList: {
+    type: Array,
+    default: () => [],
+  },
+});
 
-const emit = defineEmits(['startTask', 'pauseTask', 'resumeTask', 'endTask', 'getDeviceList'])
+const emit = defineEmits([
+  "startTask",
+  "pauseTask",
+  "resumeTask",
+  "endTask",
+  "getDeviceList",
+]);
+
 </script>
 
 <style scoped></style>

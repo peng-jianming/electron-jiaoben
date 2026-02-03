@@ -8,6 +8,8 @@ import time
 from 任务 import 获取任务管理器
 from 配置.设置 import 服务器地址
 from 核心.ADB控制器 import ADB控制器类
+from 任务.任务管理器 import 发现所有任务模块
+
 
 # Socket.IO 客户端实例
 _客户端 = None
@@ -106,6 +108,11 @@ def 获取设备列表(数据):
     发送到Electron("device-list", 数据列表)
 
 
+def 获取任务列表(数据):
+    任务列表 = 发现所有任务模块()
+    发送到Electron("task-list", list(任务列表.keys()))
+
+
 def 发送到Electron(前端接收事件名, 数据):
     """向 Electron 发送数据"""
     try:
@@ -142,6 +149,7 @@ def 初始化客户端(url=None):
                     "暂停任务": 暂停任务,
                     "恢复任务": 恢复任务,
                     "获取设备列表": 获取设备列表,
+                    "获取任务列表": 获取任务列表,
                 }.get(数据.get("类型"))
                 if 处理函数:
                     处理函数(数据)
