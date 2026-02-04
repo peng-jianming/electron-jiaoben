@@ -13,7 +13,6 @@
     <el-tab-pane label="账号列表"
       ><Account :list="accountList" @deleteAccount="handleDeleteAccount"
     /></el-tab-pane>
-    <el-tab-pane label="任务配置">任务配置</el-tab-pane>
   </el-tabs>
 </template>
 
@@ -83,7 +82,7 @@ function initMatchSocket() {
       resolve();
     });
 
-    // 接收任务列表 
+    // 接收任务列表
     matchSocket.on("task-list", (data) => {
       console.log("收到任务列表:", data);
       taskList.value = data;
@@ -104,11 +103,18 @@ const handleGetDeviceList = () => {
   });
 };
 
-const handleStartTask = (row) => {
+const handleStartTask = (row, payload) => {
+  const 任务队列 = payload?.任务队列?.length
+    ? payload.任务队列
+    : [];
+  const 任务配置 = payload?.任务配置 && typeof payload.任务配置 === "object"
+    ? payload.任务配置
+    : {};
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "开始任务",
     设备ID: row.设备ID,
-    任务队列: ["师门任务", "宝图任务", "抓鬼任务"],
+    任务队列,
+    任务配置,
   });
 };
 
@@ -179,7 +185,11 @@ async function updateAccountInfo(statusData) {
 
   const account = accountList.value[index];
 
-  accountList.value[index] = { ...account, ...statusData, 更新时间: new Date().toISOString() };
+  accountList.value[index] = {
+    ...account,
+    ...statusData,
+    更新时间: new Date().toISOString(),
+  };
 
   try {
     await ipc.invoke(ipcApiRoute.保存账号列表, {
@@ -190,7 +200,6 @@ async function updateAccountInfo(statusData) {
     return;
   }
 }
-
 
 const handleGetTaskList = () => {
   ipc.invoke(ipcApiRoute.发送到后端, {
@@ -206,6 +215,4 @@ onMounted(async () => {
 });
 </script>
 
-<style lang="less">
-
-</style>
+<style lang="less"></style>
