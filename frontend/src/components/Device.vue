@@ -24,28 +24,8 @@
 
     <div class="table-container">
       <el-table
-        :data="[
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-          ...list,
-        ]"
+        :data="list"
+        :row-class-name="tableRowClassName"
         border
         size="small"
         empty-text="没有发现设备~"
@@ -132,7 +112,10 @@
           }}</span>
         </div>
       </div>
-      <div class="statistics-info-item statistics-info-item--fault">
+      <div
+        class="statistics-info-item statistics-info-item--fault"
+        :class="{ 'fault-animate': list.some((item) => item.故障) }"
+      >
         <div class="statistics-info-item-main">
           <span class="statistics-info-item-label">故障设备</span>
           <span class="statistics-info-item-value">{{
@@ -166,6 +149,10 @@ const emit = defineEmits([
   "endTask",
   "getDeviceList",
 ]);
+
+const tableRowClassName = ({ row }) => {
+  return row.故障 ? "fault-row" : "";
+};
 
 function handleStart(row) {
   const { selectedTasks, taskConfig } = props.taskSelectValue;
@@ -343,6 +330,10 @@ const handleBatchEnd = () => {
       }
     }
 
+    .el-table__row.fault-row > td {
+      animation: fault-row-blink 1s ease-in-out infinite;
+    }
+
     .el-tag {
       border-radius: 4px;
       font-weight: 500;
@@ -356,14 +347,17 @@ const handleBatchEnd = () => {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   flex-shrink: 0;
-  padding-top: 8px;
+  padding-top: 6px;
   margin-top: 8px;
   border-top: 1px solid @border-color;
+  position: relative;
+  z-index: 999;
 }
 
 .statistics-info-item {
   position: relative;
   padding: 6px 10px;
+  margin: 2px;
   border-radius: 8px;
   background: #f9fafb;
   border: 1px solid fade(@border-color, 50%);
@@ -455,5 +449,29 @@ const handleBatchEnd = () => {
   .statistics-info-item-value {
     color: @danger-color;
   }
+}
+
+@keyframes fault-row-blink {
+  0%,
+  100% {
+    background-color: #fff5f5;
+  }
+  50% {
+    background-color: #ffe1e1;
+  }
+}
+
+@keyframes fault-stat-blink {
+  0%,
+  100% {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  }
+  50% {
+    box-shadow: 0 0 0 2px fade(@danger-color, 55%);
+  }
+}
+
+.fault-animate {
+  animation: fault-stat-blink 1s ease-in-out infinite;
 }
 </style>
