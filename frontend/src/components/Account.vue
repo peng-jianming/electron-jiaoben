@@ -53,13 +53,45 @@ const emit = defineEmits(["deleteAccount"]);
 </script>
 
 <style scoped lang="less">
+@border-color: #e4e7ed;
+@text-secondary: #606266;
+
 .account-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
+
 .table-container {
-    flex: 1;
+  flex: 1;
+  overflow: hidden;
+  
+  :deep(.el-table) {
+    border-radius: 8px;
     overflow: hidden;
+    
+    th.el-table__cell {
+      background-color: #f8f9fa !important;
+      color: @text-secondary;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    
+    .el-table__row {
+      transition: background-color 0.2s ease;
+      
+      &:hover > td {
+        background-color: #f5f7fa !important;
+      }
+    }
+    
+    .el-button--link {
+      font-weight: 500;
+      
+      &.el-button--danger:hover {
+        color: #ff416c;
+      }
+    }
+  }
 }
 </style>

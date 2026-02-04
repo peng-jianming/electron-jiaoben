@@ -2,41 +2,144 @@
   <div class="app-container">
     <TitleBar title="设备管理系统" />
 
-    <!-- 主要内容区域 -->
-    <div class="main-content">
-      <el-tabs type="border-card" class="custom-tabs">
-        <el-tab-pane label="设备列表">
-          <Device
-            :list="deviceList"
-            :taskList="taskList"
-            @startTask="handleStartTask"
-            @pauseTask="handlePauseTask"
-            @resumeTask="handleResumeTask"
-            @endTask="handleEndTask"
-            @getDeviceList="handleGetDeviceList"
-          />
-        </el-tab-pane>
-        <el-tab-pane label="账号列表">
-          <Account :list="accountList" @deleteAccount="handleDeleteAccount" />
-        </el-tab-pane>
-      </el-tabs>
+    <div class="main-wrapper">
+      <!-- 左侧导航栏 -->
+      <aside class="sidebar">
+        <div class="nav-menu">
+          <div
+            class="nav-item"
+            :class="{ active: currentTab === 'device' }"
+            @click="currentTab = 'device'"
+            title="设备管理"
+          >
+            <el-icon :size="22"><Monitor /></el-icon>
+            <span class="nav-label">设备</span>
+          </div>
+          <div
+            class="nav-item"
+            :class="{ active: currentTab === 'task' }"
+            @click="currentTab = 'task'"
+            title="任务配置"
+          >
+            <el-icon :size="22"><List /></el-icon>
+            <span class="nav-label">任务</span>
+          </div>
+          <div
+            class="nav-item"
+            :class="{ active: currentTab === 'account' }"
+            @click="currentTab = 'account'"
+            title="账号管理"
+          >
+            <el-icon :size="22"><User /></el-icon>
+            <span class="nav-label">账号</span>
+          </div>
+        </div>
+        
+        <!-- 底部状态指示 -->
+        <div class="sidebar-footer">
+          <div class="status-indicator">
+            <span class="status-dot" :class="{ online: isConnected }"></span>
+            <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 主内容区域 -->
+      <main class="main-content">
+        <!-- 内容面板 -->
+        <div class="content-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <el-icon v-if="currentTab === 'device'"><Monitor /></el-icon>
+              <el-icon v-else-if="currentTab === 'task'"><List /></el-icon>
+              <el-icon v-else><User /></el-icon>
+              {{ panelTitle }}
+            </h3>
+            <div class="panel-actions">
+              <el-button 
+                v-if="currentTab === 'device'"
+                type="primary" 
+                plain 
+                size="small"
+                @click="handleGetDeviceList"
+              >
+                <el-icon><Refresh /></el-icon>
+                刷新设备
+              </el-button>
+            </div>
+          </div>
+          
+          <div class="panel-body">
+            <!-- 使用 v-show 保持组件状态 -->
+            <Device
+              v-show="currentTab === 'device'"
+              :list="deviceList"
+              :taskSelectValue="taskSelectValue"
+              @startTask="handleStartTask"
+              @pauseTask="handlePauseTask"
+              @resumeTask="handleResumeTask"
+              @endTask="handleEndTask"
+              @getDeviceList="handleGetDeviceList"
+            />
+            <Task
+              v-show="currentTab === 'task'"
+              :task-list="taskList"
+              v-model="taskSelectValue"
+              class="task-select-full"
+            />
+            <Account
+              v-show="currentTab === 'account'"
+              :list="accountList"
+              @deleteAccount="handleDeleteAccount"
+            />
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import Account from "./account/index.vue";
-import Device from "./device/index.vue";
+import Account from "@/components/Account.vue";
+import Device from "@/components/Device.vue";
+import Task from "@/components/Task.vue";
 import TitleBar from "@/components/TitleBar.vue";
+import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
 
+const currentTab = ref("device");
+const isConnected = ref(false);
 const deviceList = ref([]);
 const taskList = ref([]);
+
+// 任务选择状态（提升到父组件以保持状态）
+const taskSelectValue = ref({
+  selectedTasks: [],
+  taskConfig: {},
+});
+
+// 面板标题
+const panelTitle = computed(() => {
+  const titles = {
+    device: '设备管理',
+    task: '任务配置',
+    account: '账号管理'
+  };
+  return titles[currentTab.value] || '';
+});
+
+// 计算运行中和暂停的设备数量
+const runningCount = computed(() => {
+  return deviceList.value.filter((d) => !d.已暂停 && d.当前任务).length;
+});
+const pausedCount = computed(() => {
+  return deviceList.value.filter((d) => d.已暂停).length;
+});
 
 let matchSocket = null;
 
@@ -71,7 +174,13 @@ function initMatchSocket() {
 
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
+      isConnected.value = true;
       resolve();
+    });
+
+    matchSocket.on("disconnect", () => {
+      console.log("匹配 Socket 断开连接");
+      isConnected.value = false;
     });
 
     // 接收设备列表
@@ -224,6 +333,22 @@ onMounted(async () => {
 </script>
 
 <style lang="less">
+// 变量定义
+@sidebar-width: 70px;
+@title-bar-height: 40px;
+@stats-bar-height: 80px;
+@panel-header-height: 50px;
+@primary-color: #409eff;
+@success-color: #67c23a;
+@warning-color: #e6a23c;
+@danger-color: #f56c6c;
+@bg-color: #f0f2f5;
+@card-bg: #ffffff;
+@text-primary: #303133;
+@text-secondary: #606266;
+@text-muted: #909399;
+@border-color: #e4e7ed;
+
 html,
 body,
 #app {
@@ -241,35 +366,278 @@ body,
   flex-direction: column;
   width: 100%;
   height: 100vh;
-  background-color: #f5f7fa;
+  background-color: @bg-color;
 }
 
+.main-wrapper {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - @title-bar-height);
+}
+
+// 左侧导航栏
+.sidebar {
+  width: @sidebar-width;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.nav-menu {
+  padding-top: 15px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.6);
+  position: relative;
+  
+  &:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  &.active {
+    color: @primary-color;
+    background: rgba(64, 158, 255, 0.1);
+    
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 30px;
+      background: @primary-color;
+      border-radius: 0 3px 3px 0;
+    }
+  }
+}
+
+.nav-label {
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.sidebar-footer {
+  padding: 15px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: @danger-color;
+  
+  &.online {
+    background-color: @success-color;
+    box-shadow: 0 0 8px rgba(103, 194, 58, 0.6);
+  }
+}
+
+.status-text {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+// 主内容区域
 .main-content {
   flex: 1;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
   overflow: hidden;
+  gap: 15px;
+}
+
+// 统计卡片栏
+.stats-bar {
+  display: flex;
+  gap: 15px;
+  height: @stats-bar-height;
+  flex-shrink: 0;
+}
+
+.stat-card {
+  flex: 1;
+  background: @card-bg;
+  border-radius: 8px;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.stat-icon {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  
+  &.device-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  &.running-icon {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  }
+  
+  &.paused-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  }
+  
+  &.account-icon {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  }
+}
+
+.stat-info {
   display: flex;
   flex-direction: column;
 }
 
-.custom-tabs {
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: @text-primary;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: @text-muted;
+  margin-top: 2px;
+}
+
+// 内容面板
+.content-panel {
   flex: 1;
+  background: @card-bg;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  border: none;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
 
-  :deep(.el-tabs__content) {
-    flex: 1;
-    overflow: auto;
-    padding: 15px;
+.panel-header {
+  height: @panel-header-height;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid @border-color;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: @text-primary;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .el-icon {
+    color: @primary-color;
+  }
+}
+
+.panel-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.panel-body {
+  flex: 1;
+  padding: 15px;
+  overflow: hidden;
+}
+
+// 任务配置页面全屏样式
+.task-select-full {
+  height: 100% !important;
+  min-height: unset !important;
+  max-height: unset !important;
+  
+  :deep(.task-columns) {
     height: 100%;
   }
   
-  :deep(.el-tabs__header) {
-    background-color: #fff;
-    border-bottom: 1px solid #e4e7ed;
+  :deep(.column) {
+    flex: 1;
+    min-width: 200px;
   }
+  
+  :deep(.column-tasks) {
+    flex: 0 0 30%;
+  }
+  
+  :deep(.column-selected) {
+    flex: 0 0 25%;
+  }
+  
+  :deep(.column-config) {
+    flex: 1;
+  }
+}
+
+// 过渡动画
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+// Element Plus 组件样式覆盖
+:deep(.el-button) {
+  border-radius: 6px;
+}
+
+:deep(.el-table) {
+  border-radius: 6px;
+  
+  th.el-table__cell {
+    background-color: #fafafa;
+    color: @text-secondary;
+    font-weight: 500;
+  }
+}
+
+:deep(.el-tag) {
+  border-radius: 4px;
 }
 </style>

@@ -1,17 +1,25 @@
 <template>
   <div class="title-bar">
-    <div
-      class="title-bar-drag"
-      @mousedown="onTitleBarMouseDown"
-    >
-      <span class="title-text">{{ title }}</span>
+    <div class="title-bar-drag" @mousedown="onTitleBarMouseDown">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+        </div>
+        <span class="title-text">{{ title }}</span>
+      </div>
     </div>
     <div class="window-controls">
       <div class="control-btn minimize" @click="handleMinimize" title="最小化">
-        -
+        <svg viewBox="0 0 12 12" width="12" height="12">
+          <rect fill="currentColor" y="5" width="12" height="2" rx="1"/>
+        </svg>
       </div>
       <div class="control-btn close" @click="handleClose" title="关闭">
-        ×
+        <svg viewBox="0 0 12 12" width="12" height="12">
+          <path fill="currentColor" d="M7.41 6l3.29-3.29a1 1 0 00-1.41-1.41L6 4.59 2.71 1.3A1 1 0 001.3 2.71L4.59 6 1.3 9.29a1 1 0 001.41 1.41L6 7.41l3.29 3.29a1 1 0 001.41-1.41L7.41 6z"/>
+        </svg>
       </div>
     </div>
   </div>
@@ -77,15 +85,15 @@ function onDragEnd() {
 </script>
 
 <style scoped lang="less">
+@title-bar-height: 40px;
+
 .title-bar {
-  height: 40px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e4e7ed;
+  height: @title-bar-height;
+  background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  padding: 0;
   z-index: 100;
 }
 
@@ -97,38 +105,57 @@ function onDragEnd() {
   user-select: none;
   cursor: move;
   min-width: 0;
+  padding-left: 15px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
 }
 
 .title-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  padding-left: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
 }
 
 .window-controls {
   display: flex;
   flex-shrink: 0;
+  height: 100%;
 }
 
 .control-btn {
-  width: 40px;
-  height: 40px;
-  line-height: 40px;
-  text-align: center;
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  font-size: 18px;
-  color: #606266;
-  transition: all 0.2s;
-}
-
-.control-btn:hover {
-  background-color: #ecf5ff;
-  color: #409eff;
-}
-
-.control-btn.close:hover {
-  background-color: #f56c6c;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  &.close:hover {
+    background-color: #e81123;
+    color: #ffffff;
+  }
 }
 </style>
