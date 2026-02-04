@@ -131,9 +131,9 @@ class 动作管理器类:
         self.大图路径 = 路径
         return self
 
-    def 设置日志(self, 日志):
-        """设置日志"""
-        self.日志 = 日志
+    def 输出日志(self, 日志):
+        self.控制器.更新设备状态(日志=日志)
+        # print(日志)
         return self
 
     def 设置字库(self, 字库集合):
@@ -171,12 +171,11 @@ class 动作管理器类:
         if self.是否找到():
             目标标识 = self._获取目标标识()
             if not self.控制器.是否允许操作(目标标识):
-                return False
+                return True
             self.点击()
             self.控制器.记录操作(目标标识)
             if 日志:
-                self.日志 = 日志
-                print(日志)
+                self.输出日志(日志)
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
@@ -194,8 +193,7 @@ class 动作管理器类:
             self.控制器.随机ADB点击(*self.固定点击区域)
             self.控制器.记录操作(目标标识)
             if 日志:
-                self.日志 = 日志
-                print(日志)
+                self.输出日志(日志)
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True

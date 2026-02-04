@@ -182,13 +182,29 @@ function updateDeviceStatus(statusData) {
   const deviceId = statusData.设备ID;
   if (!deviceId) return;
 
-  // 如果当前任务是更新信息, 则更新账号对应信息
-  if (statusData.当前任务 === "更新信息") {
-    updateAccountInfo(statusData);
-  }
+
 
   const index = deviceList.value.findIndex((item) => item.设备ID === deviceId);
   if (index !== -1) {
+
+    if (statusData.日志) {
+      if (!Array.isArray(deviceList.value[index].日志)) {
+        deviceList.value[index].日志 = [];
+      }
+      // 添加新日志
+      deviceList.value[index].日志.push(statusData.日志);
+      // 如果超过50条，移除最早的
+      if (deviceList.value[index].日志.length > 50) {
+        deviceList.value[index].日志.splice(0, deviceList.value[index].日志.length - 50);
+      }
+      return
+    }
+
+    // 如果当前任务是更新信息, 则更新账号对应信息
+  // if (statusData.当前任务 === "更新信息") {
+  //   updateAccountInfo(statusData);
+  // }
+
     // 合并更新状态数据
     deviceList.value[index] = {
       ...deviceList.value[index],

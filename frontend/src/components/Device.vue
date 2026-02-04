@@ -25,6 +25,9 @@
     <div class="table-container">
       <el-table
         :data="list"
+        row-key="设备ID"
+        :expand-row-keys="expandedRowKeys"
+        @expand-change="onExpandChange"
         :row-class-name="tableRowClassName"
         border
         size="small"
@@ -33,6 +36,11 @@
         stripe
         highlight-current-row
       >
+      <el-table-column type="expand">
+      <template #default="props">
+        <p v-for="item in props.row.日志" :key="item">{{ item }}</p>
+      </template>
+    </el-table-column>
         <el-table-column type="index" label="序号" width="60" align="center">
         </el-table-column>
         <el-table-column label="设备ID" prop="设备ID" show-overflow-tooltip width="150">
@@ -128,7 +136,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from "vue";
+import { ref, watch, defineProps, defineEmits } from "vue";
 import { ElMessage } from "element-plus";
 
 const props = defineProps({
@@ -149,6 +157,22 @@ const emit = defineEmits([
   "endTask",
   "getDeviceList",
 ]);
+
+// 受控展开行：数据更新时保持已展开行不收起
+const expandedRowKeys = ref([]);
+watch(
+  () => props.list,
+  (list) => {
+    // 仅保留当前列表中仍存在的设备 ID，避免残留无效 key
+    expandedRowKeys.value = expandedRowKeys.value.filter((key) =>
+      list.some((row) => row.设备ID === key)
+    );
+  },
+  { deep: true }
+);
+function onExpandChange(_row, expandedRows) {
+  expandedRowKeys.value = expandedRows.map((r) => r.设备ID);
+}
 
 const tableRowClassName = ({ row }) => {
   return row.故障 ? "fault-row" : "";
