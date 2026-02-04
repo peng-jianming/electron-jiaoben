@@ -79,6 +79,37 @@ class ExampleController {
     }
   }
 
+  /**
+   * 获取任务配置（已选任务列表 + 任务配置）
+   * @param {Object} args
+   * @param {Object} event
+   */
+  获取任务配置(args, event) {
+    try {
+      return exampleService.获取任务配置();
+    } catch (error) {
+      console.error('获取任务配置错误:', error);
+      return {
+        selectedTasks: [],
+        taskConfig: []
+      };
+    }
+  }
+
+  /**
+   * 保存任务配置（已选任务列表 + 任务配置）
+   * @param {Object} args - { taskSelectValue } 或 { selectedTasks, taskConfig }
+   * @param {Object} event
+   */
+  保存任务配置(args, event) {
+    try {
+      return exampleService.保存任务配置(args);
+    } catch (error) {
+      console.error('保存任务配置错误:', error);
+      return false;
+    }
+  }
+
 
   操作主窗口(args, event) {
     const win = getMainWindow();

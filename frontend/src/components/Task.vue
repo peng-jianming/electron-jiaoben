@@ -211,9 +211,10 @@ function genId() {
 }
 
 /** 从 modelValue 构建 selectedList + taskConfigById（兼容旧格式：taskConfig 按任务名 或 按顺序数组） */
-function buildFromModelValue() {
-  const tasks = props.modelValue?.selectedTasks || [];
-  const config = props.modelValue?.taskConfig;
+function buildFromModelValue(modelValue) {
+  const mv = modelValue ?? props.modelValue ?? {};
+  const tasks = mv.selectedTasks || [];
+  const config = mv.taskConfig;
   const list = tasks.map((name) => ({ id: genId(), name }));
   const byId = {};
   if (Array.isArray(config)) {
@@ -259,6 +260,23 @@ watch(
   () => {
     const exists = selectedList.value.some((i) => i.id === currentConfigTask.value);
     if (!exists) currentConfigTask.value = "";
+  },
+  { deep: true }
+);
+
+// 当父组件（通过 v-model）传入的任务选择/配置发生变化，且当前内部还没有任务时，
+// 用父组件的数据初始化内部状态（用于从持久化配置中恢复）
+watch(
+  () => props.modelValue,
+  (val) => {
+    const incomingTasks = Array.isArray(val?.selectedTasks) ? val.selectedTasks : [];
+    if (!incomingTasks.length) return;
+    // 仅在内部尚未有任务时初始化，避免覆盖用户在当前会话中的操作
+    if (selectedList.value.length === 0) {
+      const { list, byId } = buildFromModelValue(val);
+      selectedList.value = [...list];
+      taskConfig.value = { ...byId };
+    }
   },
   { deep: true }
 );

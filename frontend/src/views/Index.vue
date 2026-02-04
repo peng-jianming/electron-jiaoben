@@ -106,7 +106,7 @@ import Task from "@/components/Task.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -122,6 +122,40 @@ const taskSelectValue = ref({
   selectedTasks: [],
   taskConfig: {},
 });
+
+// 加载任务配置（已选任务列表 & 任务配置）
+async function loadTaskConfig() {
+  if (!ipc) return;
+  try {
+    const res = await ipc.invoke(ipcApiRoute.获取任务配置);
+    if (!res || typeof res !== "object") return;
+
+    const selectedTasks = Array.isArray(res.selectedTasks) ? res.selectedTasks : [];
+    const taskConfig = res.taskConfig != null ? res.taskConfig : [];
+
+    taskSelectValue.value = {
+      selectedTasks,
+      taskConfig,
+    };
+  } catch (e) {
+    // 静默失败，不影响页面使用
+  }
+}
+
+// 保存任务配置到本地（通过主进程写入 JSON 文件）
+async function saveTaskConfig() {
+  if (!ipc) return;
+  try {
+    await ipc.invoke(ipcApiRoute.保存任务配置, {
+      taskSelectValue: {
+        selectedTasks: JSON.parse(JSON.stringify([...taskSelectValue.value.selectedTasks])),
+        taskConfig: JSON.parse(JSON.stringify(taskSelectValue.value.taskConfig)),
+      },
+    });
+  } catch (e) {
+    // 静默失败，避免频繁弹错
+  }
+}
 
 // 面板标题
 const panelTitle = computed(() => {
@@ -324,11 +358,21 @@ const handleGetTaskList = () => {
   });
 };
 
+// 监听任务选择与配置变更，自动持久化
+watch(
+  taskSelectValue,
+  () => {
+    saveTaskConfig();
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
   await initMatchSocket();
   handleGetDeviceList();
   handleGetTaskList();
   loadAccountList();
+  loadTaskConfig();
 });
 </script>
 
