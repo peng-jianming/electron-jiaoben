@@ -6,7 +6,7 @@ const { getDataDir } = require('ee-core/ps');
 class ExampleService {
   constructor() {
     const dataDir = getDataDir();
-    this.accountFilePath = path.join(dataDir, 'account.json');
+    this.accountFilePath = path.join(dataDir, '账号信息.json');
   }
 
   获取账号列表() {

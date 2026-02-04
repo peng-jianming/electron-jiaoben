@@ -20,8 +20,7 @@ from 配置.界面配置 import 界面集合
 
 
 class 任务执行器类:
-    """任务执行器（状态机）"""
-
+    
     def __init__(self, 设备ID):
         """
         初始化任务执行器
@@ -132,8 +131,9 @@ class 任务执行器类:
             if not self._运行中:
                 break
             
-            # 尝试执行随机误触（模拟人为操作）
-            self._尝试执行误触()
+            # 在当前不处于未知界面时，尝试执行随机误触, 避免干扰未知界面的操作
+            if self._未知开始时间 is None:
+                self._尝试执行误触()
             
             # 每轮开始时重置截图上下文
             self._截图上下文.新轮次()
@@ -209,7 +209,6 @@ class 任务执行器类:
             print("任务已恢复")
             return True
         return False
-
 
     def 更新上下文(self, **kwargs):
         """更新上下文"""
