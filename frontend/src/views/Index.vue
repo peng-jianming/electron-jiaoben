@@ -1,24 +1,33 @@
 <template>
-  <el-tabs type="border-card">
-    <el-tab-pane label="设备列表"
-      ><Device
-        :list="deviceList"
-        :taskList="taskList"
-        @startTask="handleStartTask"
-        @pauseTask="handlePauseTask"
-        @resumeTask="handleResumeTask"
-        @endTask="handleEndTask"
-        @getDeviceList="handleGetDeviceList"
-    /></el-tab-pane>
-    <el-tab-pane label="账号列表"
-      ><Account :list="accountList" @deleteAccount="handleDeleteAccount"
-    /></el-tab-pane>
-  </el-tabs>
+  <div class="app-container">
+    <TitleBar title="设备管理系统" />
+
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+      <el-tabs type="border-card" class="custom-tabs">
+        <el-tab-pane label="设备列表">
+          <Device
+            :list="deviceList"
+            :taskList="taskList"
+            @startTask="handleStartTask"
+            @pauseTask="handlePauseTask"
+            @resumeTask="handleResumeTask"
+            @endTask="handleEndTask"
+            @getDeviceList="handleGetDeviceList"
+          />
+        </el-tab-pane>
+        <el-tab-pane label="账号列表">
+          <Account :list="accountList" @deleteAccount="handleDeleteAccount" />
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import Account from "./account/index.vue";
 import Device from "./device/index.vue";
+import TitleBar from "@/components/TitleBar.vue";
 
 import { ref, onMounted } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -104,12 +113,11 @@ const handleGetDeviceList = () => {
 };
 
 const handleStartTask = (row, payload) => {
-  const 任务队列 = payload?.任务队列?.length
-    ? payload.任务队列
-    : [];
-  const 任务配置 = payload?.任务配置 && typeof payload.任务配置 === "object"
-    ? payload.任务配置
-    : {};
+  const 任务队列 = payload?.任务队列?.length ? payload.任务队列 : [];
+  const 任务配置 =
+    payload?.任务配置 && typeof payload.任务配置 === "object"
+      ? payload.任务配置
+      : {};
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "开始任务",
     设备ID: row.设备ID,
@@ -210,9 +218,58 @@ const handleGetTaskList = () => {
 onMounted(async () => {
   await initMatchSocket();
   handleGetDeviceList();
-  loadAccountList();
   handleGetTaskList();
+  loadAccountList();
 });
 </script>
 
-<style lang="less"></style>
+<style lang="less">
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  background-color: #f5f7fa;
+}
+
+.main-content {
+  flex: 1;
+  padding: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: none;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+
+  :deep(.el-tabs__content) {
+    flex: 1;
+    overflow: auto;
+    padding: 15px;
+    height: 100%;
+  }
+  
+  :deep(.el-tabs__header) {
+    background-color: #fff;
+    border-bottom: 1px solid #e4e7ed;
+  }
+}
+</style>

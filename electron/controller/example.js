@@ -2,10 +2,9 @@
 
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
-/**
- * example
- * @class
- */
+const {
+  getMainWindow
+} = require('ee-core/electron/window');
 class ExampleController {
 
   /**
@@ -25,7 +24,7 @@ class ExampleController {
       // 通过 type 来决定发送给前端哪个事件
       const 事件名 = args.事件名;
       const 数据 = args.数据;
-      
+
       const socketServer = getSocketServer();
       if (socketServer) {
         socketServer.io.emit(事件名, 数据);
@@ -77,6 +76,34 @@ class ExampleController {
     } catch (error) {
       console.error('保存账号列表错误:', error);
       return false;
+    }
+  }
+
+
+  操作主窗口(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    const fn = win[args.操作方法];
+    if (typeof fn === 'function') {
+      fn.apply(win, args.操作参数 != null ? (Array.isArray(args.操作参数) ? args.操作参数 : [args.操作参数]) : []);
+    }
+  }
+
+  /** 获取主窗口位置，用于标题栏拖动 */
+  获取主窗口位置(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return { x: 0, y: 0 };
+    const [x, y] = win.getPosition();
+    return { x, y };
+  }
+
+  /** 设置主窗口位置，用于标题栏拖动 */
+  设置主窗口位置(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    const { x, y } = args;
+    if (typeof x === 'number' && typeof y === 'number') {
+      win.setPosition(Math.round(x), Math.round(y));
     }
   }
 }
