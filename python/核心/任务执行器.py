@@ -22,18 +22,12 @@ from 配置.界面配置 import 界面集合
 class 任务执行器类:
     
     def __init__(self, 设备ID):
-        """
-        初始化任务执行器
-
-        参数:
-            设备ID: 设备ID
-        """
-        self.字库缓存 = {}
-        self.加载字库文件(字库文件路径)
-        self._模型 = None
 
         self.控制器 = 设备控制器类(设备ID)
         self._截图上下文 = 截图管理器类(self.控制器)
+        self.字库缓存 = {}
+        self.加载字库文件(字库文件路径)
+        self._模型 = None
         self.界面识别缓存 = {}
         self.界面集合 = self._加载界面配置(界面集合)
         self._状态集合 = {}
@@ -65,8 +59,7 @@ class 任务执行器类:
             weights=[0.5, 0.2, 0.3],  # 点击50%, 滑动20%, 等待30%
             k=1
         )[0]
-        
-        print(f"[误触模拟] 误触 - 类型: {误触类型}")
+        self.控制器.写入日志(f"[误触模拟] 误触 - 类型: {误触类型}")
         
         if 误触类型 == '点击':
             self.控制器.随机误触()
@@ -90,10 +83,9 @@ class 任务执行器类:
             else:
                 import shutil
                 shutil.copy(图像数据, 目标路径)
-
-            print(f"未知界面截图已保存: {目标路径}")
-        except Exception as e:
-            print(f"保存未知界面截图失败: {e}")
+            self.控制器.写入日志(f"未知界面截图已保存: {目标路径}")
+        except Exception:
+            self.控制器.写入日志("保存未知界面截图失败")
 
     def 播放音乐(self):
         """播放提示音乐"""
@@ -111,16 +103,16 @@ class 任务执行器类:
                             os.system(f'afplay "{音乐文件路径}" &')
                         else:
                             os.system(f'mpg123 "{音乐文件路径}" &')
-                    except Exception as e:
-                        print(f"播放音乐失败: {e}")
+                    except Exception:
+                        self.控制器.写入日志("播放音乐失败")
 
                 线程 = threading.Thread(target=播放, daemon=True)
                 线程.start()
-                print("正在播放提示音乐...")
+                self.控制器.写入日志("正在播放提示音乐...")
             else:
-                print(f"音乐文件不存在: {音乐文件路径}")
+                self.控制器.写入日志(f"音乐文件不存在: {音乐文件路径}")
         except Exception as e:
-            print(f"播放音乐出错: {e}")
+            self.控制器.写入日志("播放音乐出错")
 
     def 开始(self):
         """启动状态机"""
@@ -150,40 +142,38 @@ class 任务执行器类:
             for 界面名称 in 优先列表 + [k for k in self._状态集合.keys() if k not in 优先列表]:
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     已找到 = True
-                    print(f"目前位于: {界面名称}")
                     self.更新上下文(上一状态=self._当前界面)
                     self._当前界面 = 界面名称
                     self._未知开始时间 = None
-
-                    结果 = self._状态集合[界面名称](self._上下文, self.界面集合[界面名称])
-                    if isinstance(结果, dict):
-                        self._上下文.update(结果)
-                    elif 结果 is False:
-                        print(f"界面 {self._当前界面} 处理失败")
-                    break
+                    self._状态集合[界面名称](self._上下文, self.界面集合[界面名称])
 
             if not 已找到:
-                print("搜索未注册界面")
+                是否处于未知界面 = True
+                
                 # 尝试关闭未注册界面
                 for 界面名称, 界面对象 in self.界面集合.items():
                     if 界面名称 in self._状态集合:
                         continue
                     if hasattr(界面对象.按钮, '关闭'):
                         if self.界面识别缓存[界面名称].查找().是否找到():
+                            是否处于未知界面 = False
                             界面对象.按钮.关闭.点击()
-                            print(f"目前位于未注册界面: {界面名称}")
+                            self.控制器.写入日志(f"目前位于未注册界面: {界面名称}, 直接关闭当前界面")
                             break
+                if 是否处于未知界面:
+                    经过时间 = 0 if self._未知开始时间 is None else time.time() - self._未知开始时间
+                    self.控制器.写入日志(f"目前位于未知界面,需要添加当前界面到配置中, {60 - 经过时间:.0f} 秒后报警")
 
-                # 未知界面计时逻辑
-                if self._未知开始时间 is None:
-                    self._未知开始时间 = time.time()
-                else:
-                    经过时间 = time.time() - self._未知开始时间
-                    if 经过时间 >= self._未知超时时间:
-                        print(f"未知界面已持续 {经过时间:.1f} 秒，保存截图")
-                        self.保存未知图片(截图)
-                        self.播放音乐()
+                    # 未知界面计时逻辑
+                    if self._未知开始时间 is None:
                         self._未知开始时间 = time.time()
+                    else:
+                        经过时间 = time.time() - self._未知开始时间
+                        if 经过时间 >= self._未知超时时间:
+                            self.控制器.写入日志(f"未知界面已持续 {经过时间:.1f} 秒，保存截图")
+                            self.保存未知图片(截图)
+                            self.播放音乐()
+                            self._未知开始时间 = time.time()
 
             time.sleep(0.2)
 
@@ -191,13 +181,14 @@ class 任务执行器类:
         """结束状态机"""
         self._运行中 = False
         self._暂停事件.set()  # 确保退出等待状态
+        self.控制器.写入日志("任务已结束")
 
     def 暂停(self):
         """暂停状态机"""
         if self._运行中 and not self._暂停中:
             self._暂停中 = True
             self._暂停事件.clear()
-            print("任务已暂停")
+            self.控制器.写入日志("任务已暂停")
             return True
         return False
 
@@ -206,7 +197,7 @@ class 任务执行器类:
         if self._运行中 and self._暂停中:
             self._暂停中 = False
             self._暂停事件.set()
-            print("任务已恢复")
+            self.控制器.写入日志("任务已恢复")
             return True
         return False
 
@@ -214,28 +205,13 @@ class 任务执行器类:
         """更新上下文"""
         self._上下文.update(kwargs)
 
-    def 更新设备状态(self, **kwargs):
-        """
-        更新设备状态到前端（金币、等级等信息）
-        
-        参数:
-            **kwargs: 支持以下字段：
-                - 金币: 当前金币数量
-                - 等级: 当前等级
-                - 其他自定义字段
-        
-        示例:
-            self.更新设备状态(金币=123456, 等级=69)
-        """
-        self.控制器.更新设备状态(**kwargs)
-
     def 加载字库文件(self, 字库文件路径):
         """加载字库文件"""
         try:
             with open(字库文件路径, "r", encoding="utf-8") as f:
                 行列表 = f.readlines()
-        except Exception as e:
-            print(f"读取字库文件失败: {e}")
+        except Exception:
+            self.控制器.写入日志("读取字库文件失败")
             return 0
 
         加载数量 = 0
@@ -325,8 +301,7 @@ class 任务执行器类:
             })
 
             加载数量 += 1
-
-        print(f"成功加载 {加载数量} 个字库到缓存")
+        self.控制器.写入日志(f"成功加载 {加载数量} 个字库到缓存")
         return 加载数量
 
     def 加载模型文件(self, 模型路径):

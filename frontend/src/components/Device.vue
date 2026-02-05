@@ -36,11 +36,17 @@
         stripe
         highlight-current-row
       >
-      <el-table-column type="expand">
-      <template #default="props">
-        <p v-for="item in props.row.日志" :key="item">{{ item }}</p>
-      </template>
-    </el-table-column>
+        <el-table-column type="expand">
+          <template #default="props">
+            <el-input
+              type="textarea"
+              resize="none"
+              :rows="10"
+              placeholder="暂无日志信息"
+              :model-value="props.row.日志 ? props.row.日志.slice().reverse().join('\n') : ''"
+            />
+          </template>
+        </el-table-column>
         <el-table-column type="index" label="序号" width="60" align="center">
         </el-table-column>
         <el-table-column label="设备ID" prop="设备ID" show-overflow-tooltip width="150">

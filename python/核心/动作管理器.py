@@ -23,7 +23,7 @@ class 动作管理器类:
         """
         self.控制器 = 控制器
         self._截图上下文 = 截图上下文
-        self.日志 = 配置.get("日志")
+        self.当前界面 = 配置.get("当前界面")
         self.方式 = 配置.get("方式")
         self.查找字符串 = 配置.get("查找字符串")
         self.分类名 = 配置.get("分类名")
@@ -131,15 +131,10 @@ class 动作管理器类:
         self.大图路径 = 路径
         return self
 
-    def 输出日志(self, 日志):
-        self.控制器.更新设备状态(日志=日志)
-        # print(日志)
-        return self
-
     def 设置字库(self, 字库集合):
         """设置字库"""
         if self.查找字符串 and self.查找字符串 not in 字库集合:
-            print(f"{self.查找字符串},不在字库里")
+            self.控制器.写入日志(f"{self.查找字符串},不在字库里")
         self.字库集合 = 字库集合
         return self
 
@@ -175,7 +170,7 @@ class 动作管理器类:
             self.点击()
             self.控制器.记录操作(目标标识)
             if 日志:
-                self.输出日志(日志)
+                self.控制器.写入日志(f"{self.当前界面}: {日志}")
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
@@ -193,7 +188,7 @@ class 动作管理器类:
             self.控制器.随机ADB点击(*self.固定点击区域)
             self.控制器.记录操作(目标标识)
             if 日志:
-                self.输出日志(日志)
+                self.控制器.写入日志(f"{self.当前界面}: {日志}")
             if 延时:
                 time.sleep(random.uniform(*延时))
             return True
@@ -202,12 +197,12 @@ class 动作管理器类:
     def _字库找图(self, 大图, 字库名, 相似度=0.9, 区域=(0, 0, 0, 0)):
         """根据字库名字进行颜色偏色找图"""
         if 字库名 not in self.字库集合:
-            print(f"未找到字库: {字库名}")
+            self.控制器.写入日志(f"未找到字库: {字库名}")
             return None
 
         字库数据列表 = self.字库集合[字库名]
         if not 字库数据列表:
-            print(f"字库 {字库名} 的条目列表为空")
+            self.控制器.写入日志(f"字库 {字库名} 的条目列表为空")
             return None
 
         # 读取大图
@@ -296,7 +291,7 @@ class 动作管理器类:
             分数 = 2 * 精确度 * 召回率 / (精确度 + 召回率 + 1e-5)
             最小值, 最大值, 最小位置, 最大位置 = cv2.minMaxLoc(分数)
 
-            # print(
+            # self.控制器.写入日志(
             #     f"字库找图 - 字库名: {字库名}, 条目索引: {索引}/{len(字库数据列表) - 1}, 相似度: {最大值:.4f}, 位置: {最大位置}"
             # )
 
@@ -318,7 +313,7 @@ class 动作管理器类:
     def _yolo检测(self, 图像, 置信度阈值=0.6):
         """使用YOLOv8模型检测图片中的目标"""
         if self.模型 is None:
-            print("未加载模型")
+            self.控制器.写入日志("未加载模型")
             return []
 
         结果列表 = self.模型(图像, conf=置信度阈值, verbose=False)

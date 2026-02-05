@@ -192,7 +192,7 @@ function updateDeviceStatus(statusData) {
         deviceList.value[index].日志 = [];
       }
       // 添加新日志
-      deviceList.value[index].日志.push(statusData.日志);
+      deviceList.value[index].日志.push(`[${new Date().toLocaleString()}]： ${statusData.日志}`);
       // 如果超过50条，移除最早的
       if (deviceList.value[index].日志.length > 50) {
         deviceList.value[index].日志.splice(0, deviceList.value[index].日志.length - 50);

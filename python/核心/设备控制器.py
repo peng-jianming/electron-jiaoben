@@ -51,6 +51,8 @@ class 设备控制器类:
             return True
         if 现在 - self._上次操作时间 >= self._操作冷却秒数:
             return True
+        
+        self.写入日志(f"8 秒内对同一目标不重复操作: {目标标识}")
         return False
 
     def 记录操作(self, 目标标识):
@@ -63,10 +65,6 @@ class 设备控制器类:
         if 目标标识 is not None:
             self._上次操作目标 = 目标标识
             self._上次操作时间 = time.time()
-
-    def 写入日志(self, 信息):
-        """写入日志"""
-        self.发送到Electron("logs", 信息)
 
     def 截图到内存(self):
         """
@@ -82,8 +80,8 @@ class 设备控制器类:
 
             图像 = Image.open(BytesIO(图像字节))
             return 图像.convert("RGB")
-        except Exception as e:
-            print(f"内存截图失败: {e}")
+        except Exception:
+            self.写入日志("内存截图失败")
             return None
 
     def 截图到本地(self):
@@ -112,8 +110,8 @@ class 设备控制器类:
         if not self._socketio客户端.connected:
             try:
                 self._socketio客户端.connect(服务器地址)
-            except Exception as e:
-                print(f"Socket.IO 连接失败: {e}")
+            except Exception:
+                self.写入日志("Socket.IO 连接失败")
 
         return self._socketio客户端
 
@@ -127,11 +125,11 @@ class 设备控制器类:
             }
             客户端.emit("socket-channel", data)
 
-        except socketio.exceptions.ConnectionError as e:
-            print(f"连接错误: {e}")
+        except socketio.exceptions.ConnectionError:
+            self.写入日志("连接错误")
             return None
-        except Exception as e:
-            print(f"发送数据错误: {e}")
+        except Exception:
+            self.写入日志("发送数据错误")
             return None
 
     def 更新设备状态(self, **kwargs):
@@ -148,6 +146,11 @@ class 设备控制器类:
         """
         状态数据 = {"设备ID": self.设备ID}
         状态数据.update(kwargs)
+        self.发送到Electron("device-status-update", 状态数据)
+
+    def 写入日志(self, 日志):
+        # print(日志)
+        状态数据 = {"设备ID": self.设备ID, "日志": 日志}
         self.发送到Electron("device-status-update", 状态数据)
 
     def 随机误触(self, 屏幕宽=1280, 屏幕高=720, 安全边距=50):
@@ -167,7 +170,7 @@ class 设备控制器类:
         延迟 = random.uniform(0.1, 0.5)
         time.sleep(延迟)
         
-        print(f"[误触模拟] 随机点击位置: ({随机x}, {随机y})")
+        self.写入日志(f"[误触模拟] 随机点击位置: ({随机x}, {随机y})")
         self.adb.模拟点击(随机x, 随机y, (0, 0.2))
 
     def 随机空白滑动(self, 屏幕宽=1280, 屏幕高=720):
@@ -192,7 +195,7 @@ class 设备控制器类:
         # 随机滑动时间（200-500ms）
         滑动时间 = random.randint(200, 500)
         
-        print(f"[误触模拟] 随机滑动: ({起始x}, {起始y}) -> ({结束x}, {结束y})")
+        self.写入日志(f"[误触模拟] 随机滑动: ({起始x}, {起始y}) -> ({结束x}, {结束y})")
         self.adb.滑动(起始x, 起始y, 结束x, 结束y, 滑动时间)
 
     def 随机等待(self, 最小秒=0.5, 最大秒=2.0):
@@ -204,5 +207,5 @@ class 设备控制器类:
             最大秒: 最大等待时间
         """
         等待时间 = random.uniform(最小秒, 最大秒)
-        print(f"[误触模拟] 随机等待: {等待时间:.2f}秒")
+        self.写入日志(f"[误触模拟] 随机等待: {等待时间:.2f}秒")
         time.sleep(等待时间)
