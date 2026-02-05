@@ -585,7 +585,7 @@ function getLogClass(log) {
 
 
 .log-content {
-  max-height: 220px;
+  height: 220px;
   overflow-y: auto;
   padding: 8px;
   // 自定义滚动条
@@ -679,6 +679,7 @@ function getLogClass(log) {
 }
 
 .log-empty {
+  height: 220px;
   display: flex;
   flex-direction: column;
   align-items: center;
