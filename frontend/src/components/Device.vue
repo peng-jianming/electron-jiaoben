@@ -38,13 +38,25 @@
       >
         <el-table-column type="expand">
           <template #default="props">
-            <el-input
-              type="textarea"
-              resize="none"
-              :rows="10"
-              placeholder="暂无日志信息"
-              :model-value="props.row.日志 ? props.row.日志.slice().reverse().join('\n') : ''"
-            />
+            <div class="log-container">
+              <div class="log-content" v-if="props.row.日志?.length">
+                <div 
+                  v-for="(log, index) in props.row.日志.slice().reverse()" 
+                  :key="index"
+                  class="log-item"
+                  :class="getLogClass(log)"
+                >
+                  <span class="log-index">#{{ props.row.日志.length - index }}</span>
+                  <span class="log-text">{{ log }}</span>
+                </div>
+              </div>
+              <div class="log-empty" v-else>
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                  <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2v2h-2v-2zm0-6h2v4h-2V8z"/>
+                </svg>
+                <span>暂无日志信息</span>
+              </div>
+            </div>
           </template>
         </el-table-column>
         <el-table-column type="index" label="序号" width="60" align="center">
@@ -228,16 +240,34 @@ const handleBatchEnd = () => {
     emit("endTask", row);
   });
 };
+
+// 根据日志内容返回对应的样式类
+function getLogClass(log) {
+  if (!log) return '';
+  const logLower = log.toLowerCase();
+  if (logLower.includes('错误') || logLower.includes('error') || logLower.includes('失败')) {
+    return 'log-error';
+  }
+  if (logLower.includes('警告') || logLower.includes('warn') || logLower.includes('warning')) {
+    return 'log-warn';
+  }
+  if (logLower.includes('成功') || logLower.includes('完成') || logLower.includes('success')) {
+    return 'log-success';
+  }
+  return '';
+}
 </script>
 
 <style scoped lang="less">
-@primary-color: #409eff;
-@success-color: #67c23a;
-@warning-color: #e6a23c;
-@danger-color: #f56c6c;
-@border-color: #e4e7ed;
-@text-secondary: #606266;
-@text-muted: #909399;
+@primary-color: #5b6af0;
+@success-color: #22c55e;
+@warning-color: #f59e0b;
+@danger-color: #ef4444;
+@border-color: #e2e8f0;
+@text-primary: #1e293b;
+@text-secondary: #475569;
+@text-muted: #94a3b8;
+@bg-light: #f8fafc;
 
 .device-container {
   display: flex;
@@ -294,44 +324,57 @@ const handleBatchEnd = () => {
   flex-shrink: 0;
 
   :deep(.el-button) {
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 500;
     font-size: 13px;
-    padding: 8px 15px;
+    padding: 8px 16px;
+    transition: all 0.25s ease;
 
     &--primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, @primary-color 0%, #8b5cf6 100%);
       border: none;
+      box-shadow: 0 2px 8px rgba(91, 106, 240, 0.25);
 
       &:hover {
-        background: linear-gradient(135deg, #5a6fd6 0%, #6a4293 100%);
+        background: linear-gradient(135deg, #4f5bd5 0%, #7c4ddb 100%);
+        box-shadow: 0 4px 12px rgba(91, 106, 240, 0.35);
+        transform: translateY(-1px);
       }
     }
 
     &--success {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      background: linear-gradient(135deg, @success-color 0%, #4ade80 100%);
       border: none;
+      box-shadow: 0 2px 8px rgba(34, 197, 94, 0.25);
 
       &:hover {
-        background: linear-gradient(135deg, #0f8a80 0%, #32d671 100%);
+        background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.35);
+        transform: translateY(-1px);
       }
     }
 
     &--warning {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(135deg, @warning-color 0%, #fbbf24 100%);
       border: none;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
 
       &:hover {
-        background: linear-gradient(135deg, #e085ec 0%, #e04d61 100%);
+        background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+        transform: translateY(-1px);
       }
     }
 
     &--danger {
-      background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+      background: linear-gradient(135deg, @danger-color 0%, #f87171 100%);
       border: none;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
 
       &:hover {
-        background: linear-gradient(135deg, #e63a61 0%, #e64327 100%);
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+        transform: translateY(-1px);
       }
     }
   }
@@ -343,10 +386,12 @@ const handleBatchEnd = () => {
   overflow: hidden;
 
   :deep(.el-table) {
-    border-radius: 8px;
+    border-radius: 10px;
+    border: 1px solid @border-color;
 
     th.el-table__cell {
-      background-color: #f8f9fa !important;
+      background-color: @bg-light !important;
+      border-bottom: 1px solid @border-color !important;
       color: @text-secondary;
       font-weight: 600;
       font-size: 13px;
@@ -365,13 +410,37 @@ const handleBatchEnd = () => {
     }
 
     .el-tag {
-      border-radius: 4px;
+      border-radius: 6px;
       font-weight: 500;
+      padding: 0 10px;
       // 禁用标签自身的过渡动画，避免行高在状态切换时被“撑开”
       transition: none;
+      
+      &--success {
+        background-color: #ecfdf5;
+        border-color: #86efac;
+        color: @success-color;
+      }
+      
+      &--warning {
+        background-color: #fffbeb;
+        border-color: #fcd34d;
+        color: @warning-color;
+      }
+      
+      &--info {
+        background-color: #f1f5f9;
+        border-color: #cbd5e1;
+        color: @text-muted;
+      }
+    }
+    
+    .el-button {
+      border-radius: 6px;
     }
   }
 }
+
 .statistics-info {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -437,8 +506,8 @@ const handleBatchEnd = () => {
 }
 
 .statistics-info-item--total {
-  background: linear-gradient(135deg, #eef2ff, #e0f2fe);
-  border-color: fade(@primary-color, 60%);
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-color: rgba(91, 106, 240, 0.3);
 
   .statistics-info-item-value {
     color: @primary-color;
@@ -446,8 +515,8 @@ const handleBatchEnd = () => {
 }
 
 .statistics-info-item--running {
-  background: linear-gradient(135deg, #ecfdf3, #dcfce7);
-  border-color: fade(@success-color, 60%);
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: rgba(34, 197, 94, 0.3);
 
   .statistics-info-item-value {
     color: @success-color;
@@ -455,8 +524,8 @@ const handleBatchEnd = () => {
 }
 
 .statistics-info-item--idle {
-  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-  border-color: fade(@text-muted, 40%);
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: rgba(148, 163, 184, 0.3);
 
   .statistics-info-item-value {
     color: @text-secondary;
@@ -464,8 +533,8 @@ const handleBatchEnd = () => {
 }
 
 .statistics-info-item--paused {
-  background: linear-gradient(135deg, #fff7ed, #fef3c7);
-  border-color: fade(@warning-color, 60%);
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(245, 158, 11, 0.3);
 
   .statistics-info-item-value {
     color: @warning-color;
@@ -473,8 +542,8 @@ const handleBatchEnd = () => {
 }
 
 .statistics-info-item--fault {
-  background: linear-gradient(135deg, #fee2e2, #fecaca);
-  border-color: fade(@danger-color, 60%);
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: rgba(239, 68, 68, 0.3);
 
   .statistics-info-item-value {
     color: @danger-color;
@@ -503,5 +572,127 @@ const handleBatchEnd = () => {
 
 .fault-animate {
   animation: fault-stat-blink 1s ease-in-out infinite;
+}
+
+// 日志容器样式
+.log-container {
+  background: @bg-light;
+  border-radius: 10px;
+  margin: 0 5px;
+  overflow: hidden;
+  border: 1px solid @border-color;
+}
+
+
+.log-content {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  // 自定义滚动条
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+    
+    &:hover {
+      background: #94a3b8;
+    }
+  }
+}
+
+.log-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #fff;
+  border-radius: 8px;
+  border-left: 3px solid @border-color;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f8fafc;
+    transform: translateX(2px);
+  }
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+  
+  &.log-error {
+    border-left-color: @danger-color;
+    background: linear-gradient(90deg, #fef2f2 0%, #fff 30%);
+    
+    .log-index {
+      background: #fef2f2;
+      color: @danger-color;
+    }
+  }
+  
+  &.log-warn {
+    border-left-color: @warning-color;
+    background: linear-gradient(90deg, #fffbeb 0%, #fff 30%);
+    
+    .log-index {
+      background: #fffbeb;
+      color: @warning-color;
+    }
+  }
+  
+  &.log-success {
+    border-left-color: @success-color;
+    background: linear-gradient(90deg, #f0fdf4 0%, #fff 30%);
+    
+    .log-index {
+      background: #f0fdf4;
+      color: @success-color;
+    }
+  }
+}
+
+.log-index {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: @text-muted;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.log-text {
+  flex: 1;
+  font-size: 12px;
+  color: @text-secondary;
+  line-height: 1.5;
+  word-break: break-all;
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+}
+
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: @text-muted;
+  
+  svg {
+    opacity: 0.4;
+  }
+  
+  span {
+    font-size: 13px;
+  }
 }
 </style>

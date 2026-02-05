@@ -86,10 +86,16 @@ function onDragEnd() {
 
 <style scoped lang="less">
 @title-bar-height: 40px;
+@primary-color: #5b6af0;
+@bg-color: #f8fafc;
+@border-color: #e2e8f0;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
 
 .title-bar {
   height: @title-bar-height;
-  background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%);
+  background: @bg-color;
+  border-bottom: 1px solid @border-color;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -117,45 +123,50 @@ function onDragEnd() {
 .logo-icon {
   width: 26px;
   height: 26px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, @primary-color 0%, #8b5cf6 100%);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
+  box-shadow: 0 2px 8px rgba(91, 106, 240, 0.3);
 }
 
 .title-text {
   font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: @text-primary;
+  letter-spacing: 0.3px;
 }
 
 .window-controls {
   display: flex;
   flex-shrink: 0;
   height: 100%;
+  gap: 2px;
+  padding-right: 8px;
 }
 
 .control-btn {
-  width: 46px;
-  height: 100%;
+  width: 32px;
+  height: 32px;
+  margin: auto 0;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.6);
+  color: @text-secondary;
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    background-color: #e2e8f0;
+    color: @text-primary;
   }
   
   &.close:hover {
-    background-color: #e81123;
-    color: #ffffff;
+    background-color: #fee2e2;
+    color: #dc2626;
   }
 }
 </style>

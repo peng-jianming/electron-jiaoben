@@ -394,20 +394,20 @@ onMounted(async () => {
 
 <style lang="less">
 // 变量定义
-@sidebar-width: 70px;
+@sidebar-width: 72px;
 @title-bar-height: 40px;
 @stats-bar-height: 80px;
 @panel-header-height: 50px;
-@primary-color: #409eff;
-@success-color: #67c23a;
-@warning-color: #e6a23c;
-@danger-color: #f56c6c;
-@bg-color: #f0f2f5;
+@primary-color: #5b6af0;
+@success-color: #22c55e;
+@warning-color: #f59e0b;
+@danger-color: #ef4444;
+@bg-color: #f1f5f9;
 @card-bg: #ffffff;
-@text-primary: #303133;
-@text-secondary: #606266;
-@text-muted: #909399;
-@border-color: #e4e7ed;
+@text-primary: #1e293b;
+@text-secondary: #475569;
+@text-muted: #94a3b8;
+@border-color: #e2e8f0;
 
 html,
 body,
@@ -439,7 +439,8 @@ body,
 // 左侧导航栏
 .sidebar {
   width: @sidebar-width;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  background: #ffffff;
+  border-right: 1px solid @border-color;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -447,7 +448,7 @@ body,
 }
 
 .nav-menu {
-  padding-top: 15px;
+  padding-top: 12px;
 }
 
 .nav-item {
@@ -455,43 +456,38 @@ body,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 12px 0;
+  padding: 14px 0;
+  margin: 4px 8px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.25s ease;
+  color: @text-muted;
   position: relative;
   
   &:hover {
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.05);
+    color: @primary-color;
+    background: rgba(91, 106, 240, 0.06);
   }
   
   &.active {
     color: @primary-color;
-    background: rgba(64, 158, 255, 0.1);
+    background: linear-gradient(135deg, rgba(91, 106, 240, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
     
-    &::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 3px;
-      height: 30px;
-      background: @primary-color;
-      border-radius: 0 3px 3px 0;
+    .el-icon {
+      transform: scale(1.05);
     }
   }
 }
 
 .nav-label {
   font-size: 11px;
-  margin-top: 4px;
+  margin-top: 5px;
+  font-weight: 500;
 }
 
 .sidebar-footer {
-  padding: 15px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 8px;
+  border-top: 1px solid @border-color;
 }
 
 .status-indicator {
@@ -499,6 +495,9 @@ body,
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .status-dot {
@@ -509,13 +508,20 @@ body,
   
   &.online {
     background-color: @success-color;
-    box-shadow: 0 0 8px rgba(103, 194, 58, 0.6);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    animation: pulse 2s infinite;
   }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .status-text {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
+  color: @text-muted;
+  font-weight: 500;
 }
 
 // 主内容区域
@@ -556,26 +562,30 @@ body,
 .stat-icon {
   width: 45px;
   height: 45px;
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   
   &.device-icon {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, @primary-color 0%, #8b5cf6 100%);
+    box-shadow: 0 4px 12px rgba(91, 106, 240, 0.3);
   }
   
   &.running-icon {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, @success-color 0%, #4ade80 100%);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
   }
   
   &.paused-icon {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, @warning-color 0%, #fbbf24 100%);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
   }
   
   &.account-icon {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%);
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
   }
 }
 
@@ -601,11 +611,12 @@ body,
 .content-panel {
   flex: 1;
   background: @card-bg;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  border: 1px solid @border-color;
 }
 
 .panel-header {
@@ -616,6 +627,7 @@ body,
   justify-content: space-between;
   border-bottom: 1px solid @border-color;
   flex-shrink: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
 }
 
 .panel-title {
@@ -625,10 +637,13 @@ body,
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   
   .el-icon {
     color: @primary-color;
+    background: rgba(91, 106, 240, 0.1);
+    padding: 6px;
+    border-radius: 8px;
   }
 }
 
