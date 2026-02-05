@@ -144,6 +144,8 @@ class 任务执行器类:
                     已找到 = True
                     self.更新上下文(上一状态=self._当前界面)
                     self._当前界面 = 界面名称
+                    if self._未知开始时间 is not None:
+                        self.控制器.更新设备状态(故障=False)
                     self._未知开始时间 = None
                     self._状态集合[界面名称](self._上下文, self.界面集合[界面名称])
 
@@ -161,19 +163,16 @@ class 任务执行器类:
                             self.控制器.写入日志(f"目前位于未注册界面: {界面名称}, 直接关闭当前界面")
                             break
                 if 是否处于未知界面:
-                    经过时间 = 0 if self._未知开始时间 is None else time.time() - self._未知开始时间
-                    self.控制器.写入日志(f"目前位于未知界面,需要添加当前界面到配置中, {60 - 经过时间:.0f} 秒后报警")
-
-                    # 未知界面计时逻辑
                     if self._未知开始时间 is None:
                         self._未知开始时间 = time.time()
+                    经过时间 = time.time() - self._未知开始时间
+                    if 经过时间 >= self._未知超时时间:
+                        self.控制器.更新设备状态(故障=True)
+                        self.保存未知图片(截图)
+                        self.播放音乐()
+                        self._未知开始时间 = None
                     else:
-                        经过时间 = time.time() - self._未知开始时间
-                        if 经过时间 >= self._未知超时时间:
-                            self.控制器.写入日志(f"未知界面已持续 {经过时间:.1f} 秒，保存截图")
-                            self.保存未知图片(截图)
-                            self.播放音乐()
-                            self._未知开始时间 = time.time()
+                        self.控制器.写入日志(f"目前位于未知界面, {60 - 经过时间:.0f} 秒后报警")
 
             time.sleep(0.2)
 
