@@ -236,6 +236,7 @@ const initialTranslateY = ref(0); // 初始Y偏移
 
 // 拖动相关
 const isDragging = ref(false);
+const suppressNextClick = ref(false); // 拖动或圈选结束后抑制下一次click事件，防止误触发颜色选取
 const dragStartX = ref(0);
 const dragStartY = ref(0);
 const dragStartTranslateX = ref(0);
@@ -948,6 +949,7 @@ function handleMouseUp(event) {
   // 结束拖动（空格键拖动或普通拖动都直接返回，不继续处理圈选逻辑）
   if (isDragging.value) {
     isDragging.value = false;
+    suppressNextClick.value = true; // 拖动结束后抑制click事件，防止误触发颜色选取
     return;
   }
 
@@ -994,6 +996,8 @@ function handleMouseUp(event) {
       // 拖动创建新选区后，清空保存的旧选区信息
       previousSelectionDisplay.value = null;
       previousSelectionRect.value = null;
+      // 圈选拖动结束后抑制click事件，防止误触发颜色选取
+      suppressNextClick.value = true;
     } else {
       // 只是点击，不创建新圈选框，保持旧圈选范围不变（因为本来就没清除）
       // 重置本次拖拽状态
@@ -1513,6 +1517,12 @@ function updateCurrentColor(x, y) {
 // 图片点击处理
 function handleImageClick(event) {
   if (!currentImage.value || !imageRef.value) return;
+
+  // 如果刚刚完成了拖动或圈选操作，抑制本次click事件，防止误触发颜色选取
+  if (suppressNextClick.value) {
+    suppressNextClick.value = false;
+    return;
+  }
 
   // 如果正在圈选或调整大小，不处理点击事件
   if (isSelecting.value || isResizing.value) {
