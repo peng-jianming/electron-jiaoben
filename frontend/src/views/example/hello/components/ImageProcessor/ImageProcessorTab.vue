@@ -242,6 +242,7 @@ const dragStartY = ref(0);
 const dragStartTranslateX = ref(0);
 const dragStartTranslateY = ref(0);
 const isSpacePressed = ref(false); // 空格键按下状态（用于拖动图片）
+let _skipSaveOnSwitch = false; // 删除图片时跳过 watch 中的保存逻辑
 
 // 设备连接相关
 const deviceDialogVisible = ref(false);
@@ -302,6 +303,7 @@ function handleFileSelect(event) {
             height: img.height,
           },
           selectedColors: [],
+          selectionRect: null, // 每张图片独立的圈选区域（基于原始图片坐标）
         };
 
         images.value.push(imageData);
@@ -347,6 +349,15 @@ function handleImageLoad() {
     // 图片加载后，计算初始缩放和位置（居中显示）
     nextTick(() => {
       calculateInitialTransform();
+      // 图片加载并计算完缩放后，根据 selectionRect（原始坐标）恢复 selectionDisplay（显示坐标）
+      if (selectionRect.value) {
+        selectionDisplay.value = {
+          x: selectionRect.value.x * imageScale.value,
+          y: selectionRect.value.y * imageScale.value,
+          w: selectionRect.value.w * imageScale.value,
+          h: selectionRect.value.h * imageScale.value,
+        };
+      }
     });
   }
 }
@@ -503,6 +514,7 @@ function handleDeviceScreenshot(data) {
         height: img.height,
       },
       selectedColors: [],
+      selectionRect: null, // 每张图片独立的圈选区域（基于原始图片坐标）
     };
 
     images.value.push(imageData);
@@ -1039,6 +1051,10 @@ function clearSelection() {
   // 清空保存的旧选区信息
   previousSelectionDisplay.value = null;
   previousSelectionRect.value = null;
+  // 同时清除当前图片上保存的圈选状态
+  if (currentImage.value) {
+    currentImage.value.selectionRect = null;
+  }
   // 清空圈选后，如果圈选功能已启用，则启用颜色选择模式
   if (selectionEnabled.value) {
     colorSelectionEnabled.value = true;
@@ -1102,6 +1118,11 @@ function updateSelectionRects() {
     w: natW,
     h: natH,
   };
+
+  // 同步保存圈选到当前图片
+  if (currentImage.value) {
+    currentImage.value.selectionRect = { ...selectionRect.value };
+  }
 
   // 成功创建圈选范围后，禁用颜色选择模式
   colorSelectionEnabled.value = false;
@@ -1340,6 +1361,9 @@ function updateSelectionRectsByResize(imageX, imageY) {
 
   if (natW <= 0 || natH <= 0) {
     selectionRect.value = null;
+    if (currentImage.value) {
+      currentImage.value.selectionRect = null;
+    }
     return;
   }
 
@@ -1349,6 +1373,11 @@ function updateSelectionRectsByResize(imageX, imageY) {
     w: natW,
     h: natH,
   };
+
+  // 同步保存圈选到当前图片（resize 操作）
+  if (currentImage.value) {
+    currentImage.value.selectionRect = { ...selectionRect.value };
+  }
 }
 
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
@@ -1748,14 +1777,24 @@ function removeImage(index) {
     return;
   }
 
-  images.value.splice(removeIndex, 1);
-
-  // 调整当前索引
   const currentIndex =
     typeof currentImageIndex.value === "string"
       ? parseInt(currentImageIndex.value)
       : currentImageIndex.value;
 
+  // 删除图片前，先保存当前图片的圈选到图片数据（如果删的不是当前图片）
+  if (currentIndex !== removeIndex && currentImage.value) {
+    currentImage.value.selectionRect = selectionRect.value
+      ? { ...selectionRect.value }
+      : null;
+  }
+
+  // 标记跳过 watch 中的保存逻辑（因为 splice 后旧索引已失效）
+  _skipSaveOnSwitch = true;
+
+  images.value.splice(removeIndex, 1);
+
+  // 调整当前索引
   if (currentIndex >= images.value.length) {
     currentImageIndex.value = String(images.value.length - 1);
   } else if (currentIndex > removeIndex) {
@@ -1763,15 +1802,41 @@ function removeImage(index) {
   } else if (currentIndex === removeIndex) {
     // 如果删除的是当前图片，切换到前一张或后一张
     currentImageIndex.value = String(Math.min(removeIndex, images.value.length - 1));
+  } else {
+    // 删除的是当前图片之后的，索引不变，watch 不触发，需要重置 _skipSaveOnSwitch
+    _skipSaveOnSwitch = false;
   }
 
   // 重置放大镜和颜色
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
-  // 切换图片时清空圈选信息
-  clearSelection();
-  containerCursor.value = "crosshair";
+  containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
+
+  // 清除临时交互状态
+  isSelecting.value = false;
+  isResizing.value = false;
+  resizeHandle.value = null;
+  isDragging.value = false;
+  selectionStart.value = null;
+  selectionCurrent.value = null;
+  previousSelectionDisplay.value = null;
+  previousSelectionRect.value = null;
+
+  // 从新的当前图片恢复圈选状态
+  if (currentImage.value && currentImage.value.selectionRect) {
+    selectionRect.value = { ...currentImage.value.selectionRect };
+    // selectionDisplay 将在 handleImageLoad 中根据新的 imageScale 重新计算
+    selectionDisplay.value = null;
+  } else {
+    selectionRect.value = null;
+    selectionDisplay.value = null;
+  }
+
+  // 更新颜色选择模式
+  if (selectionEnabled.value) {
+    colorSelectionEnabled.value = !selectionRect.value;
+  }
 }
 
 // 切换圈选功能开关
@@ -1959,6 +2024,7 @@ function handleCropImage() {
         height: cropH,
       },
       selectedColors: [],
+      selectionRect: null, // 每张图片独立的圈选区域（基于原始图片坐标）
     };
 
     // 添加到图片数组
@@ -2050,18 +2116,50 @@ async function handleSaveImage() {
   }
 }
 
-// 监听当前图片切换，重置放大镜和颜色
-watch(currentImageIndex, () => {
+// 监听当前图片切换，保存旧图片圈选、恢复新图片圈选
+watch(currentImageIndex, (newVal, oldVal) => {
+  // === 保存旧图片的圈选状态（删除图片时跳过，因为数组索引已变） ===
+  if (!_skipSaveOnSwitch) {
+    const oldIndex = typeof oldVal === "string" ? parseInt(oldVal) : oldVal;
+    if (!isNaN(oldIndex) && oldIndex >= 0 && oldIndex < images.value.length) {
+      images.value[oldIndex].selectionRect = selectionRect.value
+        ? { ...selectionRect.value }
+        : null;
+    }
+  }
+  _skipSaveOnSwitch = false;
+
+  // === 重置交互状态（放大镜、拖动等临时状态） ===
   magnifierVisible.value = false;
   currentColor.value = null;
   currentPosition.value = { x: 0, y: 0 };
   isSelecting.value = false;
   isResizing.value = false;
   resizeHandle.value = null;
-  containerCursor.value = "crosshair";
+  containerCursor.value = selectionEnabled.value ? "crosshair" : "default";
   isDragging.value = false;
-  // 切换图片时清空圈选信息
-  clearSelection();
+  selectionStart.value = null;
+  selectionCurrent.value = null;
+  previousSelectionDisplay.value = null;
+  previousSelectionRect.value = null;
+
+  // === 恢复新图片的圈选状态 ===
+  const newIndex = typeof newVal === "string" ? parseInt(newVal) : newVal;
+  if (!isNaN(newIndex) && newIndex >= 0 && newIndex < images.value.length) {
+    const newImage = images.value[newIndex];
+    selectionRect.value = newImage.selectionRect
+      ? { ...newImage.selectionRect }
+      : null;
+  } else {
+    selectionRect.value = null;
+  }
+  // selectionDisplay 将在 handleImageLoad 中根据新的 imageScale 重新计算
+  selectionDisplay.value = null;
+
+  // 更新颜色选择模式
+  if (selectionEnabled.value) {
+    colorSelectionEnabled.value = !selectionRect.value;
+  }
 
   if (currentImage.value) {
     nextTick(() => {
@@ -2072,6 +2170,15 @@ watch(currentImageIndex, () => {
         };
         // 切换图片时重新计算初始变换
         calculateInitialTransform();
+        // 恢复圈选显示坐标（处理缓存图片不触发 @load 的情况）
+        if (selectionRect.value && imageScale.value) {
+          selectionDisplay.value = {
+            x: selectionRect.value.x * imageScale.value,
+            y: selectionRect.value.y * imageScale.value,
+            w: selectionRect.value.w * imageScale.value,
+            h: selectionRect.value.h * imageScale.value,
+          };
+        }
       }
     });
   }
