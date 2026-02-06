@@ -105,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { ElMessage } from "element-plus";
 import { Close, Picture } from "@element-plus/icons-vue";
 
@@ -148,7 +148,49 @@ const fontNameInput = ref("");
 // 表格数据 = 当前选中颜色
 const tableRows = computed(() => props.currentSelectedColors || []);
 
-// 同步行数与偏色数组长度
+// 标记是否正在切换图片（防止 selectedColors 长度 watch 重复执行二值化）
+let _isImageSwitching = false;
+
+// 监听图片 tab 切换，保存/恢复每张图片的偏色状态和二值化结果
+watch(
+  () => props.currentImage,
+  (newImage, oldImage) => {
+    // 同一张图片不处理
+    if (newImage === oldImage) return;
+
+    _isImageSwitching = true;
+
+    // 将当前状态保存到旧图片对象上
+    if (oldImage) {
+      oldImage._cachedRowDeviations = [...rowDeviations.value];
+      oldImage._cachedProcessedImageUrl = processedImageUrl.value;
+      oldImage._cachedLastRenderedImageUrl = lastRenderedImageUrl.value;
+    }
+
+    // 从新图片对象恢复状态，或初始化为默认值
+    if (newImage && newImage._cachedRowDeviations) {
+      rowDeviations.value = [...newImage._cachedRowDeviations];
+      processedImageUrl.value = newImage._cachedProcessedImageUrl || null;
+      lastRenderedImageUrl.value = newImage._cachedLastRenderedImageUrl || null;
+    } else {
+      // 新图片没有缓存状态，初始化
+      const len = props.currentSelectedColors?.length || 0;
+      rowDeviations.value = new Array(len).fill(0);
+      processedImageUrl.value = null;
+      lastRenderedImageUrl.value = null;
+      // 如果新图片有颜色，重新计算二值化
+      if (len > 0 && newImage?.url) {
+        nextTick(() => runBinarizationFromTable());
+      }
+    }
+
+    nextTick(() => {
+      _isImageSwitching = false;
+    });
+  }
+);
+
+// 同步行数与偏色数组长度（处理同一张图片内的颜色增减）
 watch(
   () => props.currentSelectedColors?.length ?? 0,
   (len, oldLen) => {
@@ -156,6 +198,8 @@ watch(
     while (arr.length < len) arr.push(0);
     if (arr.length > len) arr.splice(len);
     rowDeviations.value = arr;
+    // 图片切换时跳过（由图片切换 watch 处理），仅处理同图片内颜色变化
+    if (_isImageSwitching) return;
     if (len > 0 && props.currentImage?.url) runBinarizationFromTable();
   },
   { immediate: true }
