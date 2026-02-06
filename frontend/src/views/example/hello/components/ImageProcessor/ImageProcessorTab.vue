@@ -49,7 +49,7 @@
         <div
           class="image-container"
           ref="imageContainerRef"
-          :style="{ cursor: isDragging ? 'grabbing' : containerCursor }"
+          :style="{ cursor: isDragging ? 'grabbing' : (isSpacePressed ? 'grab' : containerCursor) }"
           @mousemove="handleContainerMouseMove"
           @mouseenter="handleMouseEnter"
           @mouseleave="handleMouseLeave"
@@ -240,6 +240,7 @@ const dragStartX = ref(0);
 const dragStartY = ref(0);
 const dragStartTranslateX = ref(0);
 const dragStartTranslateY = ref(0);
+const isSpacePressed = ref(false); // 空格键按下状态（用于拖动图片）
 
 // 设备连接相关
 const deviceDialogVisible = ref(false);
@@ -383,6 +384,8 @@ const imageWrapperStyle = computed(() => {
     left: 0,
     cursor: isDragging.value
       ? "grabbing"
+      : isSpacePressed.value
+      ? "grab"
       : selectionEnabled.value
       ? containerCursor.value
       : "default",
@@ -737,6 +740,17 @@ function handleMouseDown(event) {
   // 仅响应左键
   if (event.button !== 0) return;
 
+  // 按住空格键时，无论处于何种模式，都优先进入拖动图片模式
+  if (isSpacePressed.value) {
+    isDragging.value = true;
+    dragStartX.value = event.clientX;
+    dragStartY.value = event.clientY;
+    dragStartTranslateX.value = imageTranslateX.value;
+    dragStartTranslateY.value = imageTranslateY.value;
+    event.preventDefault();
+    return;
+  }
+
   // 代码生成器圈选模式（优先级最高，独立处理）
   if (codeGeneratorSelectionEnabled.value) {
     const containerRect = imageContainerRef.value.getBoundingClientRect();
@@ -931,13 +945,10 @@ function handleMouseUp(event) {
     return;
   }
 
-  // 结束拖动
+  // 结束拖动（空格键拖动或普通拖动都直接返回，不继续处理圈选逻辑）
   if (isDragging.value) {
     isDragging.value = false;
-    // 如果只是拖动图片，不继续处理圈选逻辑
-    if (!selectionEnabled.value) {
-      return;
-    }
+    return;
   }
 
   const containerRect = imageContainerRef.value.getBoundingClientRect();
@@ -2054,6 +2065,37 @@ watch(currentImageIndex, () => {
   }
 });
 
+// 监听缩放变化，同步更新选区显示坐标（使选区跟随图片缩放）
+watch(imageScale, (newScale) => {
+  // 更新圈选框显示坐标
+  if (selectionRect.value) {
+    selectionDisplay.value = {
+      x: selectionRect.value.x * newScale,
+      y: selectionRect.value.y * newScale,
+      w: selectionRect.value.w * newScale,
+      h: selectionRect.value.h * newScale,
+    };
+  }
+  // 更新保存的旧选区显示坐标（用于点击恢复）
+  if (previousSelectionRect.value) {
+    previousSelectionDisplay.value = {
+      x: previousSelectionRect.value.x * newScale,
+      y: previousSelectionRect.value.y * newScale,
+      w: previousSelectionRect.value.w * newScale,
+      h: previousSelectionRect.value.h * newScale,
+    };
+  }
+  // 更新代码生成器圈选框显示坐标
+  if (codeGeneratorSelectionRect.value) {
+    codeGeneratorSelectionDisplay.value = {
+      x: codeGeneratorSelectionRect.value.x * newScale,
+      y: codeGeneratorSelectionRect.value.y * newScale,
+      w: codeGeneratorSelectionRect.value.w * newScale,
+      h: codeGeneratorSelectionRect.value.h * newScale,
+    };
+  }
+});
+
 // 全局鼠标事件，确保在容器外也能正确结束圈选和拖动
 function handleGlobalMouseUp(event) {
   if (isSelecting.value || isResizing.value) {
@@ -2066,8 +2108,22 @@ function handleGlobalMouseUp(event) {
   }
 }
 
-// 处理键盘快捷键（Alt+D 切换选取模式，方向键移动放大镜像素选择）
+// 处理键盘快捷键（Alt+D 切换选取模式，方向键移动放大镜像素选择，空格键拖动图片）
 function handleKeyDown(event) {
+  // 空格键按下：启用拖动模式（排除输入框等可编辑元素中的空格）
+  if (event.code === 'Space') {
+    const tag = event.target.tagName;
+    const isEditable = event.target.isContentEditable;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || isEditable) {
+      return; // 在输入框中不拦截空格
+    }
+    event.preventDefault(); // 防止页面滚动
+    if (!isSpacePressed.value) {
+      isSpacePressed.value = true;
+    }
+    return;
+  }
+
   // 检查是否按下了 Alt+D
   if (event.altKey && event.key.toLowerCase() === 'd') {
     event.preventDefault(); // 防止浏览器默认行为
@@ -2119,11 +2175,23 @@ function handleKeyDown(event) {
   }
 }
 
+// 处理键盘释放事件（主要用于空格键释放恢复状态）
+function handleKeyUp(event) {
+  if (event.code === 'Space') {
+    isSpacePressed.value = false;
+    // 如果正在拖动，结束拖动
+    if (isDragging.value) {
+      isDragging.value = false;
+    }
+  }
+}
+
 onMounted(() => {
   // 添加全局鼠标抬起事件监听
   document.addEventListener("mouseup", handleGlobalMouseUp);
-  // 添加键盘事件监听（Ctrl+E 切换选取模式）
+  // 添加键盘事件监听（Alt+D 切换选取模式，空格键拖动等）
   document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("keyup", handleKeyUp);
 });
 
 onUnmounted(() => {
@@ -2131,6 +2199,7 @@ onUnmounted(() => {
   document.removeEventListener("mouseup", handleGlobalMouseUp);
   // 移除键盘事件监听
   document.removeEventListener("keydown", handleKeyDown);
+  document.removeEventListener("keyup", handleKeyUp);
 
   if (deviceSocket) {
     deviceSocket.disconnect();
