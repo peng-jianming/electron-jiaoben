@@ -1,6 +1,6 @@
 <template>
     <div class="image-match-debug">
-      <el-form size="small">
+      <el-form size="small" label-width="52px" class="match-form">
         <el-form-item label="字库名">
           <el-autocomplete
             v-model="fontLibraryName"
@@ -9,12 +9,12 @@
             size="small"
             clearable
             @select="handleFontLibraryNameSelect"
-            style="width: 100%;"
+            class="full-width"
           />
         </el-form-item>
         <el-form-item label="大图">
           <div class="image-upload-area">
-            <input ref="largeImageInputRef" type="file" accept="image/*" style="display: none"
+            <input ref="largeImageInputRef" type="file" accept="image/*" class="hidden-input"
               @change="handleLargeImageSelect" />
             <div v-if="largeImageUrl" class="image-preview">
               <el-image :src="largeImageUrl" :preview-src-list="[largeImageUrl]" fit="contain" preview-teleported
@@ -25,8 +25,8 @@
                 </el-icon>
               </el-button>
             </div>
-            <div v-else>
-              <div style="color: #909399;font-size: 12px;">不传,默认截图</div>
+            <div v-else class="upload-placeholder">
+              <div class="upload-hint">不传则默认截图</div>
               <div class="button-group">
                 <el-button type="primary" size="small" @click="largeImageInputRef?.click()">
                   上传大图
@@ -40,29 +40,28 @@
           </div>
         </el-form-item>
         <el-form-item label="范围">
-          <el-input v-model="regionInput" placeholder="例如: 0,0,100,100 (留空则查询全图) (x,y,w,h)" size="small" clearable />
+          <el-input v-model="regionInput" placeholder="x,y,w,h（留空查全图）" size="small" clearable />
         </el-form-item>
         <el-form-item label="相似度">
-          <div style="display: flex; align-items: center; width: 100%">
+          <div class="similarity-row">
             <el-slider v-model="similarity" :min="0.1" :max="1" :step="0.1" :format-tooltip="formatSimilarity"
-              style="flex:1; margin-right: 5px;" />
-            <div class="similarity-value">{{ similarity }}</div>
+              class="similarity-slider" />
+            <span class="similarity-value">{{ similarity }}</span>
           </div>
         </el-form-item>
       </el-form>
   
       <el-button type="primary" size="small" :loading="matching"
         :disabled="!fontLibraryName || (!largeImageUrl && !currentDeviceId)" @click="handleMatch"
-        style="width: 100%; margin-bottom: 5px;">
+        class="match-btn">
         {{ matching ? "匹配中..." : "开始匹配" }}
       </el-button>
   
       <div class="result-section">
         <el-image :src="resultImageUrl" :preview-src-list="[resultImageUrl]" fit="contain" preview-teleported
-          style="height: 100%; width: 100%;">
+          class="result-image">
           <template #placeholder>
-            <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">匹配结果将显示在此处
-            </div>
+            <div class="result-placeholder">匹配结果将显示在此处</div>
           </template>
         </el-image>
       </div>
@@ -384,26 +383,47 @@
   .image-match-debug {
     display: flex;
     flex-direction: column;
-    height: 590px;
+    height: 100%;
     overflow-y: auto;
   }
   
-  .section-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: #606266;
+  .match-form {
+    flex-shrink: 0;
   }
-  
-  .image-upload-area {
-    height: 80px;
+
+  .match-form :deep(.el-form-item) {
+    margin-bottom: 8px;
+  }
+
+  .match-form :deep(.el-form-item__label) {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .full-width {
     width: 100%;
-    border: 1px dashed #dcdfe6;
-    border-radius: 4px;
-    padding: 5px;
+  }
+
+  .hidden-input {
+    display: none;
+  }
+
+  .image-upload-area {
+    height: 72px;
+    width: 100%;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    padding: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .image-upload-area:hover {
+    border-color: #94a3b8;
   }
   
   .image-preview {
@@ -416,54 +436,97 @@
   }
   
   .thumbnail-image {
-    height: 80px;
+    height: 60px;
     object-fit: contain;
   }
   
   .remove-btn {
     position: absolute;
-    top: 5px;
-    right: 5px;
+    top: 2px;
+    right: 2px;
+  }
+
+  .upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .upload-hint {
+    color: #94a3b8;
+    font-size: 11px;
+  }
+
+  .similarity-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .similarity-slider {
+    flex: 1;
+  }
+  
+  .similarity-value {
+    font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .match-btn {
+    width: 100%;
+    margin-bottom: 6px;
+    flex-shrink: 0;
   }
   
   .result-section {
     flex: 1;
+    min-height: 80px;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    /* gap: 5px; */
-    /* 深色棋盘格背景，用于显示透明区域 */
-    background: #1a1a2e;
-    background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
-      linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
-    background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    color: #909399;
+    border-radius: 8px;
+    background: #0f172a;
+    background-image:
+      linear-gradient(45deg, #1e293b 25%, transparent 25%),
+      linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #1e293b 75%),
+      linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+    color: #64748b;
     font-size: 12px;
+  }
+
+  .result-image {
+    height: 100%;
+    width: 100%;
+  }
+
+  .result-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    color: #475569;
+    font-size: 11px;
   }
   
   .button-group {
     display: flex;
-    gap: 5px;
+    gap: 6px;
     width: 100%;
   }
   
   .button-group .el-button {
     flex: 1;
-  }
-  
-  .el-form-item {
-    margin-bottom: 5px;
-  }
-  
-  .similarity-value {
-    margin-top: 5px;
-    font-size: 12px;
-    color: #909399;
-    text-align: center;
   }
   </style>
   

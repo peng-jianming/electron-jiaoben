@@ -253,7 +253,12 @@ onUnmounted(async () => {
 .pathfinding-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  width: 1440px;
+  height: 882px;
+  padding: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 </style>
 

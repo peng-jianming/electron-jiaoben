@@ -1,96 +1,105 @@
 <template>
-  <div style="display: flex; flex-direction: column;height: 590px;">
-    <!-- 颜色表格：坐标、hex、偏色、操作 -->
+  <div class="color-selection-container">
+    <!-- 颜色表格 -->
     <div class="color-table-wrap">
-      <el-table :data="tableRows" height="205" border size="small" empty-text="请先选取颜色">
-        <el-table-column prop="coord" label="坐标" width="100">
+      <el-table
+        :data="tableRows"
+        height="195"
+        size="small"
+        empty-text="点击图片选取颜色"
+        :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }"
+        :cell-style="{ fontSize: '12px', padding: '4px 0' }"
+        :row-style="{ transition: 'background 0.15s' }"
+      >
+        <el-table-column label="HEX" width="84">
           <template #default="scope">
-            {{ scope.row.x != null && scope.row.y != null ? `${scope.row.x},${scope.row.y}` : '—' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="hex" width="90">
-          <template #default="scope">
-            <div :style="{
+            <div class="hex-cell" :style="{
               backgroundColor: '#' + String(scope.row.hex || '').replace(/^#/, ''),
-              color: isLightColor(scope.row.hex) ? '#000' : '#fff',
-              padding: '2px 6px',
-              borderRadius: '4px',
+              color: isLightColor(scope.row.hex) ? '#1e293b' : '#f8fafc',
             }">
               {{ scope.row.hex }}
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="偏色" min-width="140">
+        <el-table-column label="偏色" min-width="130">
           <template #default="scope">
-            <el-slider
-              :model-value="getRowDeviation(scope.$index)"
-              :min="0"
-              :max="100"
-              :show-tooltip="true"
-              @update:model-value="(v) => setRowDeviation(scope.$index, v)"
-            />
+            <div class="slider-cell">
+              <el-slider
+                :model-value="getRowDeviation(scope.$index)"
+                :min="0"
+                :max="100"
+                :show-tooltip="true"
+                @update:model-value="(v) => setRowDeviation(scope.$index, v)"
+              />
+              <span class="slider-value">{{ getRowDeviation(scope.$index) }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="70" fixed="right">
+        <el-table-column label="" width="44" fixed="right">
           <template #default="scope">
-            <el-button type="danger" link size="small" @click="$emit('remove-color', scope.$index)">删除</el-button>
+            <el-button type="danger" link size="small" @click="$emit('remove-color', scope.$index)" class="delete-btn">
+              <el-icon><Close /></el-icon>
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
-      <div style="padding: 4px 8px;">
-        <el-button type="danger" size="small" @click="handleClearAllColors">清空全部</el-button>
+      <div class="table-footer">
+        <span class="table-count">{{ tableRows.length }} 个颜色</span>
+        <el-button type="danger" size="small" text @click="handleClearAllColors" :disabled="!tableRows.length">清空</el-button>
       </div>
     </div>
-    <!-- 显示渲染后的图片区域 -->
+
+    <!-- 结果预览区域 -->
     <div class="result-section">
       <el-image :src="processedImageUrl" :preview-src-list="[processedImageUrl]" fit="contain" preview-teleported
-      style="height: 100%; width: 100%;">
+        style="height: 100%; width: 100%;">
         <template #placeholder>
-          <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">偏色二值化后的图片将显示在此处
+          <div class="result-placeholder">
+            <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px;"><Picture /></el-icon>
+            偏色二值化预览
           </div>
         </template>
       </el-image>
     </div>
 
-    <!-- 字库制作区域：偏移点击区域（单独一行，可圈选） -->
-    <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 0 5px; flex-shrink: 0;">
-      <el-input
-        v-model="fontClickOffsetAreaInput"
-        placeholder="请输入偏移点击区域，格式：x,y,w,h（可不填，默认 0,0,0,0）"
-        size="small"
-        style="flex: 1;"
-        clearable
-      >
-        <template #append>
-          <el-button
-            :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
-            :disabled="!hasSelectionRect"
-            size="small"
-            @click="toggleFontClickOffsetAreaSelection"
-          >
-            {{ fontClickOffsetAreaSelectionEnabled ? '取消圈选范围' : '启动圈选范围' }}
-          </el-button>
-        </template>
-      </el-input>
-    </div>
-
-    <!-- 字库制作区域：字库名称 + 加入按钮 -->
-    <div style="margin-top: 5px; display: flex; align-items: center; gap: 10px; padding: 0 5px; flex-shrink: 0;">
-      <el-input
-        v-model="fontNameInput"
-        placeholder="请输入字库名字"
-        size="small"
-        style="flex: 1;"
-        clearable
-      />
-      <el-button
-        type="success"
-        size="small"
-        @click="handleAddFontLibrary"
-        :disabled="!fontNameInput || !processedImageUrl || !tableRows.length || !hasFontLibraryFile"
-      >
-        加入字库
-      </el-button>
+    <!-- 字库操作区 -->
+    <div class="font-library-section">
+      <div class="font-row">
+        <el-input
+          v-model="fontClickOffsetAreaInput"
+          placeholder="偏移点击区域 x,y,w,h（可选）"
+          size="small"
+          clearable
+        >
+          <template #append>
+            <el-button
+              :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
+              :disabled="!hasSelectionRect"
+              size="small"
+              @click="toggleFontClickOffsetAreaSelection"
+            >
+              {{ fontClickOffsetAreaSelectionEnabled ? '取消' : '圈选' }}
+            </el-button>
+          </template>
+        </el-input>
+      </div>
+      <div class="font-row">
+        <el-input
+          v-model="fontNameInput"
+          placeholder="字库名称"
+          size="small"
+          clearable
+        />
+        <el-button
+          type="success"
+          size="small"
+          @click="handleAddFontLibrary"
+          :disabled="!fontNameInput || !processedImageUrl || !tableRows.length || !hasFontLibraryFile"
+          class="add-font-btn"
+        >
+          加入字库
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -98,6 +107,7 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { ElMessage } from "element-plus";
+import { Close, Picture } from "@element-plus/icons-vue";
 
 const props = defineProps({
   currentSelectedColors: {
@@ -135,7 +145,7 @@ const lastRenderedImageUrl = ref(null);
 const fontClickOffsetAreaInput = ref("");
 const fontNameInput = ref("");
 
-// 表格数据 = 当前选中颜色（坐标来自 color.x, color.y）
+// 表格数据 = 当前选中颜色
 const tableRows = computed(() => props.currentSelectedColors || []);
 
 // 同步行数与偏色数组长度
@@ -542,27 +552,131 @@ defineExpose({
 </script>
 
 <style scoped>
-  .color-table-wrap {
-    flex-shrink: 0;
-  }
-  .result-section {
-    margin-top: 5px;
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    /* 深色棋盘格背景，用于显示透明区域 */
-    background: #1a1a2e;
-    background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
-      linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
-    background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    color: #909399;
-    font-size: 12px;
-  }
-  
+.color-selection-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0;
+}
 
-  </style>
+.color-table-wrap {
+  flex-shrink: 0;
+}
+
+/* 去除表格外边框 */
+.color-table-wrap :deep(.el-table) {
+  --el-table-border-color: #e8ecf1;
+}
+
+.color-table-wrap :deep(.el-table td.el-table__cell),
+.color-table-wrap :deep(.el-table th.el-table__cell) {
+  border-right: none;
+}
+
+.color-table-wrap :deep(.el-table--border::after),
+.color-table-wrap :deep(.el-table--border::before) {
+  display: none;
+}
+
+.color-table-wrap :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.table-footer {
+  padding: 3px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafbfc;
+}
+
+.table-count {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.hex-cell {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.slider-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.slider-cell :deep(.el-slider) {
+  flex: 1;
+}
+
+.slider-value {
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  min-width: 20px;
+  text-align: right;
+}
+
+.delete-btn {
+  padding: 2px !important;
+}
+
+.result-section {
+  margin-top: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  background: #0f172a;
+  background-image:
+    linear-gradient(45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e293b 75%),
+    linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+}
+
+.result-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  color: #475569;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+
+.font-library-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 2px 4px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.font-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-font-btn {
+  flex-shrink: 0;
+}
+</style>

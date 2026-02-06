@@ -2,10 +2,11 @@
   <el-dialog
     v-model="innerVisible"
     title="设备连接"
-    width="520px"
+    width="500px"
+    class="device-dialog"
   >
     <el-tabs v-model="innerTab">
-      <el-tab-pane label="手机" name="mobile">
+      <el-tab-pane label="📱 手机" name="mobile">
         <div class="device-toolbar">
           <el-button 
             size="small" 
@@ -19,7 +20,7 @@
         </div>
 
         <div v-if="!deviceLoading && deviceList.length === 0" class="device-empty">
-          <el-empty description="未发现设备，请点击刷新" />
+          <el-empty description="未发现设备，请点击刷新" :image-size="60" />
         </div>
 
         <div v-else class="device-list-wrapper">
@@ -28,22 +29,26 @@
               v-for="id in deviceList" 
               :key="id" 
               :label="id"
+              class="device-radio-item"
             >
-              {{ id }}
+              <span class="device-id-text">{{ id }}</span>
               <span 
                 v-if="currentDeviceId === id" 
                 class="device-tag"
               >
-                当前
+                当前连接
               </span>
             </el-radio>
           </el-radio-group>
         </div>
 
         <div class="device-footer">
-          <span class="device-footer-text">
-            当前连接设备：{{ currentDeviceId || '未连接' }}
-          </span>
+          <div class="device-footer-left">
+            <span class="device-footer-dot" :class="{ active: !!currentDeviceId }"></span>
+            <span class="device-footer-text">
+              {{ currentDeviceId || '未连接设备' }}
+            </span>
+          </div>
           <el-button 
             type="primary" 
             size="small" 
@@ -55,15 +60,17 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="电脑" name="pc">
+      <el-tab-pane label="💻 电脑" name="pc">
         <div class="device-placeholder">
-          电脑连接功能开发中...
+          <span class="placeholder-icon">🚧</span>
+          <span>电脑连接功能开发中...</span>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="虚拟机" name="vm">
+      <el-tab-pane label="🖥️ 虚拟机" name="vm">
         <div class="device-placeholder">
-          虚拟机连接功能开发中...
+          <span class="placeholder-icon">🚧</span>
+          <span>虚拟机连接功能开发中...</span>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -125,24 +132,47 @@ const innerSelectedDeviceId = computed({
 </script>
 
 <style scoped>
+/* 弹窗圆角 */
+.device-dialog :deep(.el-dialog) {
+  border-radius: 12px;
+}
+
+.device-dialog :deep(.el-dialog__header) {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
+}
+
+.device-dialog :deep(.el-dialog__title) {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.device-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
+}
+
 .device-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .device-tip {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .device-empty {
-  padding: 24px 0;
+  padding: 20px 0;
 }
 
 .device-list-wrapper {
-  max-height: 260px;
+  max-height: 240px;
   overflow-y: auto;
   margin-top: 8px;
 }
@@ -150,34 +180,87 @@ const innerSelectedDeviceId = computed({
 .device-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.device-radio-item {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.device-radio-item:hover {
+  border-color: #c7d2fe;
+  background: #fafafe;
+}
+
+.device-id-text {
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .device-tag {
   margin-left: 8px;
-  padding: 2px 6px;
-  font-size: 12px;
-  border-radius: 8px;
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.15);
 }
 
 .device-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.device-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.device-footer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.device-footer-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
 }
 
 .device-footer-text {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .device-placeholder {
-  padding: 24px 0;
+  padding: 40px 0;
   text-align: center;
-  color: var(--text-secondary);
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.placeholder-icon {
+  font-size: 28px;
+  opacity: 0.6;
 }
 </style>
 

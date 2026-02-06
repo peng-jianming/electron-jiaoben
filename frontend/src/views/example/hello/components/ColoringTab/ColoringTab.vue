@@ -133,29 +133,28 @@ onUnmounted(() => {
 .content-layout {
   display: grid;
   grid-template-columns: 1fr 400px;
-  gap: 24px;
+  gap: 16px;
+  width: 1440px;
+  height: 882px;
+  padding: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .modules-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 .steps-panel {
-  position: sticky;
-  top: 100px;
-  height: fit-content;
-}
-
-@media (max-width: 1200px) {
-  .content-layout {
-    grid-template-columns: 1fr;
-  }
-  
-  .steps-panel {
-    position: static;
-  }
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 </style>
 

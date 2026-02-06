@@ -16,7 +16,7 @@
       v-model="activeTab"
       @tab-change="handleTabChange"
     >
-      <el-tab-pane label="颜色" name="deviation">
+      <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
@@ -395,12 +395,82 @@ onUnmounted(() => {
 .right-panel {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 6px 8px;
   width: 460px;
+  min-width: 460px;
+  max-width: 460px;
+  height: 882px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #f8fafc;
 }
+
+/* 放大镜卡片不允许被压缩 */
+.right-panel > :first-child {
+  flex-shrink: 0;
+}
+
+/* Tabs 容器填满剩余高度 */
+.right-panel > .el-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab 整体边框 */
+.el-tabs :deep(.el-tabs--border-card) {
+  border-color: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Tab 头部美化 */
+.el-tabs :deep(.el-tabs__header) {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.el-tabs :deep(.el-tabs__item) {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 18px;
+  height: 34px;
+  line-height: 34px;
+  color: #64748b;
+  transition: color 0.2s, font-weight 0.2s;
+  border-right: 1px solid #e8ecf1;
+}
+
+.el-tabs :deep(.el-tabs__item:last-child) {
+  border-right: none;
+}
+
+.el-tabs :deep(.el-tabs__item:hover) {
+  color: #475569;
+}
+
+.el-tabs :deep(.el-tabs__item.is-active) {
+  font-weight: 600;
+  color: #6366f1;
+  background: #fff;
+}
+
 .el-tabs :deep(.el-tabs__content) {
-  padding: 2px;
+  padding: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+}
+
+.el-tabs :deep(.el-tab-pane) {
+  height: 100%;
 }
 </style>

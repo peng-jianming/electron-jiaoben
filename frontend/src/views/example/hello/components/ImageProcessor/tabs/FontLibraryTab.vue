@@ -1,7 +1,7 @@
 <template>
-    <div style="display: flex; flex-direction: column; height: 590px;">
+    <div class="font-library-container">
         <!-- 文件选择区域 -->
-        <el-input v-model="formData.fontLibraryPath" placeholder="请选择字库文件" readonly style="margin-bottom: 5px;"
+        <el-input v-model="formData.fontLibraryPath" placeholder="请选择字库文件" readonly class="file-input"
             size="small">
             <template #prepend>
                 <el-button @click="handleSelectFile" :loading="fileLoading">选择字库</el-button>
@@ -12,17 +12,25 @@
         </el-input>
 
         <!-- 字库列表表格 -->
-        <el-table :data="fontLibraryList" height="100" border size="small" empty-text="请先选择字库文件或制作字库" style="flex: 1;">
-            <el-table-column type="index" label="#" width="40" />
+        <el-table
+            :data="fontLibraryList"
+            height="100"
+            size="small"
+            empty-text="请先选择字库文件或制作字库"
+            class="font-table"
+            :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }"
+            :cell-style="{ fontSize: '12px', padding: '4px 0' }"
+        >
+            <el-table-column type="index" label="#" width="36" />
 
             <!-- 命名列（可编辑） -->
             <el-table-column label="命名">
                 <template #default="scope">
-                    <div v-if="scope.row.editing" style="display: flex; align-items: center;">
+                    <div v-if="scope.row.editing" class="name-edit-cell">
                         <el-input v-model="scope.row.name" size="small" @blur="handleNameBlur(scope.row)"
                             @keyup.enter="handleNameBlur(scope.row)" :ref="el => { if (el) scope.row.inputRef = el }" />
                     </div>
-                    <div v-else @click="handleNameClick(scope.row)" style="cursor: pointer; padding: 5px;"
+                    <div v-else @click="handleNameClick(scope.row)" class="name-display-cell"
                         :title="scope.row.name">
                         {{ scope.row.name || '-' }}
                     </div>
@@ -30,42 +38,40 @@
             </el-table-column>
 
             <!-- 尺寸信息列 -->
-            <el-table-column label="尺寸">
+            <el-table-column label="尺寸" width="100">
                 <template #default="scope">
-                    <span>{{ scope.row.sizeInfo || '-' }}</span>
+                    <span class="size-cell">{{ scope.row.sizeInfo || '-' }}</span>
                 </template>
             </el-table-column>
 
             <!-- 操作列 -->
-            <el-table-column label="操作">
+            <el-table-column label="操作" width="160">
                 <template #default="scope">
-                    <el-button type="primary" size="small" link @click="handleShow(scope.row)">
-                        展示
-                    </el-button>
-                    <el-button type="primary" size="small" link @click="handleCopyDeviation(scope.row)">
-                        复制偏色
-                    </el-button>
-                    <el-button type="danger" size="small" link @click="handleDelete(scope.$index)">
-                        删除
-                    </el-button>
+                    <div class="action-btns">
+                        <el-button type="primary" size="small" link @click="handleShow(scope.row)">
+                            展示
+                        </el-button>
+                        <el-button type="primary" size="small" link @click="handleCopyDeviation(scope.row)">
+                            复制偏色
+                        </el-button>
+                        <el-button type="danger" size="small" link @click="handleDelete(scope.$index)">
+                            删除
+                        </el-button>
+                    </div>
                 </template>
             </el-table-column>
         </el-table>
 
-
         <!-- 点阵图展示区域 -->
         <div class="result-section">
             <el-image :src="matrixImageUrl" :preview-src-list="[matrixImageUrl]" fit="contain" preview-teleported
-                style="height: 100%; width: 100%;">
+                class="result-image">
                 <template #placeholder>
-                    <div style="display: flex;justify-content: center;align-items: center;height: 100%;width: 100%;">
-                        点阵图预览
-                    </div>
+                    <div class="result-placeholder">点阵图预览</div>
                 </template>
             </el-image>
         </div>
     </div>
-
 </template>
 
 <script setup>
@@ -762,26 +768,108 @@ const isLightColor = (hex) => {
 </script>
 
 <style scoped>
-.el-button+.el-button {
+.font-library-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.file-input {
+    margin-bottom: 6px;
+    flex-shrink: 0;
+}
+
+.font-table {
+    flex: 1;
+}
+
+/* 去除表格外边框 */
+.font-table :deep(.el-table--border::after),
+.font-table :deep(.el-table--border::before) {
+    display: none;
+}
+
+.font-table :deep(.el-table__inner-wrapper::before) {
+    display: none;
+}
+
+.font-table :deep(.el-table td.el-table__cell),
+.font-table :deep(.el-table th.el-table__cell) {
+    border-right: none;
+}
+
+.name-edit-cell {
+    display: flex;
+    align-items: center;
+}
+
+.name-display-cell {
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.name-display-cell:hover {
+    background: #f1f5f9;
+}
+
+.size-cell {
+    font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.action-btns {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.action-btns .el-button + .el-button {
+    margin-left: 0;
+}
+
+.el-button + .el-button {
     margin-left: 0;
 }
 
 .result-section {
-    margin-top: 5px;
+    margin-top: 6px;
     flex: 1;
+    min-height: 80px;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    /* 深色棋盘格背景，用于显示透明区域 */
-    background: #1a1a2e;
-    background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
-        linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
-        linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
-    background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    color: #909399;
+    border-radius: 8px;
+    background: #0f172a;
+    background-image:
+        linear-gradient(45deg, #1e293b 25%, transparent 25%),
+        linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #1e293b 75%),
+        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+    color: #64748b;
     font-size: 12px;
+}
+
+.result-image {
+    height: 100%;
+    width: 100%;
+}
+
+.result-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    color: #475569;
+    font-size: 11px;
 }
 </style>

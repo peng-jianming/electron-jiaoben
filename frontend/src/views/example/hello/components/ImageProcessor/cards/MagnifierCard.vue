@@ -1,22 +1,38 @@
 <template>
-  <div class="card">
-    <div class="card-body magnifier-container">
-      <div v-if="magnifierVisible && currentImage" class="magnifier">
-        <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
-      </div>
-      <div v-else class="magnifier-placeholder">
-        <el-icon>
-          <ZoomIn />
-        </el-icon>
-        <p>将鼠标移动到图片上查看</p>
-      </div>
-      <!-- 当前颜色值 -->
-      <div class="current-color">
-        <div style="display: flex; gap: 12px">
-          <div>x: {{ currentPosition ? currentPosition.x : "0" }}</div>
-          <div>y: {{ currentPosition ? currentPosition.y : "0" }}</div>
+  <div class="magnifier-card">
+    <div class="magnifier-body">
+      <!-- 放大镜 -->
+      <div class="magnifier-area">
+        <div v-if="magnifierVisible && currentImage" class="magnifier">
+          <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
         </div>
-        <div>HEX: {{ currentColor ? currentColor.hex : "#000000" }}</div>
+        <div v-else class="magnifier-placeholder">
+          <el-icon><ZoomIn /></el-icon>
+          <p>移到图片上查看</p>
+        </div>
+      </div>
+      <!-- 颜色信息 -->
+      <div class="color-info-area">
+        <!-- 颜色预览色块 + HEX -->
+        <div class="color-swatch-row">
+          <div
+            class="color-swatch"
+            :style="{ background: currentColor ? currentColor.hex : '#1e293b' }"
+          ></div>
+          <div class="color-text-group">
+            <div class="color-hex-display">
+              {{ currentColor ? currentColor.hex : "#000000" }}
+            </div>
+            <div class="color-rgb-display">
+              {{ currentColor ? currentColor.rgb : "—" }}
+            </div>
+          </div>
+        </div>
+        <!-- 坐标 -->
+        <div class="info-row">
+          <span class="info-icon">📍</span>
+          <span class="info-mono">{{ currentPosition ? currentPosition.x : 0 }}, {{ currentPosition ? currentPosition.y : 0 }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -54,42 +70,38 @@ defineExpose({
 </script>
 
 <style scoped>
-.card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+.magnifier-card {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
-}
-
-.card-body {
-  padding: 10px;
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-width: 0;
-}
-
-.magnifier-container {
+.magnifier-body {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 200px;
+  padding: 10px;
+  gap: 12px;
+  height: 180px;
+}
+
+/* 放大镜区域 */
+.magnifier-area {
+  flex-shrink: 0;
 }
 
 .magnifier {
-  width: 220px;
-  height: 220px;
-  border: 2px solid var(--primary-color);
-  border-radius: 8px;
+  width: 160px;
+  height: 160px;
+  border: 2px solid #6366f1;
+  border-radius: 10px;
   overflow: hidden;
-  background: #1a1a2e;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  background: #0f172a;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.1),
+    0 4px 16px rgba(99, 102, 241, 0.15);
 }
 
 .magnifier-canvas {
@@ -103,30 +115,96 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 220px;
-  height: 220px;
-  color: var(--text-secondary);
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
+  width: 160px;
+  height: 160px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
 }
 
 .magnifier-placeholder .el-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.5;
+  font-size: 24px;
+  margin-bottom: 4px;
+  opacity: 0.35;
 }
 
 .magnifier-placeholder p {
   margin: 0;
-  font-size: 12px;
+  font-size: 10px;
 }
 
-.current-color {
+/* 颜色信息区 */
+.color-info-area {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+}
+
+.color-swatch-row {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  width: 120px;
-  text-align: left;
+}
+
+.color-swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 2px solid #e2e8f0;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.color-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.color-hex-display {
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.color-rgb-display {
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+.info-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.info-mono {
+  font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
 }
 </style>
 

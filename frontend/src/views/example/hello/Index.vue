@@ -15,12 +15,12 @@
           @click="activeTab = tab.name"
         >
           <component :is="tab.icon" class="tab-icon" />
-          <span>{{ tab.label }}</span>
+          <span class="tab-label-text">{{ tab.label }}</span>
         </div>
         <!-- 状态指示器 -->
         <div class="status-indicator" :class="{ processing: isProcessing }">
           <span class="status-dot"></span>
-          <span>{{ isProcessing ? '处理中' : '就绪' }}</span>
+          <span class="status-text">{{ isProcessing ? '处理中' : '就绪' }}</span>
         </div>
       </div>
       
@@ -150,7 +150,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
-/* ===== 设计系统变量 ===== */
+/* ===== 设计令牌 ===== */
 @primary: #6366f1;
 @primary-light: #818cf8;
 @primary-dark: #4f46e5;
@@ -158,36 +158,47 @@ onUnmounted(() => {
 @warning: #f59e0b;
 @danger: #ef4444;
 
-/* 浅色主题 */
-@bg-main: #f8fafc;
+@bg-main: #eef0f4;
 @bg-content: #ffffff;
 @bg-hover: #f1f5f9;
 @text-primary: #1e293b;
 @text-secondary: #64748b;
 @text-muted: #94a3b8;
 @border: #e2e8f0;
-@shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+@border-strong: #cbd5e1;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+@shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+@shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
 
 /* 固定尺寸 */
+@app-width: 1440px;
+@app-height: 960px;
 @title-bar-height: 40px;
-@tab-nav-height: 36px;
+@tab-nav-height: 38px;
+@content-height: @app-height - @title-bar-height - @tab-nav-height;
 
-/* ===== 容器布局 ===== */
+/* ===== 容器 ===== */
 .app-container {
-  width: 100%;
-  height: 100vh;
+  width: @app-width;
+  height: @app-height;
+  max-width: @app-width;
+  max-height: @app-height;
+  min-width: @app-width;
+  min-height: @app-height;
   display: flex;
   flex-direction: column;
   background: @bg-main;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* ===== 主内容包装器 ===== */
+/* ===== 主包装器 ===== */
 .main-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
+  height: calc(@app-height - @title-bar-height);
   min-height: 0;
   overflow: hidden;
 }
@@ -198,44 +209,65 @@ onUnmounted(() => {
   min-height: @tab-nav-height;
   max-height: @tab-nav-height;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  background: @bg-content;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 16px;
+  background: linear-gradient(180deg, @bg-content 0%, #fafbfc 100%);
   border-bottom: 1px solid @border;
   box-sizing: border-box;
+  box-shadow: @shadow-sm;
+  position: relative;
+  z-index: 5;
 }
 
 .tab-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 6px;
+  gap: 7px;
+  padding: 0 20px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  color: @text-secondary;
+  color: @text-muted;
   transition: all 0.2s ease;
-  
+  user-select: none;
+  position: relative;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+
   &:hover {
-    background: @bg-hover;
     color: @text-primary;
+    background: rgba(99, 102, 241, 0.03);
   }
-  
+
   &.active {
-    background: fade(@primary, 10%);
     color: @primary;
-    
+    border-bottom-color: @primary;
+    font-weight: 600;
+
     .tab-icon-svg {
+      color: @primary;
+    }
+
+    .tab-label-text {
       color: @primary;
     }
   }
 }
 
+.tab-label-text {
+  transition: color 0.2s ease;
+}
+
 .tab-icon-svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.tab-item.active .tab-icon-svg {
+  opacity: 1;
 }
 
 /* 状态指示器 */
@@ -245,21 +277,31 @@ onUnmounted(() => {
   gap: 6px;
   padding: 4px 12px;
   margin-left: auto;
-  background: fade(@success, 10%);
-  border-radius: 16px;
-  font-size: 12px;
+  align-self: center;
+  background: fade(@success, 6%);
+  border: 1px solid fade(@success, 12%);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
   color: @success;
   transition: all 0.3s ease;
-  
+
   &.processing {
-    background: fade(@primary, 10%);
+    background: fade(@primary, 6%);
+    border-color: fade(@primary, 12%);
     color: @primary;
-    
+
     .status-dot {
       background: @primary;
-      animation: blink 1s ease-in-out infinite;
+      box-shadow: 0 0 6px fade(@primary, 40%);
+      animation: pulse 1.5s ease-in-out infinite;
     }
   }
+}
+
+.status-text {
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 .status-dot {
@@ -267,16 +309,18 @@ onUnmounted(() => {
   height: 6px;
   background: @success;
   border-radius: 50%;
+  box-shadow: 0 0 4px fade(@success, 30%);
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
 }
 
 /* ===== 路由内容容器 ===== */
 .router-view-container {
-  flex: 1;
+  height: @content-height;
+  max-height: @content-height;
   min-height: 0;
   overflow: hidden;
   background: @bg-main;
@@ -284,7 +328,6 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* 确保子组件中的 tabs 内容正常显示 */
 .router-view-container :deep(.el-tabs__content) {
   display: block !important;
 }
@@ -296,8 +339,8 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -309,19 +352,20 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  padding: 32px 48px;
+  padding: 36px 52px;
   background: @bg-content;
   border-radius: 16px;
   box-shadow: @shadow-lg;
+  border: 1px solid rgba(99, 102, 241, 0.08);
 }
 
 .spinner-ring {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border: 3px solid @border;
   border-radius: 50%;
   position: relative;
-  animation: spin 1.5s linear infinite;
+  animation: spin 1.2s linear infinite;
 }
 
 .spinner-ring-inner {
@@ -343,6 +387,7 @@ onUnmounted(() => {
   font-size: 14px;
   color: @text-secondary;
   font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
 /* ===== 过渡动画 ===== */

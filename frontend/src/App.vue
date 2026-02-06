@@ -11,11 +11,15 @@ onMounted(() => {
   }
 });
 </script>
-<style >
-.el-button+.el-button {
+<style>
+.el-button + .el-button {
   margin-left: 0;
 }
 .el-form-item {
-  margin-bottom: 5px;;
+  margin-bottom: 5px;
+}
+/* 全局消除 el-divider 的默认 margin */
+.el-divider--horizontal {
+  margin: 6px 0;
 }
 </style>

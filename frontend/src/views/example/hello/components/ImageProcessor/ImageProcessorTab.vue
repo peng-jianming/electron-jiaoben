@@ -17,6 +17,7 @@
         @reset-zoom="resetZoom"
         @save-image="handleSaveImage"
         @crop-image="handleCropImage"
+        @copy-selection="handleCopySelection"
       />
       <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
       <input
@@ -1458,17 +1459,19 @@ function drawMagnifier(canvas, x, y) {
     }
   }
 
-  // 中心十字线始终在canvas中心
-  ctx.strokeStyle = "#ff0000";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  // 水平线（从中心向两边延伸）
-  ctx.moveTo(canvasCenterX - scale * halfSize, canvasCenterY);
-  ctx.lineTo(canvasCenterX + scale * halfSize, canvasCenterY);
-  // 垂直线（从中心向上下延伸）
-  ctx.moveTo(canvasCenterX, canvasCenterY - scale * halfSize);
-  ctx.lineTo(canvasCenterX, canvasCenterY + scale * halfSize);
-  ctx.stroke();
+  // 中心像素高亮框 —— 仅在中心像素周围绘制醒目边框
+  const centerBoxX = canvasCenterX - scale / 2;
+  const centerBoxY = canvasCenterY - scale / 2;
+
+  // 外层辉光（半透明白色）
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(centerBoxX - 1, centerBoxY - 1, scale + 2, scale + 2);
+
+  // 内层精确框（亮红色）
+  ctx.strokeStyle = "#ff3b3b";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(centerBoxX, centerBoxY, scale, scale);
 }
 
 // 更新当前颜色（x, y 是图片原始尺寸的坐标）
@@ -1852,6 +1855,21 @@ function resetZoom() {
   ElMessage.success("已重置缩放");
 }
 
+// 复制选区坐标到剪贴板 (x,y,w,h 格式)
+function handleCopySelection() {
+  if (!selectionRect.value) {
+    ElMessage.warning("请先选择一个区域");
+    return;
+  }
+  const { x, y, w, h } = selectionRect.value;
+  const text = `${x},${y},${w},${h}`;
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success(`已复制: ${text}`);
+  }).catch(() => {
+    ElMessage.error("复制失败");
+  });
+}
+
 // 裁剪图片
 function handleCropImage() {
   if (!currentImage.value || !imageRef.value || !selectionRect.value) {
@@ -2048,12 +2066,56 @@ function handleGlobalMouseUp(event) {
   }
 }
 
-// 处理键盘快捷键（Alt+D 切换选取模式）
+// 处理键盘快捷键（Alt+D 切换选取模式，方向键移动放大镜像素选择）
 function handleKeyDown(event) {
   // 检查是否按下了 Alt+D
   if (event.altKey && event.key.toLowerCase() === 'd') {
     event.preventDefault(); // 防止浏览器默认行为
     toggleSelectionMode();
+    return;
+  }
+
+  // 方向键移动放大镜像素选择
+  const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+  if (arrowKeys.includes(event.key) && currentImage.value && imageRef.value) {
+    // 确保图片已加载完成
+    if (!imageRef.value.complete || imageRef.value.naturalWidth === 0) return;
+
+    event.preventDefault(); // 阻止页面滚动
+
+    const imgWidth = imageRef.value.naturalWidth;
+    const imgHeight = imageRef.value.naturalHeight;
+
+    // 基于当前坐标移动
+    let newX = currentPosition.value.x;
+    let newY = currentPosition.value.y;
+
+    switch (event.key) {
+      case 'ArrowUp':
+        newY = Math.max(0, newY - 1);
+        break;
+      case 'ArrowDown':
+        newY = Math.min(imgHeight - 1, newY + 1);
+        break;
+      case 'ArrowLeft':
+        newX = Math.max(0, newX - 1);
+        break;
+      case 'ArrowRight':
+        newX = Math.min(imgWidth - 1, newX + 1);
+        break;
+    }
+
+    // 更新当前坐标
+    currentPosition.value = { x: newX, y: newY };
+
+    // 显示放大镜
+    magnifierVisible.value = true;
+
+    // 更新放大镜和当前颜色
+    nextTick(() => {
+      updateMagnifier(newX, newY);
+    });
+    updateCurrentColor(newX, newY);
   }
 }
 
@@ -2078,48 +2140,142 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ===== 固定尺寸 ===== */
+/* 1440 x 960 窗口, 标题栏40px + 导航栏38px = 78px, 内容区 882px */
+/* 左160px | 中820px | 右460px = 1440px */
 
 .image-processor-tab {
-  height: 890px;
+  width: 1440px;
+  height: 882px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .processor-layout {
   display: flex;
-  height: 100%;
-  /* justify-content: space-between; */
+  width: 1440px;
+  height: 882px;
+  overflow: hidden;
 }
 
-/* 中间面板 */
+/* ===== 中间面板 ===== */
 .center-panel {
-  max-width: 800px;
+  width: 820px;
+  min-width: 820px;
+  max-width: 820px;
+  height: 882px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  border-left: 1px solid rgba(99, 102, 241, 0.15);
+  border-right: 1px solid rgba(99, 102, 241, 0.15);
+  background: #0f172a;
 }
 
-.image-container-wrapper {
-  max-width: 800px;
+/* ===== 右面板容器 ===== */
+.right-panel {
+  width: 460px;
+  min-width: 460px;
+  max-width: 460px;
+  height: 882px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
+/* 中间面板内的图片标签栏 */
+.center-panel :deep(.el-tabs) {
+  flex-shrink: 0;
+  border: none;
+}
+
+.center-panel :deep(.el-tabs__header) {
+  margin-bottom: 0;
+  background: linear-gradient(180deg, #1e293b, #1a2332);
+  border-bottom: 1px solid #334155;
+}
+
+.center-panel :deep(.el-tabs__item) {
+  color: #94a3b8;
+  border-color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  height: 32px;
+  line-height: 32px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.center-panel :deep(.el-tabs__item.is-active) {
+  color: #e0e7ff;
+  background: #0f172a;
+  border-bottom-color: #0f172a;
+  font-weight: 600;
+}
+
+.center-panel :deep(.el-tabs__item:hover) {
+  color: #e2e8f0;
+}
+
+.center-panel :deep(.el-tabs--border-card) {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.center-panel :deep(.el-tabs__content) {
+  display: none !important;
+  padding: 0 !important;
+  height: 0 !important;
+  overflow: hidden;
+}
+
+/* 确保 border-card 底部不产生额外间隙 */
+.center-panel :deep(.el-tabs--border-card > .el-tabs__header) {
+  border-bottom: none;
+}
+
+/* 修复 Tab 左右滚动箭头位置偏下 */
+.center-panel :deep(.el-tabs__nav-prev),
+.center-panel :deep(.el-tabs__nav-next) {
+  height: 32px;
+  line-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tab 关闭按钮 */
+.center-panel :deep(.el-tabs__item .el-icon.is-icon-close) {
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+
+.center-panel :deep(.el-tabs__item .el-icon.is-icon-close:hover) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+  border-radius: 50%;
+}
+
+/* ===== 图片容器 ===== */
 .image-container {
-  width: 800px;
+  width: 100%;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  min-width: 800px;
-  max-width: 800px;
-  border: 2px solid var(--border-color);
-  border-radius: 0;
-  overflow: hidden;
-  background: #1a1a2e;
-  background-image: linear-gradient(45deg, #2a2a3e 25%, transparent 25%),
-    linear-gradient(-45deg, #2a2a3e 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #2a2a3e 75%),
-    linear-gradient(-45deg, transparent 75%, #2a2a3e 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+  background: #0f172a;
+  background-image:
+    linear-gradient(45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e293b 75%),
+    linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
   position: relative;
   user-select: none;
-  flex-shrink: 0;
   box-sizing: border-box;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(99, 102, 241, 0.2);
 }
 
 .image-wrapper {
@@ -2128,22 +2284,29 @@ onUnmounted(() => {
   user-select: none;
 }
 
-/* 圈选矩形样式 */
+/* 圈选矩形 */
 .selection-rect {
   position: absolute;
   border: 2px solid #22c55e;
-  background: rgba(34, 197, 94, 0.2);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(34, 197, 94, 0.2),
+    0 0 12px rgba(34, 197, 94, 0.15);
   pointer-events: none;
   box-sizing: border-box;
+  transition: box-shadow 0.2s ease;
 }
 
-/* 代码生成器圈选矩形样式 */
+/* 代码生成器圈选矩形 */
 .code-generator-selection-rect {
   position: absolute;
-  border: 2px solid #3b82f6;
-  background: rgba(59, 130, 246, 0.2);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  border: 2px solid #818cf8;
+  background: rgba(129, 140, 248, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(129, 140, 248, 0.2),
+    0 0 12px rgba(129, 140, 248, 0.15);
   pointer-events: none;
   box-sizing: border-box;
   z-index: 10;
@@ -2160,241 +2323,34 @@ onUnmounted(() => {
   border-radius: 0;
 }
 
+/* 空状态占位 */
 .empty-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--text-secondary);
+  color: #475569;
+  gap: 16px;
 }
 
 .empty-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  opacity: 0.5;
+  font-size: 52px;
+  color: #334155;
+  opacity: 0.6;
+  animation: empty-float 3s ease-in-out infinite;
+}
+
+@keyframes empty-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 .empty-placeholder p {
   margin: 0;
-  font-size: 14px;
-}
-
-.image-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  background: rgba(51, 65, 85, 0.3);
-  border-radius: 8px;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-}
-
-.info-label {
-  color: var(--text-secondary);
-}
-
-.info-value {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.magnifier-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  min-height: 200px;
-}
-
-.magnifier {
-  width: 220px;
-  height: 220px;
-  border: 2px solid var(--primary-color);
-  border-radius: 8px;
-  overflow: hidden;
-  background: #1a1a2e;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.magnifier-canvas {
-  width: 100%;
-  height: 100%;
-  image-rendering: pixelated;
-}
-
-.magnifier-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 220px;
-  height: 220px;
-  color: var(--text-secondary);
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-}
-
-.magnifier-placeholder .el-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.5;
-}
-
-.magnifier-placeholder p {
-  margin: 0;
-  font-size: 12px;
-}
-
-.current-color {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: rgba(51, 65, 85, 0.3);
-  border-radius: 8px;
-}
-
-.color-preview {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  border: 2px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.color-values {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.color-value-item {
-  display: flex;
-  justify-content: space-between;
   font-size: 13px;
-}
-
-.color-label {
-  color: var(--text-secondary);
-}
-
-.color-value {
-  color: var(--text-primary);
+  color: #64748b;
+  letter-spacing: 0.5px;
   font-weight: 500;
-  font-family: "Courier New", monospace;
 }
-
-.color-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: rgba(99, 102, 241, 0.2);
-  padding: 4px 10px;
-  border-radius: 12px;
-}
-
-.selected-colors-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.empty-colors {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: var(--text-secondary);
-}
-
-.empty-colors .el-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.5;
-}
-
-.empty-colors p {
-  margin: 0;
-  font-size: 14px;
-}
-
-.selected-colors-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.selected-color-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: rgba(51, 65, 85, 0.3);
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.selected-color-item:hover {
-  background: rgba(51, 65, 85, 0.5);
-}
-
-.color-preview-small {
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.color-info-small {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.color-rgb-small,
-.color-hex-small {
-  font-size: 12px;
-  color: var(--text-primary);
-  font-family: "Courier New", monospace;
-}
-
-.color-hex-small {
-  color: var(--text-secondary);
-}
-
-.color-coord-small {
-  font-size: 11px;
-  color: var(--primary-light);
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.remove-color-btn {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.selected-color-item:hover .remove-color-btn {
-  opacity: 1;
-}
-
-.clear-all-btn {
-  width: 100%;
-  margin-top: 8px;
-}
-
 </style>

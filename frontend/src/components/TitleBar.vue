@@ -91,21 +91,19 @@ function onDragEnd() {
 
 <style scoped lang="less">
 @title-bar-height: 40px;
-@primary-color: #5b6af0;
-@bg-color: #f8fafc;
-@border-color: #e2e8f0;
+@primary: #6366f1;
 @text-primary: #1e293b;
 @text-secondary: #64748b;
 
 .title-bar {
   height: @title-bar-height;
-  background: @bg-color;
-  border-bottom: 1px solid @border-color;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #3730a3 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0;
   z-index: 100;
+  box-shadow: 0 2px 8px rgba(30, 27, 75, 0.3);
 }
 
 .title-bar-drag {
@@ -116,7 +114,7 @@ function onDragEnd() {
   user-select: none;
   cursor: move;
   min-width: 0;
-  padding-left: 15px;
+  padding-left: 16px;
 }
 
 .logo-section {
@@ -128,50 +126,54 @@ function onDragEnd() {
 .logo-icon {
   width: 26px;
   height: 26px;
-  background: linear-gradient(135deg, @primary-color 0%, #8b5cf6 100%);
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(91, 106, 240, 0.3);
+  color: #c7d2fe;
+  transition: background 0.2s ease;
+}
+
+.title-bar-drag:hover .logo-icon {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .title-text {
   font-size: 13px;
   font-weight: 600;
-  color: @text-primary;
-  letter-spacing: 0.3px;
+  color: #e0e7ff;
+  letter-spacing: 0.5px;
 }
 
 .window-controls {
   display: flex;
   flex-shrink: 0;
   height: 100%;
-  gap: 2px;
-  padding-right: 8px;
+  gap: 0;
+  padding-right: 4px;
 }
 
 .control-btn {
-  width: 32px;
-  height: 32px;
-  margin: auto 0;
-  border-radius: 6px;
+  width: 40px;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: @text-secondary;
-  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.55);
+  transition: all 0.15s ease;
+  border-radius: 0;
 
   &:hover {
-    background-color: #e2e8f0;
-    color: @text-primary;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
   }
 
   &.close:hover {
-    background-color: #fee2e2;
-    color: #dc2626;
+    background: #dc2626;
+    color: #fff;
   }
 }
 </style>

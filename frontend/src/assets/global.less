@@ -1,8 +1,70 @@
+/* ===== 全局重置 - 固定 1440x960 窗口 ===== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 1440px;
+  height: 960px;
+  overflow: hidden;
+  background: #eef0f4;
+}
+
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  height: 100%;
+  color: #1e293b;
+  width: 1440px;
+  height: 960px;
+  overflow: hidden;
+}
+
+/* ===== 全局滚动条美化 ===== */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 深色背景中的滚动条 */
+.result-section::-webkit-scrollbar-thumb,
+.image-container::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.result-section::-webkit-scrollbar-thumb:hover,
+.image-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ===== 全局文本选择颜色 ===== */
+::selection {
+  background: rgba(99, 102, 241, 0.18);
+  color: #312e81;
+}
+
+/* ===== 全局 Element Plus 按钮圆角统一 ===== */
+.el-button {
+  border-radius: 6px !important;
+}
+
+/* ===== 全局 Element Plus 输入框圆角统一 ===== */
+.el-input__wrapper {
+  border-radius: 6px !important;
 }
