@@ -3,6 +3,9 @@
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
 const { dialog, shell } = require('electron');
+const {
+  getMainWindow
+} = require('ee-core/electron/window');
 const fs = require('fs');
 const path = require('path');
 /**
@@ -547,6 +550,33 @@ class ExampleController {
     } catch (error) {
       console.error('打开文件错误:', error);
       return { success: false, message: error.message };
+    }
+  }
+
+  操作主窗口(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    const fn = win[args.操作方法];
+    if (typeof fn === 'function') {
+      fn.apply(win, args.操作参数 != null ? (Array.isArray(args.操作参数) ? args.操作参数 : [args.操作参数]) : []);
+    }
+  }
+
+  /** 获取主窗口位置，用于标题栏拖动 */
+  获取主窗口位置(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return { x: 0, y: 0 };
+    const [x, y] = win.getPosition();
+    return { x, y };
+  }
+
+  /** 设置主窗口位置，用于标题栏拖动 */
+  设置主窗口位置(args, event) {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    const { x, y } = args;
+    if (typeof x === 'number' && typeof y === 'number') {
+      win.setPosition(Math.round(x), Math.round(y));
     }
   }
 }

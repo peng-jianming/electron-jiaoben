@@ -1,51 +1,81 @@
 <template>
-  <div class="image-processor">
-    <!-- Tab 切换 -->
-    <el-tabs 
-      v-model="activeTab" 
-      type="border-card"
-    >
-      <!-- 图片处理 Tab -->
-      <el-tab-pane label="图片处理" name="image-processor">
-      </el-tab-pane>
-
-      <!-- 调色 Tab -->
-      <el-tab-pane label="调色" name="coloring">
-      </el-tab-pane>
-
-      <!-- 寻路测试 Tab -->
-      <el-tab-pane label="寻路测试" name="pathfinding">
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- 子路由内容 -->
-    <div class="router-view-container">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
+  <div class="app-container">
+    <!-- 顶部标题栏 - 固定高度40px -->
+    <TitleBar title="图色助手" />
+    
+    <!-- 主内容区域 -->
+    <div class="main-wrapper">
+      <!-- Tab 导航栏 -->
+      <div class="tab-nav">
+        <div 
+          v-for="tab in tabs" 
+          :key="tab.name"
+          class="tab-item"
+          :class="{ active: activeTab === tab.name }"
+          @click="activeTab = tab.name"
+        >
+          <component :is="tab.icon" class="tab-icon" />
+          <span>{{ tab.label }}</span>
+        </div>
+        <!-- 状态指示器 -->
+        <div class="status-indicator" :class="{ processing: isProcessing }">
+          <span class="status-dot"></span>
+          <span>{{ isProcessing ? '处理中' : '就绪' }}</span>
+        </div>
+      </div>
+      
+      <!-- 路由内容区域 -->
+      <div class="router-view-container">
+        <router-view v-slot="{ Component }">
           <component 
             :is="Component" 
             ref="currentComponentRef"
           />
-        </transition>
-      </router-view>
+        </router-view>
+      </div>
     </div>
-
-    <!-- 处理状态指示器 -->
+    
+    <!-- 全局处理遮罩 -->
     <transition name="fade">
-      <div v-if="isProcessing" class="processing-indicator">
-        <div class="spinner"></div>
-        <span>处理中...</span>
+      <div v-if="isProcessing" class="processing-overlay">
+        <div class="processing-card">
+          <div class="spinner-ring">
+            <div class="spinner-ring-inner"></div>
+          </div>
+          <span class="processing-text">正在处理，请稍候...</span>
+        </div>
       </div>
     </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, watchEffect, onUnmounted } from "vue";
+import { ref, computed, watch, watchEffect, onUnmounted, h } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import TitleBar from "@/components/TitleBar.vue";
 
 const route = useRoute();
 const router = useRouter();
+
+// 导航图标组件
+const IconImage = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
+  h('path', { d: 'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z' })
+]);
+
+const IconPalette = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
+  h('path', { d: 'M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z' })
+]);
+
+const IconRoute = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
+  h('path', { d: 'M9.78 11.16l-1.42 1.42a7.282 7.282 0 01-1.79-2.94l1.94-.49c.32.89.77 1.5 1.27 2.01zM11 6L7 2 3 6h3.02c.02.81.08 1.54.19 2.17l1.94-.49C8.08 7.2 8.03 6.63 8.02 6H11zm10 0l-4-4-4 4h2.99c-.1 3.68-1.28 4.75-2.54 5.88-.5.44-1.01.92-1.45 1.55-.34-.49-.73-.88-1.13-1.24L9.46 13.6c.93.85 1.54 1.54 1.54 3.4v5h2v-5c0-2.02.71-2.66 1.79-3.63 1.38-1.24 3.08-2.78 3.2-7.37H21z' })
+]);
+
+// Tab配置
+const tabs = [
+  { name: 'image-processor', label: '图片处理', icon: IconImage },
+  { name: 'coloring', label: '调色面板', icon: IconPalette },
+  { name: 'pathfinding', label: '寻路测试', icon: IconRoute }
+];
 
 // Tab 切换 - 从路由获取当前激活的 tab
 const activeTab = computed({
@@ -53,10 +83,9 @@ const activeTab = computed({
     const routeName = route.name;
     if (routeName === 'Coloring') return 'coloring';
     if (routeName === 'Pathfinding') return 'pathfinding';
-    return 'image-processor'; // 默认或 ImageProcessor
+    return 'image-processor';
   },
   set: (value) => {
-    // Tab 切换时更新路由
     const routeName = value === 'image-processor' ? 'ImageProcessor' : value === 'coloring' ? 'Coloring' : 'Pathfinding';
     router.push({ name: routeName });
   }
@@ -73,11 +102,8 @@ watchEffect(() => {
   if (currentComponentRef.value) {
     const component = currentComponentRef.value;
     
-    // 如果组件暴露了 processing 属性（如 ColoringTab）
     if (component.processing !== undefined) {
-      // processing 是通过 defineExpose 暴露的 ref，需要监听其 .value
       if (typeof component.processing === 'object' && 'value' in component.processing) {
-        // 清理之前的 watcher
         if (stopWatcher) {
           stopWatcher();
         }
@@ -89,7 +115,6 @@ watchEffect(() => {
           { immediate: true }
         );
       } else {
-        // 如果是普通值，直接使用
         isProcessing.value = component.processing;
       }
     } else {
@@ -111,7 +136,6 @@ watchEffect(() => {
 // 监听路由变化，重置处理状态
 watch(() => route.name, () => {
   isProcessing.value = false;
-  // 清理之前的 watcher
   if (stopWatcher) {
     stopWatcher();
     stopWatcher = null;
@@ -125,133 +149,203 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
-/* 基础变量 */
-.image-processor {
-  --primary-color: #6366f1;
-  --primary-light: #818cf8;
-  --primary-dark: #4f46e5;
-  --success-color: #10b981;
-  --warning-color: #f59e0b;
-  --danger-color: #ef4444;
-  --bg-dark: #0f172a;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --border-color: #334155;
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.3);
+<style scoped lang="less">
+/* ===== 设计系统变量 ===== */
+@primary: #6366f1;
+@primary-light: #818cf8;
+@primary-dark: #4f46e5;
+@success: #10b981;
+@warning: #f59e0b;
+@danger: #ef4444;
 
+/* 浅色主题 */
+@bg-main: #f8fafc;
+@bg-content: #ffffff;
+@bg-hover: #f1f5f9;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@text-muted: #94a3b8;
+@border: #e2e8f0;
+@shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+/* 固定尺寸 */
+@title-bar-height: 40px;
+@tab-nav-height: 36px;
+
+/* ===== 容器布局 ===== */
+.app-container {
+  width: 100%;
   height: 100vh;
-  background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 50%, #16213e 100%);
-  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  background: @bg-main;
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
 }
 
-/* 顶部标题栏 */
-.app-header {
-  background: rgba(30, 41, 59, 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.header-content {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 16px 24px;
+/* ===== 主内容包装器 ===== */
+.main-wrapper {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.logo-section {
+/* ===== Tab 导航栏 ===== */
+.tab-nav {
+  height: @tab-nav-height;
+  min-height: @tab-nav-height;
+  max-height: @tab-nav-height;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
+  padding: 0 12px;
+  background: @bg-content;
+  border-bottom: 1px solid @border;
+  box-sizing: border-box;
 }
 
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-  border-radius: 10px;
+.tab-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.logo-icon svg {
-  width: 24px;
-  height: 24px;
-  color: white;
-}
-
-.logo-section h1 {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  background: linear-gradient(90deg, var(--text-primary), var(--primary-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* 只隐藏主 tabs 的内容，不影响子组件中的 tabs */
-.image-processor > .el-tabs :deep(.el-tabs__content) {
-  padding: 2px;
-  display: none !important; /* 隐藏默认的 tab-pane 内容，因为我们使用 router-view */
-}
-
-/* 确保子组件中的 tabs 内容正常显示 */
-.image-processor .router-view-container :deep(.el-tabs__content) {
-  display: block !important;
-}
-
-/* 路由视图容器 */
-.router-view-container {
-  /* padding: 20px; */
-  /* min-height: calc(100vh - 120px); */
-  background-color: #fff;
-}
-
-
-
-/* 处理状态指示器 */
-.processing-indicator {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  background: var(--bg-card);
-  border: 1px solid var(--primary-color);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-  z-index: 1000;
-}
-
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-color);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: @text-secondary;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: @bg-hover;
+    color: @text-primary;
+  }
+  
+  &.active {
+    background: fade(@primary, 10%);
+    color: @primary;
+    
+    .tab-icon-svg {
+      color: @primary;
+    }
   }
 }
 
-/* 过渡动画 */
+.tab-icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  margin-left: auto;
+  background: fade(@success, 10%);
+  border-radius: 16px;
+  font-size: 12px;
+  color: @success;
+  transition: all 0.3s ease;
+  
+  &.processing {
+    background: fade(@primary, 10%);
+    color: @primary;
+    
+    .status-dot {
+      background: @primary;
+      animation: blink 1s ease-in-out infinite;
+    }
+  }
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: @success;
+  border-radius: 50%;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ===== 路由内容容器 ===== */
+.router-view-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: @bg-main;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 确保子组件中的 tabs 内容正常显示 */
+.router-view-container :deep(.el-tabs__content) {
+  display: block !important;
+}
+
+/* ===== 处理遮罩层 ===== */
+.processing-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.processing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px 48px;
+  background: @bg-content;
+  border-radius: 16px;
+  box-shadow: @shadow-lg;
+}
+
+.spinner-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid @border;
+  border-radius: 50%;
+  position: relative;
+  animation: spin 1.5s linear infinite;
+}
+
+.spinner-ring-inner {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border: 3px solid transparent;
+  border-top-color: @primary;
+  border-radius: 50%;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.processing-text {
+  font-size: 14px;
+  color: @text-secondary;
+  font-weight: 500;
+}
+
+/* ===== 过渡动画 ===== */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;

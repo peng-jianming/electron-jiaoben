@@ -192,7 +192,7 @@ const currentSelectedColors = computed(() => {
 const recordedColors = ref([]);
 
 // 右侧面板当前激活的 tab
-const activeRightTab = ref("color-record");
+const activeRightTab = ref("deviation");
 
 // 放大镜相关
 const magnifierVisible = ref(false);
@@ -1542,14 +1542,15 @@ function handleImageClick(event) {
           );
           
           if (existingColorIndex !== -1) {
-            // 如果已存在相同颜色，个数+1
-            const existingColor = currentImage.value.selectedColors[existingColorIndex];
-            existingColor.count = (existingColor.count || 1) + 1;
+            // 已存在相同颜色，仅提示，不重复添加
+            ElMessage.warning("已经选取了相同颜色");
           } else {
-            // 如果不存在，添加新项并设置个数为1
+            // 如果不存在，添加新项并设置个数为1，同时记录点击坐标
             currentImage.value.selectedColors.push({
               ...currentColor.value,
               count: 1,
+              x: naturalX,
+              y: naturalY,
             });
           }
         } else {
@@ -1619,14 +1620,15 @@ function handleImageClick(event) {
           );
           
           if (existingColorIndex !== -1) {
-            // 如果已存在相同颜色，个数+1
-            const existingColor = currentImage.value.selectedColors[existingColorIndex];
-            existingColor.count = (existingColor.count || 1) + 1;
+            // 已存在相同颜色，仅提示，不重复添加
+            ElMessage.warning("已经选取了相同颜色");
           } else {
-            // 如果不存在，添加新项并设置个数为1
+            // 如果不存在，添加新项并设置个数为1，同时记录点击坐标
             currentImage.value.selectedColors.push({
               ...currentColor.value,
               count: 1,
+              x: naturalX,
+              y: naturalY,
             });
           }
         } else {

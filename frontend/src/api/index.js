@@ -4,7 +4,10 @@
  * Definition of communication channels between main process and rendering process
  */
 const ipcApiRoute = {
-  test: 'controller/example/test',
+  操作主窗口: 'controller/example/操作主窗口',
+  获取主窗口位置: 'controller/example/获取主窗口位置',
+  设置主窗口位置: 'controller/example/设置主窗口位置',
+
   获取设备列表: 'controller/example/获取设备列表',
   开始任务: 'controller/example/开始任务',
   结束任务: 'controller/example/结束任务',

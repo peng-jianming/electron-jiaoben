@@ -10,15 +10,13 @@
     />
 
     <!-- 选中颜色列表 -->
-    <el-tabs type="border-card" size="mini" v-model="activeTab" @tab-change="handleTabChange">
-      <el-tab-pane label="颜色记录" name="color-record">
-        <ColorRecordList 
-          :colors="recordedColors"
-          @remove-color="$emit('remove-record-color', $event)"
-          @clear-all-colors="$emit('clear-all-record-colors')"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="偏色计算" name="deviation">
+    <el-tabs
+      type="border-card"
+      size="mini"
+      v-model="activeTab"
+      @tab-change="handleTabChange"
+    >
+      <el-tab-pane label="颜色" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
@@ -28,16 +26,29 @@
           @clear-all-colors="$emit('clear-all-colors')"
           @add-colors="$emit('add-colors', $event)"
           @add-font-library="handleAddFontLibrary"
-          @start-code-generator-selection="(type) => $emit('start-code-generator-selection', type)"
+          @start-code-generator-selection="
+            (type) => $emit('start-code-generator-selection', type)
+          "
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="字库制作">
-        <FontLibraryTab 
-          ref="fontLibraryTabRef"
+      <el-tab-pane label="字库">
+        <FontLibraryTab ref="fontLibraryTabRef" />
+      </el-tab-pane>
+      <el-tab-pane label="调试">
+        <FontLibraryMatchDebug
+          :current-device-id="currentDeviceId"
+          :font-library-list="fontLibraryList"
         />
       </el-tab-pane>
+      <!-- <el-tab-pane label="颜色记录" name="color-record">
+        <ColorRecordList 
+          :colors="recordedColors"
+          @remove-color="$emit('remove-record-color', $event)"
+          @clear-all-colors="$emit('clear-all-record-colors')"
+        />
+      </el-tab-pane> -->
       <!-- <el-tab-pane label="透明图制作">
         <ImageUploadTab
           :uploaded-images="uploadedImages"
@@ -51,18 +62,8 @@
           ref="imageUploadTabRef"
         />
       </el-tab-pane> -->
-      <el-tab-pane label="调试">
-        <!-- <ImageMatchDebug 
-          :transparent-image-url="transparentImageUrl"
-          :current-device-id="currentDeviceId"
-          :selected-deviations="selectedDeviations"
-        /> -->
-        <FontLibraryMatchDebug 
-          :current-device-id="currentDeviceId"
-          :font-library-list="fontLibraryList"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="代码">
+
+      <!-- <el-tab-pane label="代码">
         <CodeGeneratorTab 
           :selected-deviations="selectedDeviations"
           :selection-rect="selectionRect"
@@ -72,7 +73,7 @@
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
           ref="codeGeneratorTabRef"
         />
-      </el-tab-pane>
+      </el-tab-pane> -->
     </el-tabs>
   </div>
 </template>
@@ -131,16 +132,16 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-  "remove-color", 
+  "remove-color",
   "clear-all-colors",
   "add-colors",
   "remove-record-color",
   "clear-all-record-colors",
   "tab-change",
-  "right-panel-screenshot-start", 
+  "right-panel-screenshot-start",
   "right-panel-screenshot-end",
   "start-code-generator-selection",
-  "stop-code-generator-selection"
+  "stop-code-generator-selection",
 ]);
 
 const magnifierCardRef = ref(null);
@@ -151,7 +152,7 @@ const fontLibraryTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
-const activeTab = ref("color-record"); // 当前激活的 tab
+const activeTab = ref("deviation"); // 当前激活的 tab
 let deviceSocket = null;
 
 // 处理 tab 切换
@@ -401,7 +402,5 @@ onUnmounted(() => {
 }
 .el-tabs :deep(.el-tabs__content) {
   padding: 2px;
-  display: none !important; /* 隐藏默认的 tab-pane 内容，因为我们使用 router-view */
 }
-
 </style>
