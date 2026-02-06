@@ -3,31 +3,33 @@
     <!-- 左中右布局 -->
     <div class="processor-layout">
       <!-- 左侧：功能按钮区域 -->
-      <ImageProcessorLeftPanel
-        :current-device-id="currentDeviceId"
-        :screenshot-loading="screenshotLoading"
-        :selection-enabled="selectionEnabled"
-        :selectionInfo="selectionInfo"
-        :has-image="!!currentImage"
-        @load-image="handleLoadImage"
-        @open-device-dialog="openDeviceDialog"
-        @capture-screenshot="captureScreenshot"
-        @toggle-selection="toggleSelectionMode"
-        @fit-to-window="fitToWindow"
-        @reset-zoom="resetZoom"
-        @save-image="handleSaveImage"
-        @crop-image="handleCropImage"
-        @copy-selection="handleCopySelection"
-      />
-      <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
-      <input
-        ref="fileInputRef"
-        type="file"
-        accept="image/*"
-        multiple
-        style="display: none"
-        @change="handleFileSelect"
-      />
+      <div class="left-panel">
+        <ImageProcessorLeftPanel
+          :current-device-id="currentDeviceId"
+          :screenshot-loading="screenshotLoading"
+          :selection-enabled="selectionEnabled"
+          :selectionInfo="selectionInfo"
+          :has-image="!!currentImage"
+          @load-image="handleLoadImage"
+          @open-device-dialog="openDeviceDialog"
+          @capture-screenshot="captureScreenshot"
+          @toggle-selection="toggleSelectionMode"
+          @fit-to-window="fitToWindow"
+          @reset-zoom="resetZoom"
+          @save-image="handleSaveImage"
+          @crop-image="handleCropImage"
+          @copy-selection="handleCopySelection"
+        />
+        <!-- 隐藏的文件选择框，供“载入图片”按钮触发 -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="image/*"
+          multiple
+          style="display: none"
+          @change="handleFileSelect"
+        />
+      </div>
 
       <!-- 中间：图片显示区域 -->
       <div class="center-panel">
@@ -2330,7 +2332,7 @@ onUnmounted(() => {
 <style scoped>
 /* ===== 固定尺寸 ===== */
 /* 1440 x 960 窗口, 标题栏40px + 导航栏38px = 78px, 内容区 882px */
-/* 左160px | 中820px | 右460px = 1440px */
+/* 左220px | 中760px | 右460px = 1440px */
 
 .image-processor-tab {
   width: 1440px;
@@ -2346,11 +2348,21 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* ===== 左侧面板 ===== */
+.left-panel {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  height: 882px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 /* ===== 中间面板 ===== */
 .center-panel {
-  width: 820px;
-  min-width: 820px;
-  max-width: 820px;
+  width: 760px;
+  min-width: 760px;
+  max-width: 760px;
   height: 882px;
   display: flex;
   flex-direction: column;

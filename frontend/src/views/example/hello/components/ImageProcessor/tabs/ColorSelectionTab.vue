@@ -7,8 +7,8 @@
         height="195"
         size="small"
         empty-text="点击图片选取颜色"
-        :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }"
-        :cell-style="{ fontSize: '12px', padding: '4px 0' }"
+        :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontSize: '16px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }"
+        :cell-style="{ fontSize: '16px', padding: '8px 0' }"
         :row-style="{ transition: 'background 0.15s' }"
       >
         <el-table-column label="HEX" width="84">
@@ -94,7 +94,7 @@
           type="success"
           size="small"
           @click="handleAddFontLibrary"
-          :disabled="!fontNameInput || !processedImageUrl || !tableRows.length || !hasFontLibraryFile"
+          :disabled="!fontNameInput || !processedImageUrl"
           class="add-font-btn"
         >
           加入字库
@@ -601,6 +601,7 @@ defineExpose({
   flex-direction: column;
   height: 100%;
   gap: 0;
+  font-size: 16px;
 }
 
 .color-table-wrap {
@@ -610,6 +611,7 @@ defineExpose({
 /* 去除表格外边框 */
 .color-table-wrap :deep(.el-table) {
   --el-table-border-color: #e8ecf1;
+  font-size: 16px;
 }
 
 .color-table-wrap :deep(.el-table td.el-table__cell),
@@ -636,7 +638,7 @@ defineExpose({
 }
 
 .table-count {
-  font-size: 10px;
+  font-size: 16px;
   color: #94a3b8;
   font-weight: 500;
 }
@@ -645,7 +647,7 @@ defineExpose({
   padding: 2px 6px;
   border-radius: 4px;
   font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 600;
   text-align: center;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
@@ -664,7 +666,7 @@ defineExpose({
 
 .slider-value {
   font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
-  font-size: 10px;
+  font-size: 16px;
   color: #94a3b8;
   min-width: 20px;
   text-align: right;
@@ -701,8 +703,16 @@ defineExpose({
   height: 100%;
   width: 100%;
   color: #475569;
-  font-size: 11px;
+  font-size: 16px;
   letter-spacing: 0.3px;
+}
+
+.color-selection-container :deep(.el-input__inner),
+.color-selection-container :deep(.el-input-group__append),
+.color-selection-container :deep(.el-button),
+.color-selection-container :deep(.el-slider__runway),
+.color-selection-container :deep(.el-slider__button) {
+  font-size: 16px;
 }
 
 .font-library-section {
