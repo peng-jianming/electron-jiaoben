@@ -54,12 +54,12 @@ class 动作管理器类:
             return self._截图上下文.获取截图()
         return self.控制器.截图到内存()
 
-    def 查找(self):
+    def 查找(self, reload=False):
         """执行查找"""
         if not self.查找字符串:
             return self
 
-        截图 = self._获取截图()
+        截图 =  self._获取截图() if not reload else self.控制器.截图到内存()
         self.x = 0
         self.y = 0
         self.w = 0
@@ -88,18 +88,21 @@ class 动作管理器类:
                     self.h = 结果["目标高"]
         return self
 
-    def 滑动查找(self, 次数):
+    def 滑动查找(self, 次数 = 5):
+        # 滑动查找,找到则提前退出,没找到则找满次数
         # 正向滑动对应次数
         for _ in range(次数):
-            if self.查找().是否找到():
+            if self.查找(True).是否找到():
                 return self
             self.控制器.拟人滑动_区域(self.滑动查找区域[0], self.滑动查找区域[1])
+            time.sleep(random.uniform(0.3, 0.6))
 
         # 反向滑动对应次数（起点和终点交换）
         for _ in range(次数):
-            if self.查找().是否找到():
+            if self.查找(True).是否找到():
                 return self
             self.控制器.拟人滑动_区域(self.滑动查找区域[1], self.滑动查找区域[0])
+            time.sleep(random.uniform(0.3, 0.6))
         # 最后没找到直接退出
         return self
 
@@ -173,12 +176,12 @@ class 动作管理器类:
             return "固定点击_" + str(self.固定点击区域)
         return None
 
-    def 找到则点击(self, 延时=(1, 3), 日志=None) -> bool:
+    def 找到则点击(self, 延时=(1, 3), 日志=None, 次数=5) -> bool:
         """
         简化API：查找目标，如果找到则点击并延时。
         8 秒内对同一目标不重复点击（由设备控制器统一判断，同一时间只记录一个目标）。
         """
-        self.查找()
+        self.查找() if self.滑动查找区域 is None else self.滑动查找(次数)
         if self.是否找到():
             目标标识 = self._获取目标标识()
             if not self.控制器.是否允许操作(目标标识):

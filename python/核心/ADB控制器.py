@@ -478,5 +478,5 @@ class ADB控制器类:
             raw_end_y = start_y + self._随机区间位置(-max_deviation, max_deviation)
             end_y = max(ey, min(ey + eh, raw_end_y))
 
-        print(f"拟人滑动_区域: start=({start_x},{start_y}) end=({end_x},{end_y}) 竖直为主={竖直为主}")
+        # print(f"拟人滑动_区域: start=({start_x},{start_y}) end=({end_x},{end_y}) 竖直为主={竖直为主}")
         return self.拟人滑动(start_x, start_y, end_x, end_y)
