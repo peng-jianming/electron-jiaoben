@@ -254,3 +254,229 @@ class ADB控制器类:
     def 执行Shell命令(self, 命令):
         """执行自定义 ADB shell 命令"""
         return self._执行命令(f"{self._命令前缀} shell {命令}")
+
+    # ====================== 拟人化滑动相关 ======================
+
+    def _生成贝塞尔曲线(self, qx, qy, zx, zy):
+        """
+        生成从 (qx, qy) 到 (zx, zy) 的三次贝塞尔曲线轨迹点
+        参考 JS 版本的 获取贝塞尔曲线 实现
+        """
+        def 三次贝塞尔曲线计算(cp, t):
+            # X 轴
+            cx = 3.0 * (cp[1]["x"] - cp[0]["x"])
+            bx = 3.0 * (cp[2]["x"] - cp[1]["x"]) - cx
+            ax = cp[3]["x"] - cp[0]["x"] - cx - bx
+
+            # Y 轴
+            cy = 3.0 * (cp[1]["y"] - cp[0]["y"])
+            by = 3.0 * (cp[2]["y"] - cp[1]["y"]) - cy
+            ay = cp[3]["y"] - cp[0]["y"] - cy - by
+
+            t_squared = t * t
+            t_cubed = t_squared * t
+
+            return {
+                "x": (ax * t_cubed) + (bx * t_squared) + (cx * t) + cp[0]["x"],
+                "y": (ay * t_cubed) + (by * t_squared) + (cy * t) + cp[0]["y"],
+            }
+
+        # 4 个控制点：起点、两个随机控制点、终点
+        control_points = [
+            {"x": qx, "y": qy},
+            {
+                "x": qx + (random.random() * 240 - 120),
+                "y": qy + random.random() * 100,
+            },
+            {
+                "x": zx + (random.random() * 240 - 120),
+                "y": zy + (random.random() * 200 - 100),
+            },
+            {"x": zx, "y": zy},
+        ]
+
+        points = []
+        # 步长 0.15，轨迹点数量与 JS 版本一致
+        t = 0.0
+        while t <= 1.0 + 1e-6:
+            point = 三次贝塞尔曲线计算(control_points, t)
+            points.append((int(point["x"]), int(point["y"])))
+            t += 0.15
+
+        return points
+
+    def _生成人类延时模式(self, 点数, 总时间毫秒=None):
+        """
+        生成拟人化的滑动时间间隔序列（秒）
+        模仿“开始稍慢 - 中间较快 - 结束再慢”的手指滑动节奏
+        """
+        if 点数 <= 0:
+            return []
+
+        if 总时间毫秒 is None:
+            总时间毫秒 = 300 + random.random() * 200  # 300-500ms
+
+        基础间隔 = 总时间毫秒 / 点数
+        模式 = []
+
+        for i in range(点数):
+            进度 = i / 点数
+
+            if 进度 < 0.2:
+                # 开始阶段：稍慢
+                延时倍数 = 0.8 + random.random() * 0.2
+            elif 进度 > 0.8:
+                # 结束阶段：变慢
+                延时倍数 = 1.0 + random.random() * 0.3
+            else:
+                # 中间阶段：更快
+                延时倍数 = 0.4 + random.random() * 0.3
+
+            # 随机波动
+            延时倍数 += (random.random() - 0.5) * 0.2
+            延时倍数 = max(0.25, 延时倍数)
+
+            间隔秒 = (基础间隔 * 延时倍数) / 1000.0
+            模式.append(间隔秒)
+
+        return 模式
+
+    def 拟人滑动(self, x1, y1, x2, y2):
+        """
+        拟人化滑动：使用 motionevent + 贝塞尔曲线 + 随机延时
+        参考 JS 中的 ADB滑动 / 随机ADB滑动 实现，更接近真实手指操作
+        """
+        # 生成轨迹点
+        points = self._生成贝塞尔曲线(x1, y1, x2, y2)
+        if len(points) < 2:
+            print("拟人滑动失败：轨迹点数量不足")
+            return False
+
+        # 为每个移动点生成延时（不包含起点）
+        延时模式 = self._生成人类延时模式(len(points) - 1)
+
+        try:
+            # 按下起点
+            start_x, start_y = points[0]
+            成功, 输出 = self._执行命令(
+                f"{self._命令前缀} shell input motionevent DOWN {start_x} {start_y}"
+            )
+            if not 成功:
+                print(f"拟人滑动按下失败: {输出}")
+                return False
+
+            # 初始轻微延时
+            time.sleep(0.01 + random.random() * 0.01)
+
+            # 中间移动点
+            for i in range(1, len(points) - 1):
+                px, py = points[i]
+                成功, 输出 = self._执行命令(
+                    f"{self._命令前缀} shell input motionevent MOVE {px} {py}"
+                )
+                if not 成功:
+                    print(f"拟人滑动移动失败: {输出}")
+                    # 不中断整个滑动，继续尝试后续点
+                # 使用对应的延时时间（第 i-1 个）
+                延时 = 延时模式[i - 1] if i - 1 < len(延时模式) else 0.01
+                time.sleep(max(0.005, 延时))
+
+            # 移动到终点
+            end_x, end_y = points[-1]
+            成功, 输出 = self._执行命令(
+                f"{self._命令前缀} shell input motionevent MOVE {end_x} {end_y}"
+            )
+            if not 成功:
+                print(f"拟人滑动终点移动失败: {输出}")
+
+            # 抬起前的微小停顿
+            time.sleep(0.02 + random.random() * 0.02)
+
+            成功, 输出 = self._执行命令(
+                f"{self._命令前缀} shell input motionevent UP {end_x} {end_y}"
+            )
+            if not 成功:
+                print(f"拟人滑动抬起失败: {输出}")
+                return False
+
+            return True
+        except Exception as e:
+            print(f"拟人滑动过程中出错: {e}")
+            return False
+
+    # ====================== 区域版拟人滑动 ======================
+
+    def _随机区间位置(self, start, end):
+        """返回 [start, end] 间的随机整数"""
+        if start > end:
+            start, end = end, start
+        return random.randint(int(start), int(end))
+
+    def _随机坐标(self, x, y, 宽, 高):
+        """在给定矩形区域内返回一个随机坐标"""
+        return (
+            self._随机区间位置(x, x + 宽),
+            self._随机区间位置(y, y + 高),
+        )
+
+    def 拟人滑动_区域(self, 起始区域, 结束区域):
+        """
+        使用起始 / 结束“区域”进行拟人滑动。
+
+        逻辑：
+        - 起点：在起始区域内完全随机
+        - 终点：在“主方向”上随机（由两个区域的大致位置决定），
+                在“非主方向”上仅在起点附近做小幅偏移，避免出现左右大位移变成横向滑动。
+
+        参数格式（只接受数组/列表或元组）：
+            起始区域、结束区域: [x, y, width, height] 或 (x, y, width, height)
+        """
+
+        def 解析区域(region):
+            # 强制为长度为 4 的序列 [x, y, w, h]
+            if not isinstance(region, (list, tuple)) or len(region) != 4:
+                raise ValueError("区域必须是长度为 4 的数组/列表/元组：[x, y, width, height]")
+            x, y, w, h = region
+            return float(x), float(y), float(w), float(h)
+
+        try:
+            sx, sy, sw, sh = 解析区域(起始区域)
+            ex, ey, ew, eh = 解析区域(结束区域)
+        except Exception as e:
+            print(f"拟人滑动_区域 参数解析失败: {e}")
+            return False
+
+        # 先随机起点
+        start_x, start_y = self._随机坐标(sx, sy, sw, sh)
+
+        # 根据两个区域中心的相对位置，自动判断主方向（竖直 / 水平）
+        start_cx, start_cy = sx + sw / 2.0, sy + sh / 2.0
+        end_cx, end_cy = ex + ew / 2.0, ey + eh / 2.0
+        dx = end_cx - start_cx
+        dy = end_cy - start_cy
+
+        # True 表示“上下滑”为主方向；False 表示“左右滑”为主方向
+        竖直为主 = abs(dy) >= abs(dx)
+
+        # 非主方向的最大偏移量：越小越“直”，越大越“歪”
+        max_deviation = 30
+
+        if 竖直为主:
+            # === 上下滑动 ===
+            # 主方向：Y —— 终点 Y 在结束区域内完全随机
+            end_y = self._随机区间位置(ey, ey + eh)
+
+            # 非主方向：X —— 终点 X 在起点附近做小范围浮动，再 clamp 到结束区域内
+            raw_end_x = start_x + self._随机区间位置(-max_deviation, max_deviation)
+            end_x = max(ex, min(ex + ew, raw_end_x))
+        else:
+            # === 左右滑动 ===
+            # 主方向：X —— 终点 X 在结束区域内完全随机
+            end_x = self._随机区间位置(ex, ex + ew)
+
+            # 非主方向：Y —— 终点 Y 在起点附近做小范围浮动，再 clamp 到结束区域内
+            raw_end_y = start_y + self._随机区间位置(-max_deviation, max_deviation)
+            end_y = max(ey, min(ey + eh, raw_end_y))
+
+        print(f"拟人滑动_区域: start=({start_x},{start_y}) end=({end_x},{end_y}) 竖直为主={竖直为主}")
+        return self.拟人滑动(start_x, start_y, end_x, end_y)

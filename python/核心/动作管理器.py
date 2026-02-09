@@ -33,6 +33,7 @@ class 动作管理器类:
         self.偏移点击区域 = 配置.get("偏移点击区域")
         self.点击区域 = 配置.get("点击区域")
         self.固定点击区域 = 配置.get("固定点击区域")
+        self.滑动查找区域 = 配置.get("滑动查找区域")
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
@@ -85,6 +86,21 @@ class 动作管理器类:
                     self.y = 结果["目标y"]
                     self.w = 结果["目标宽"]
                     self.h = 结果["目标高"]
+        return self
+
+    def 滑动查找(self, 次数):
+        # 正向滑动对应次数
+        for _ in range(次数):
+            if self.查找().是否找到():
+                return self
+            self.控制器.拟人滑动_区域(self.滑动查找区域[0], self.滑动查找区域[1])
+
+        # 反向滑动对应次数（起点和终点交换）
+        for _ in range(次数):
+            if self.查找().是否找到():
+                return self
+            self.控制器.拟人滑动_区域(self.滑动查找区域[1], self.滑动查找区域[0])
+        # 最后没找到直接退出
         return self
 
     def 点击(self, x=None, y=None, w=None, h=None):
