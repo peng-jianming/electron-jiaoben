@@ -716,11 +716,17 @@ const loadFontLibraryFile = async (filePath) => {
     }
 };
 
+// 获取当前选择的字库文件路径（供识字测试等使用）
+const getFontLibraryPath = () => {
+    return selectedFilePath.value || formData.value.fontLibraryPath || "";
+};
+
 // 暴露方法供父组件调用
 defineExpose({
     addFontLibraryItem,
     hasSelectedFile,
-    getFontLibraryList
+    getFontLibraryList,
+    getFontLibraryPath
 });
 
 // 组件挂载时加载保存的字库路径

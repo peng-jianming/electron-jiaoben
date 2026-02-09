@@ -67,6 +67,15 @@ class ExampleController {
         }
         return { success: true, message: '字库匹配结果已发送' };
       }
+
+      // 字库识字结果事件
+      if (prop === 'font-library-ocr-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('font-library-ocr-result', imageData);
+        }
+        return { success: true, message: '字库识字结果已发送' };
+      }
       
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {

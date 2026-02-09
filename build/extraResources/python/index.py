@@ -8,7 +8,7 @@ import traceback
 import threading
 from collections import deque
 import tempfile
-from matchImg import opencv字库找图
+from matchImg import opencv字库找图, opencv字库识字
 
 # Socket.IO 客户端实例
 _client = None
@@ -579,6 +579,7 @@ def init_client(url="http://127.0.0.1:7070"):
                 "set_device": 设置当前设备,
                 "capture_screenshot": 截图当前设备,
                 "font_library_match": 字库匹配,
+                "font_library_ocr": 字库识字,
             }
             
             handler = handlers.get(data.get("type"))
@@ -816,6 +817,19 @@ def 发送字库匹配结果(result=None, result_image_bytes=None, error=None):
     print("发送字库匹配结果 - 已调用send_to_electron")
 
 
+def 发送字库识字结果(text=None, error=None):
+    """向 Electron 发送字库识字结果"""
+    message = {"success": error is None}
+    if error:
+        message["error"] = error
+    else:
+        message["text"] = text if text is not None else ""
+    send_to_electron(
+        prop="font-library-ocr-result",
+        message=message,
+        wait_response=False,
+    )
+
 
 def 字库匹配(data):
     """字库匹配处理函数"""
@@ -945,6 +959,79 @@ def 字库匹配(data):
     except Exception as e:
         traceback.print_exc()
         发送字库匹配结果(error=str(e))
+
+
+def 字库识字(data):
+    """字库识字处理：用字库文件在大图上识别文字，返回识别到的字符串"""
+    try:
+        font_library_path = data.get("fontLibraryPath")  # 字库文件路径（字库 tab 选择的）
+        large_image_base64 = data.get("largeImage")
+        region = data.get("region")  # {x, y, w, h} 或 None
+        similarity = data.get("similarity", 0.8)
+        char_spacing = data.get("charSpacing")  # 文字间隔：数字或 [水平, 垂直]，不传/空为无间隔
+
+        if not font_library_path or not font_library_path.strip():
+            发送字库识字结果(error="请先在字库标签页选择字库文件")
+            return
+        if not os.path.isfile(font_library_path):
+            发送字库识字结果(error=f"字库文件不存在: {font_library_path}")
+            return
+
+        large_image_path = None
+        if not large_image_base64:
+            if not _current_device_id:
+                发送字库识字结果(error="未选择设备，请上传大图或连接设备后截图")
+                return
+            controller = ADBController(device_id=_current_device_id)
+            large_image_bytes = controller.截图到内存()
+            if not large_image_bytes:
+                发送字库识字结果(error="自动截图失败")
+                return
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                f.write(large_image_bytes)
+                large_image_path = f.name
+        else:
+            large_image_bytes = base64.b64decode(large_image_base64)
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                f.write(large_image_bytes)
+                large_image_path = f.name
+
+        try:
+            region_tuple = (0, 0, 0, 0)
+            if region:
+                region_tuple = (
+                    region.get("x", 0), region.get("y", 0),
+                    region.get("w", 0), region.get("h", 0)
+                )
+            # 文字间隔：前端传数字或 "水平,垂直"，不传/空为 None（无间隔）
+            text_interval = None
+            if char_spacing is not None and char_spacing != "":
+                if isinstance(char_spacing, (list, tuple)):
+                    text_interval = [int(char_spacing[0]) if len(char_spacing) >= 1 else 0,
+                                     int(char_spacing[1]) if len(char_spacing) >= 2 else int(char_spacing[0])]
+                else:
+                    try:
+                        text_interval = int(char_spacing)
+                    except (TypeError, ValueError):
+                        pass
+
+            result_text = opencv字库识字(
+                识别图片=large_image_path,
+                字库路径=font_library_path.strip(),
+                识别区域=region_tuple,
+                相似度=float(similarity),
+                文字间隔=text_interval
+            )
+            print(result_text, "--------------")
+            发送字库识字结果(text=result_text)
+        finally:
+            try:
+                os.unlink(large_image_path)
+            except Exception:
+                pass
+    except Exception as e:
+        traceback.print_exc()
+        发送字库识字结果(error=str(e))
 
 
 #================================================================

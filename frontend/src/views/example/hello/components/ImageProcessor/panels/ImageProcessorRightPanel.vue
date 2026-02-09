@@ -43,7 +43,10 @@
         />
       </el-tab-pane>
       <el-tab-pane label="识字测试">
-      
+        <FontLibraryOcrTest
+          :current-device-id="currentDeviceId"
+          :font-library-path="fontLibraryPath"
+        />
       </el-tab-pane>
       <!-- <el-tab-pane label="颜色记录" name="color-record">
         <ColorRecordList 
@@ -95,6 +98,7 @@ import CodeGeneratorTab from "../tabs/CodeGeneratorTab.vue";
 import ColorRecordList from "../lists/ColorRecordList.vue";
 import FontLibraryTab from "../tabs/FontLibraryTab.vue";
 import FontLibraryMatchDebug from "../tabs/FontLibraryMatchDebug.vue";
+import FontLibraryOcrTest from "../tabs/FontLibraryOcrTest.vue";
 const props = defineProps({
   magnifierVisible: {
     type: Boolean,
@@ -194,6 +198,14 @@ const fontLibraryList = computed(() => {
     return fontLibraryTabRef.value.getFontLibraryList?.() || [];
   }
   return [];
+});
+
+// 获取字库路径（字库 tab 中选择的字库文件路径，供识字测试使用）
+const fontLibraryPath = computed(() => {
+  if (fontLibraryTabRef.value) {
+    return fontLibraryTabRef.value.getFontLibraryPath?.() || "";
+  }
+  return "";
 });
 
 // 获取处理后的图片 URL（从 ColorSelectionTab 组件）
