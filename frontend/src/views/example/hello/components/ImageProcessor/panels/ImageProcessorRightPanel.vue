@@ -36,11 +36,14 @@
       <el-tab-pane label="字库">
         <FontLibraryTab ref="fontLibraryTabRef" />
       </el-tab-pane>
-      <el-tab-pane label="调试">
+      <el-tab-pane label="找字测试">
         <FontLibraryMatchDebug
           :current-device-id="currentDeviceId"
           :font-library-list="fontLibraryList"
         />
+      </el-tab-pane>
+      <el-tab-pane label="识字测试">
+      
       </el-tab-pane>
       <!-- <el-tab-pane label="颜色记录" name="color-record">
         <ColorRecordList 

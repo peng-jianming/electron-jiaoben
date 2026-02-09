@@ -8,7 +8,7 @@ import traceback
 import threading
 from collections import deque
 import tempfile
-from matchImg import 找图, opencv字库找图
+from matchImg import opencv字库找图
 
 # Socket.IO 客户端实例
 _client = None
@@ -578,7 +578,6 @@ def init_client(url="http://127.0.0.1:7070"):
                 "get_devices": 获取设备列表,
                 "set_device": 设置当前设备,
                 "capture_screenshot": 截图当前设备,
-                "image_match": 图片匹配,
                 "font_library_match": 字库匹配,
             }
             
@@ -816,137 +815,6 @@ def 发送字库匹配结果(result=None, result_image_bytes=None, error=None):
     )
     print("发送字库匹配结果 - 已调用send_to_electron")
 
-
-def 图片匹配(data):
-    """图片匹配处理函数"""
-    try:
-        small_image_base64 = data.get("smallImage")
-        large_image_base64 = data.get("largeImage")  # 可能为 None，需要自动截图
-        region = data.get("region")  # {x, y, w, h} 或 None
-        color_tolerance = data.get("colorTolerance")  # 字符串数组或 None
-        
-        # 检查小图（必须提供）
-        if not small_image_base64:
-            发送图片匹配结果(error="缺少小图数据")
-            return
-        
-        # 处理大图：如果没有提供，则自动截图
-        large_image_path = None
-        if not large_image_base64:
-            # 需要自动截图
-            if not _current_device_id:
-                发送图片匹配结果(error="未选择设备，无法自动截图")
-                return
-            
-            print(f"未提供大图，自动截图设备: {_current_device_id}")
-            controller = ADBController(device_id=_current_device_id)
-            large_image_bytes = controller.截图到内存()
-            if not large_image_bytes:
-                发送图片匹配结果(error="自动截图失败")
-                return
-            
-            # 将截图保存为临时文件
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as large_file:
-                large_file.write(large_image_bytes)
-                large_image_path = large_file.name
-            print(f"截图已保存到临时文件: {large_image_path}")
-        else:
-            # 将 base64 转换为临时文件
-            large_image_bytes = base64.b64decode(large_image_base64)
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as large_file:
-                large_file.write(large_image_bytes)
-                large_image_path = large_file.name
-        
-        # 将小图 base64 转换为临时文件
-        small_image_bytes = base64.b64decode(small_image_base64)
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as small_file:
-            small_file.write(small_image_bytes)
-            small_image_path = small_file.name
-        
-        try:
-            # 解析区域参数
-            region_tuple = (0, 0, 0, 0)  # 默认全图
-            if region:
-                region_tuple = (region.get("x", 0), region.get("y", 0), 
-                              region.get("w", 0), region.get("h", 0))
-            
-            # 调用找图函数
-            result = 找图(
-                large_image_path=large_image_path,
-                small_image_path=small_image_path,
-                region=region_tuple,
-                color_tolerance=color_tolerance
-            )
-            
-            if result is None:
-                发送图片匹配结果(error="未找到匹配位置")
-                return
-            
-            # 读取大图用于绘制结果
-            large_image = cv2.imread(large_image_path)
-            if large_image is None:
-                发送图片匹配结果(error="无法读取大图")
-                return
-            
-            # 在结果图片上绘制匹配位置
-            result_image = large_image.copy()
-            
-            # 绘制矩形框
-            x = result["x"]
-            y = result["y"]
-            w = result["w"]
-            h = result["h"]
-            cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            
-            # 绘制相似度文本
-            similarity_text = f"Similarity: {result['similarity']:.4f}"
-            text_x = x
-            text_y = max(y - 10, 20)
-            
-            # 绘制文本背景
-            (text_width, text_height), baseline = cv2.getTextSize(
-                similarity_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
-            )
-            cv2.rectangle(
-                result_image,
-                (text_x - 5, text_y - text_height - 5),
-                (text_x + text_width + 5, text_y + baseline + 5),
-                (0, 255, 0),
-                -1
-            )
-            
-            # 绘制文本
-            cv2.putText(
-                result_image,
-                similarity_text,
-                (text_x, text_y),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 0, 0),
-                2
-            )
-            
-            # 将结果图片编码为 PNG
-            _, result_buffer = cv2.imencode(".png", result_image)
-            result_image_bytes = result_buffer.tobytes()
-            
-            # 发送结果
-            发送图片匹配结果(result=result, result_image_bytes=result_image_bytes)
-            
-        finally:
-            # 清理临时文件
-            try:
-                os.unlink(small_image_path)
-            except:
-                pass
-            try:
-                os.unlink(large_image_path)
-            except:
-                pass
-            
-    except Exception as e:
-        traceback.print_exc()
-        发送图片匹配结果(error=str(e))
 
 
 def 字库匹配(data):
