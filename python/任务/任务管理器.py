@@ -5,7 +5,7 @@
 import threading
 import time
 
-from 核心.设备控制器 import 设备控制器类
+from core.设备控制器 import 设备控制器类
 
 
 class 任务管理器类:

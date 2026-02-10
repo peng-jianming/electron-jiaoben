@@ -10,6 +10,7 @@ from PIL import Image
 
 from .设备控制器 import 设备控制器类
 from .截图管理器 import 截图管理器类
+from .识字管理器 import 识字管理器类
 from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 配置.设置 import (
@@ -25,6 +26,7 @@ class 任务执行器类:
 
         self.控制器 = 设备控制器类(设备ID)
         self._截图上下文 = 截图管理器类(self.控制器)
+        self.识字管理器 = 识字管理器类(self._截图上下文)
         self.字库缓存 = {}
         self.加载字库文件(字库文件路径)
         self._模型 = None

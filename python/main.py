@@ -7,7 +7,7 @@ import socketio
 import time
 from 任务 import 获取任务管理器
 from 配置.设置 import 服务器地址
-from 核心.ADB控制器 import ADB控制器类
+from core.ADB控制器 import ADB控制器类
 from 任务.任务管理器 import 发现所有任务模块
 
 
@@ -157,6 +157,7 @@ def 初始化客户端(url=None):
     if not _客户端.connected:
         try:
             _客户端.connect(url)
+            发送到Electron("connect-success", "连接成功")
             print(f"Socket.IO 客户端已连接到: {url}")
         except Exception as e:
             print(f"Socket.IO 连接失败: {e}")

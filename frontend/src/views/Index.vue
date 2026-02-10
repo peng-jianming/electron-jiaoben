@@ -38,8 +38,8 @@
         <!-- 底部状态指示 -->
         <div class="sidebar-footer">
           <div class="status-indicator">
-            <span class="status-dot" :class="{ online: isConnected }"></span>
-            <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
+            <span class="status-dot" :class="{ online: isConnected && backendConnected }"></span>
+            <span class="status-text">{{ isConnected && backendConnected ? '已连接' : '未连接' }}</span>
           </div>
         </div>
       </aside>
@@ -85,6 +85,7 @@
               v-show="currentTab === 'task'"
               :task-list="taskList"
               v-model="taskSelectValue"
+              @reload="handleGetTaskList"
               class="task-select-full"
             />
             <Account
@@ -114,6 +115,7 @@ import { io } from "socket.io-client";
 
 const currentTab = ref("device");
 const isConnected = ref(false);
+const backendConnected = ref(false);
 const deviceList = ref([]);
 const taskList = ref([]);
 
@@ -225,12 +227,18 @@ function initMatchSocket() {
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
       isConnected.value = true;
-      resolve();
     });
 
     matchSocket.on("disconnect", () => {
       console.log("匹配 Socket 断开连接");
       isConnected.value = false;
+    });
+
+    // 后端已经连接成功
+    matchSocket.on("connect-success", (data) => {
+      backendConnected.value = true;
+      handleGetDeviceList();
+      handleGetTaskList();
     });
 
     // 接收设备列表
@@ -247,7 +255,6 @@ function initMatchSocket() {
           已暂停: false,
         };
       });
-      resolve();
     });
 
     // 接收任务列表
@@ -261,6 +268,7 @@ function initMatchSocket() {
     matchSocket.on("device-status-update", (data) => {
       console.log("收到设备状态更新:", data);
       updateDeviceStatus(data);
+      resolve();
     });
   });
 }
@@ -385,8 +393,6 @@ watch(
 
 onMounted(async () => {
   await initMatchSocket();
-  handleGetDeviceList();
-  handleGetTaskList();
   loadAccountList();
   loadTaskConfig();
 });

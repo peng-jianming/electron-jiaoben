@@ -1,4 +1,4 @@
-from 核心 import 任务执行器类
+from core import 任务执行器类
 import random
 
 

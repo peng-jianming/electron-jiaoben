@@ -1,4 +1,4 @@
-from 核心 import 任务执行器类
+from core import 任务执行器类
 
 def 创建任务(设备ID):
     任务执行器 = 任务执行器类(设备ID)

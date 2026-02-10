@@ -8,6 +8,7 @@
           <span class="column-title">
             <i class="column-icon">📋</i>
             可用任务
+            <el-icon @click="emit('reload')"><Refresh /></el-icon>
           </span>
           <span class="column-badge">{{ taskList.length }}</span>
         </div>
@@ -156,7 +157,7 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
-
+import { Refresh } from "@element-plus/icons-vue";
 const props = defineProps({
   taskList: {
     type: Array,
@@ -168,7 +169,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:modelValue", "reload"]);
 
 /**
  * 各任务的配置项 schema
@@ -337,6 +338,7 @@ function setConfigValue(itemId, key, value) {
   taskConfig.value = next;
   syncToParent();
 }
+
 </script>
 
 <style scoped lang="less">
