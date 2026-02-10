@@ -90,6 +90,12 @@
           size="small"
           clearable
         />
+        <el-checkbox
+          v-model="enableAutoCrop"
+          size="small"
+          label="是否裁剪"
+          border
+        />
         <el-button
           type="success"
           size="small"
@@ -142,6 +148,8 @@ const rowDeviations = ref([]);
 
 const processedImageUrl = ref(null);
 const lastRenderedImageUrl = ref(null);
+// 是否对二值化结果进行最小内容裁剪（默认开启）
+const enableAutoCrop = ref(true);
 const fontClickOffsetAreaInput = ref("");
 const fontNameInput = ref("");
 
@@ -502,14 +510,30 @@ const handleAddFontLibrary = async () => {
             return;
           }
 
-          // 计算最小宽高
-          const width = maxX - minX + 1;
-          const height = maxY - minY + 1;
+          // 根据是否勾选「是否裁剪」来决定裁剪范围
+          let cropMinX, cropMinY, cropMaxX, cropMaxY;
+          if (enableAutoCrop.value) {
+            // 勾选时：使用最小内容区域
+            cropMinX = minX;
+            cropMinY = minY;
+            cropMaxX = maxX;
+            cropMaxY = maxY;
+          } else {
+            // 取消勾选时：不裁剪，保留整张图
+            cropMinX = 0;
+            cropMinY = 0;
+            cropMaxX = img.width - 1;
+            cropMaxY = img.height - 1;
+          }
 
-          // 提取最小区域的像素数据
+          // 计算宽高
+          const width = cropMaxX - cropMinX + 1;
+          const height = cropMaxY - cropMinY + 1;
+
+          // 提取区域的像素数据（根据是否裁剪后的范围）
           const binaryData = [];
-          for (let y = minY; y <= maxY; y++) {
-            for (let x = minX; x <= maxX; x++) {
+          for (let y = cropMinY; y <= cropMaxY; y++) {
+            for (let x = cropMinX; x <= cropMaxX; x++) {
               const idx = (y * img.width + x) * 4;
               const r = data[idx];
               const g = data[idx + 1];
