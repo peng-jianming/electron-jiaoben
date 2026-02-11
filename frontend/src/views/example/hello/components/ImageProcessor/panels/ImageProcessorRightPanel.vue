@@ -48,6 +48,17 @@
           :font-library-path="fontLibraryPath"
         />
       </el-tab-pane>
+      <el-tab-pane label="配置" name="config">
+        <ConfigTab
+          :current-image="currentImage"
+          :selection-rect="selectionRect"
+          ref="configTabRef"
+          @start-code-generator-selection="
+            (type) => $emit('start-code-generator-selection', type)
+          "
+          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
+        />
+      </el-tab-pane>
       <!-- <el-tab-pane label="颜色记录" name="color-record">
         <ColorRecordList 
           :colors="recordedColors"
@@ -99,6 +110,7 @@ import ColorRecordList from "../lists/ColorRecordList.vue";
 import FontLibraryTab from "../tabs/FontLibraryTab.vue";
 import FontLibraryMatchDebug from "../tabs/FontLibraryMatchDebug.vue";
 import FontLibraryOcrTest from "../tabs/FontLibraryOcrTest.vue";
+import ConfigTab from "../tabs/ConfigTab.vue";
 const props = defineProps({
   magnifierVisible: {
     type: Boolean,
@@ -156,6 +168,7 @@ const colorSelectionTabRef = ref(null);
 const imageUploadTabRef = ref(null);
 const codeGeneratorTabRef = ref(null);
 const fontLibraryTabRef = ref(null);
+const configTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
@@ -369,6 +382,7 @@ defineExpose({
   },
   getCodeGeneratorTabRef: () => codeGeneratorTabRef.value,
   getColorSelectionTabRef: () => colorSelectionTabRef.value,
+  getConfigTabRef: () => configTabRef.value,
 });
 
 // 组件挂载时初始化 socket

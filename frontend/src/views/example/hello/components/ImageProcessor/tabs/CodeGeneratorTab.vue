@@ -101,9 +101,9 @@
         :expanded="false" :preview-mode="true" boxed :copyable="false" show-double-quotes
         :show-array-index="false" />
     </div> -->
-    <vue-json-viewer style="text-align: left;flex:1;overflow:auto;margin: 5px 0;" :value="generatedCode"
+    <!-- <vue-json-viewer style="text-align: left;flex:1;overflow:auto;margin: 5px 0;" :value="generatedCode"
         :expanded="false" :preview-mode="true" boxed :copyable show-double-quotes
-        :show-array-index="false" />
+        :show-array-index="false" /> -->
   </div>
 </template>
 
@@ -113,8 +113,8 @@ import { ElMessage } from "element-plus";
 import { Check, DocumentCopy } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
-import VueJsonViewer from "vue-json-viewer";
-import "vue-json-viewer/style.css";
+// import VueJsonViewer from "vue-json-viewer";
+// import "vue-json-viewer/style.css";
 const props = defineProps({
   selectedDeviations: {
     type: Array,

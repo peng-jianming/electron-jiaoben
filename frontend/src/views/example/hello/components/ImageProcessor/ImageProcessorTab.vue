@@ -564,7 +564,8 @@ function handleRightPanelScreenshotEnd() {
 // 启动代码生成器圈选模式
 function handleStartCodeGeneratorSelection(type) {
   codeGeneratorSelectionEnabled.value = true;
-  codeGeneratorSelectionType.value = type; // 'searchArea' | 'clickOffsetArea' | 'clickArea' | 'fontClickOffsetArea'
+  // type: 'searchArea' | 'clickOffsetArea' | 'clickArea' | 'fontClickOffsetArea' | 'configFontClickOffsetArea'
+  codeGeneratorSelectionType.value = type;
   codeGeneratorSelectionStart.value = null;
   codeGeneratorSelectionCurrent.value = null;
   codeGeneratorSelectionRect.value = null;
@@ -938,7 +939,7 @@ function handleMouseUp(event) {
             codeGeneratorTabRef.setSearchAreaFromSelection(rect);
           }
         }
-        // 来自偏色计算 Tab 的偏移点击区域圈选
+        // 来自偏色计算 Tab 的偏移点击区域圈选（颜色 Tab）
         else if (codeGeneratorSelectionType.value === "fontClickOffsetArea") {
           const colorSelectionTabRef = rightPanelRef.value.getColorSelectionTabRef?.();
           if (
@@ -946,6 +947,16 @@ function handleMouseUp(event) {
             typeof colorSelectionTabRef.setFontClickOffsetAreaFromSelection === "function"
           ) {
             colorSelectionTabRef.setFontClickOffsetAreaFromSelection(rect);
+          }
+        }
+        // 来自配置 Tab 的偏移点击区域圈选
+        else if (codeGeneratorSelectionType.value === "configFontClickOffsetArea") {
+          const configTabRef = rightPanelRef.value.getConfigTabRef?.();
+          if (
+            configTabRef &&
+            typeof configTabRef.setFontClickOffsetAreaFromSelection === "function"
+          ) {
+            configTabRef.setFontClickOffsetAreaFromSelection(rect);
           }
         }
       }
@@ -1610,6 +1621,12 @@ function handleImageClick(event) {
               y: naturalY,
             });
           }
+        } else if (activeRightTab.value === "config") {
+          // 如果当前在配置 tab，记录到 ConfigTab 的独立颜色列表
+          const configTabRef = rightPanelRef.value?.getConfigTabRef?.();
+          if (configTabRef?.addColor) {
+            configTabRef.addColor(currentColor.value);
+          }
         } else {
           // 默认记录到颜色记录 tab，记录坐标
           // 检查是否相同坐标点，避免重复记录
@@ -1687,6 +1704,12 @@ function handleImageClick(event) {
               x: naturalX,
               y: naturalY,
             });
+          }
+        } else if (activeRightTab.value === "config") {
+          // 如果当前在配置 tab，记录到 ConfigTab 的独立颜色列表
+          const configTabRef = rightPanelRef.value?.getConfigTabRef?.();
+          if (configTabRef?.addColor) {
+            configTabRef.addColor(currentColor.value);
           }
         } else {
           // 默认记录到颜色记录 tab，记录坐标
