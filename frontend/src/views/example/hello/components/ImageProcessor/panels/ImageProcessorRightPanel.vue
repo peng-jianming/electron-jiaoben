@@ -16,6 +16,20 @@
       v-model="activeTab"
       @tab-change="handleTabChange"
     >
+    <el-tab-pane label="配置" name="config">
+        <ConfigTab
+          :current-image="currentImage"
+          :selection-rect="selectionRect"
+          ref="configTabRef"
+          @start-code-generator-selection="
+            (type) => $emit('start-code-generator-selection', type)
+          "
+          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
+        />
+      </el-tab-pane>
+      <el-tab-pane label="字库">
+        <FontLibraryTab ref="fontLibraryTabRef" />
+      </el-tab-pane>
       <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
@@ -33,9 +47,7 @@
           ref="colorSelectionTabRef"
         />
       </el-tab-pane>
-      <el-tab-pane label="字库">
-        <FontLibraryTab ref="fontLibraryTabRef" />
-      </el-tab-pane>
+
       <el-tab-pane label="找字测试">
         <FontLibraryMatchDebug
           :current-device-id="currentDeviceId"
@@ -48,17 +60,7 @@
           :font-library-path="fontLibraryPath"
         />
       </el-tab-pane>
-      <el-tab-pane label="配置" name="config">
-        <ConfigTab
-          :current-image="currentImage"
-          :selection-rect="selectionRect"
-          ref="configTabRef"
-          @start-code-generator-selection="
-            (type) => $emit('start-code-generator-selection', type)
-          "
-          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
-        />
-      </el-tab-pane>
+
       <!-- <el-tab-pane label="颜色记录" name="color-record">
         <ColorRecordList 
           :colors="recordedColors"
@@ -179,6 +181,10 @@ let deviceSocket = null;
 const handleTabChange = (tabName) => {
   activeTab.value = tabName;
   emit("tab-change", tabName);
+  // 切换到偏色二值化 tab 时刷新配置数据，使级联选项与 ConfigTab 中最新配置一致
+  if (tabName === "deviation" && colorSelectionTabRef.value?.refreshConfig) {
+    colorSelectionTabRef.value.refreshConfig();
+  }
 };
 
 // 获取透明图 URL
@@ -396,7 +402,7 @@ const handleAddFontLibrary = async (fontItem, resolveCallback) => {
   if (fontLibraryTabRef.value) {
     const hasFile = fontLibraryTabRef.value.hasSelectedFile?.();
     if (!hasFile) {
-      ElMessage.warning("请先在字库制作标签页中选择字库文件");
+      ElMessage.warning("请先在字库标签页中选择字库 JSON 文件");
       if (resolveCallback) resolveCallback(false);
       return false;
     }

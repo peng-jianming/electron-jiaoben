@@ -2,15 +2,9 @@
   <div class="color-selection-container">
     <!-- 颜色表格 -->
     <div class="color-table-wrap">
-      <el-table
-        :data="tableRows"
-        height="195"
-        size="small"
-        empty-text="点击图片选取颜色"
+      <el-table :data="tableRows" height="195" size="small" empty-text="点击图片选取颜色"
         :header-cell-style="{ background: '#f8fafc', color: '#64748b', fontSize: '11px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }"
-        :cell-style="{ fontSize: '12px', padding: '4px 0' }"
-        :row-style="{ transition: 'background 0.15s' }"
-      >
+        :cell-style="{ fontSize: '12px', padding: '4px 0' }" :row-style="{ transition: 'background 0.15s' }">
         <el-table-column label="HEX" width="84">
           <template #default="scope">
             <div class="hex-cell" :style="{
@@ -24,13 +18,8 @@
         <el-table-column label="偏色" min-width="130">
           <template #default="scope">
             <div class="slider-cell">
-              <el-slider
-                :model-value="getRowDeviation(scope.$index)"
-                :min="0"
-                :max="100"
-                :show-tooltip="true"
-                @update:model-value="(v) => setRowDeviation(scope.$index, v)"
-              />
+              <el-slider :model-value="getRowDeviation(scope.$index)" :min="0" :max="100" :show-tooltip="true"
+                @update:model-value="(v) => setRowDeviation(scope.$index, v)" />
               <span class="slider-value">{{ getRowDeviation(scope.$index) }}</span>
             </div>
           </template>
@@ -38,14 +27,17 @@
         <el-table-column label="" width="44" fixed="right">
           <template #default="scope">
             <el-button type="danger" link size="small" @click="$emit('remove-color', scope.$index)" class="delete-btn">
-              <el-icon><Close /></el-icon>
+              <el-icon>
+                <Close />
+              </el-icon>
             </el-button>
           </template>
         </el-table-column>
       </el-table>
       <div class="table-footer">
         <span class="table-count">{{ tableRows.length }} 个颜色</span>
-        <el-button type="danger" size="small" text @click="handleClearAllColors" :disabled="!tableRows.length">清空</el-button>
+        <el-button type="danger" size="small" text @click="handleClearAllColors"
+          :disabled="!tableRows.length">清空</el-button>
       </div>
     </div>
 
@@ -55,7 +47,9 @@
         style="height: 100%; width: 100%;">
         <template #placeholder>
           <div class="result-placeholder">
-            <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px;"><Picture /></el-icon>
+            <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px;">
+              <Picture />
+            </el-icon>
             偏色二值化预览
           </div>
         </template>
@@ -65,55 +59,42 @@
     <!-- 字库操作区 -->
     <div class="font-library-section">
       <div class="font-row">
-        <el-input
-          v-model="fontClickOffsetAreaInput"
-          placeholder="偏移点击区域 x,y,w,h（可选）"
-          size="small"
-          clearable
-        >
+        <el-input v-model="fontClickOffsetAreaInput" placeholder="偏移点击区域 x,y,w,h（可选）" size="small" clearable>
           <template #append>
-            <el-button
-              :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
-              :disabled="!hasSelectionRect"
-              size="small"
-              @click="toggleFontClickOffsetAreaSelection"
-            >
+            <el-button :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'" :disabled="!hasSelectionRect"
+              size="small" @click="toggleFontClickOffsetAreaSelection">
               {{ fontClickOffsetAreaSelectionEnabled ? '取消' : '圈选' }}
             </el-button>
           </template>
         </el-input>
       </div>
       <div class="font-row">
-        <el-input
-          v-model="fontNameInput"
-          placeholder="字库名称"
-          size="small"
-          clearable
-        />
-        <el-checkbox
-          v-model="enableAutoCrop"
-          size="small"
-          label="是否裁剪"
-          border
-        />
-        <el-button
-          type="success"
-          size="small"
-          @click="handleAddFontLibrary"
-          :disabled="!fontNameInput || !processedImageUrl"
-          class="add-font-btn"
-        >
-          加入字库
-        </el-button>
+        <el-cascader style="width:100%" :key="cascaderOptionsKey"  clearable :props="cascaderProps" v-model="selectedCascader"
+           size="small" placeholder="请选择点阵名字" />
+      </div>
+      <div class="font-row ">
+       
+        <el-input  v-model="fontNameInput" placeholder="点阵名称" size="small" clearable />
+        <el-checkbox v-model="enableAutoCrop" size="small" label="是否裁剪" border />
+        <el-tooltip content="请先在「字库」标签页选择字库 JSON 文件" :disabled="hasFontLibraryFile" placement="top">
+          <span style="display: inline-block;">
+            <el-button type="success" size="small" @click="handleAddFontLibrary"
+              :disabled="(!fontNameInput && !(selectedCascader && selectedCascader.length)) || !processedImageUrl || !hasFontLibraryFile" class="add-font-btn">
+              加入字库
+            </el-button>
+          </span>
+        </el-tooltip>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { Close, Picture } from "@element-plus/icons-vue";
+import { ipc } from "@/utils/ipcRenderer";
+import { ipcApiRoute } from "@/api";
 
 const props = defineProps({
   currentSelectedColors: {
@@ -152,6 +133,102 @@ const lastRenderedImageUrl = ref(null);
 const enableAutoCrop = ref(true);
 const fontClickOffsetAreaInput = ref("");
 const fontNameInput = ref("");
+
+// 与 ConfigTab 一致的级联选择：配置数据与选项
+const configData = ref({});
+const configPathRef = ref(""); // 保存配置路径，用于切换 tab 时重新拉取
+const cascaderOptionsKey = computed(() =>
+  JSON.stringify(Object.keys(configData.value || {}).sort())
+);
+const cascaderProps = {
+  lazy: true,
+  lazyLoad(node, resolve) {
+    const { level } = node;
+    if (level === 0) {
+      resolve(
+        Object.keys(configData.value || {}).map((item) => ({
+          value: item,
+          label: item,
+        }))
+      );
+    }
+    if (level === 1) {
+      let arr = []
+      if (Object.keys(configData.value[node.pathValues[0]]['按钮']).filter(key => typeof configData.value[node.pathValues[0]]['按钮'][key] != 'string').length > 0) {
+        arr.push({ value: "按钮", label: "按钮" });
+      }
+      if (Object.keys(configData.value[node.pathValues[0]]['状态']).length > 0) {
+        arr.push({ value: "状态", label: "状态" });
+      }
+      resolve(arr);
+    }
+    if (level === 2) {
+      resolve(
+        Object.keys(configData.value[node.pathValues[0]][node.pathValues[1]])
+          .filter(key => typeof configData.value[node.pathValues[0]][node.pathValues[1]][key] != 'string')
+          .map((key) => ({
+            value: key,
+            label: key,
+            leaf: true,
+          }))
+      );
+    }
+  },
+};
+const selectedCascader = ref([]);
+watch(cascaderOptionsKey, () => {
+  selectedCascader.value = [];
+});
+
+// 字库名称与配置类型互斥：填写其中一个会自动清空另一个
+watch(fontNameInput, (val) => {
+  if (val && val.trim()) {
+    selectedCascader.value = [];
+  }
+});
+watch(selectedCascader, (val) => {
+  if (val && val.length) {
+    fontNameInput.value = "";
+  }
+});
+
+// 从 DB 加载配置路径并读取配置文件（与 ConfigTab 一致）
+const loadConfigPathFromDB = async () => {
+  try {
+    const result = await ipc.invoke(ipcApiRoute.getPaths);
+    if (result && result.success && result.data && result.data.configPath) {
+      configPathRef.value = result.data.configPath;
+      await loadConfigFile(result.data.configPath);
+    }
+  } catch (error) {
+    console.error("加载配置路径失败:", error);
+  }
+};
+
+// 重新从配置文件拉取数据（ConfigTab 更新后切换到本 tab 时调用，使级联选项与 ConfigTab 一致）
+const refreshConfig = async () => {
+  await loadConfigPathFromDB();
+};
+const loadConfigFile = async (filePath) => {
+  if (!filePath) return;
+  try {
+    const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+      filePath,
+    });
+    if (!readResult || !readResult.success) return;
+    try {
+      configData.value = JSON.parse(readResult.content || "{}");
+    } catch (e) {
+      console.error("解析配置 JSON 失败:", e);
+    }
+  } catch (error) {
+    console.error("加载配置文件失败:", error);
+  }
+};
+
+onMounted(() => {
+  loadConfigPathFromDB();
+});
 
 // 表格数据 = 当前选中颜色
 const tableRows = computed(() => props.currentSelectedColors || []);
@@ -267,7 +344,8 @@ const toggleFontClickOffsetAreaSelection = () => {
 };
 
 // HEX 转 RGB
-const hexToRgb = (hex) => {;
+const hexToRgb = (hex) => {
+  ;
   hex = hex.replace("#", "");
   if (hex.length === 3) {
     hex = hex
@@ -427,8 +505,13 @@ const setFontClickOffsetAreaFromSelection = (rect) => {
   emit("stop-code-generator-selection");
 };
 
-// 处理加入字库
+// 处理加入字库（写入当前在「字库」标签页加载的 JSON 文件）
 const handleAddFontLibrary = async () => {
+  if (!props.hasFontLibraryFile) {
+    ElMessage.warning("请先在「字库」标签页选择字库 JSON 文件");
+    return;
+  }
+
   if (!processedImageUrl.value) {
     ElMessage.warning("请先生成二值化图片");
     return;
@@ -440,8 +523,12 @@ const handleAddFontLibrary = async () => {
     return;
   }
 
-  if (!fontNameInput.value || !fontNameInput.value.trim()) {
-    ElMessage.warning("请输入字库名字");
+  // 字库名称和配置类型二选一：至少填写/选择一个
+  const hasFontName = !!(fontNameInput.value && fontNameInput.value.trim());
+  const hasConfigType =
+    !!(selectedCascader.value && selectedCascader.value.length);
+  if (!hasFontName && !hasConfigType) {
+    ElMessage.warning("请输入字库名称或选择配置类型（两者只能填写一个）");
     return;
   }
 
@@ -466,7 +553,7 @@ const handleAddFontLibrary = async () => {
     // 加载图片并处理
     const img = new Image();
     img.crossOrigin = "anonymous";
-    
+
     await new Promise((resolve, reject) => {
       img.onload = async () => {
         try {
@@ -491,7 +578,7 @@ const handleAddFontLibrary = async () => {
               const r = data[idx];
               const g = data[idx + 1];
               const b = data[idx + 2];
-              
+
               // 判断是否为白色（RGB都接近255）
               if (r > 200 && g > 200 && b > 200) {
                 whitePixelCount++;
@@ -538,7 +625,7 @@ const handleAddFontLibrary = async () => {
               const r = data[idx];
               const g = data[idx + 1];
               const b = data[idx + 2];
-              
+
               // 白色记为1，黑色记为0
               const isWhite = r > 200 && g > 200 && b > 200;
               binaryData.push(isWhite ? '1' : '0');
@@ -555,9 +642,20 @@ const handleAddFontLibrary = async () => {
             matrixHex += hexChar;
           }
 
-          // 偏色信息，多个之间以|连接
+          // 偏色信息，多个之间以 | 连接
           const deviationStr = selectedDeviationsList.join('|');
 
+          // 根据「配置类型」或「字库名称」生成 name（互斥，优先使用配置类型）
+          const rawName = (fontNameInput.value || "").trim();
+          const cascaderVal = selectedCascader.value || [];
+          let name = cascaderVal.length ? `${cascaderVal[0]}_${cascaderVal[1]}_${cascaderVal[2]}` : rawName;
+
+
+          if (!name) {
+            ElMessage.warning("请输入点阵名字或选择点阵名字");
+            reject(new Error("缺少点阵名字或选择点阵名字"));
+            return;
+          }
           // 创建字库项
           const fontItem = {
             id: Date.now(),
@@ -567,7 +665,7 @@ const handleAddFontLibrary = async () => {
             totalCount: whitePixelCount,
             sizeInfo: `${width}×${height} (${whitePixelCount})`,
             deviation: deviationStr,
-            name: fontNameInput.value.trim(),
+            name: name,
             clickOffsetArea,
             editing: false,
             binaryData: binaryData // 保存二进制数据用于显示
@@ -581,11 +679,12 @@ const handleAddFontLibrary = async () => {
 
           // 等待父组件的处理结果
           const success = await addPromise;
-          
+
           // 只有在成功时才清空输入框
           if (success) {
             fontClickOffsetAreaInput.value = "";
             fontNameInput.value = "";
+            selectedCascader.value = [];
           } else {
             // 如果失败，不显示任何消息（错误消息已在 FontLibraryTab 中显示）
             // 不清空输入框，让用户可以修改后重试
@@ -616,6 +715,7 @@ defineExpose({
   getSelectedDeviations: () => buildDeviationListFromTable(),
   getProcessedImageUrl: () => processedImageUrl.value,
   setFontClickOffsetAreaFromSelection,
+  refreshConfig,
 });
 </script>
 
@@ -742,6 +842,11 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.font-row-with-cascader .el-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .add-font-btn {

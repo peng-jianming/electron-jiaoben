@@ -100,7 +100,7 @@ const handleSelectFile = async () => {
             title: "选择字库文件",
             defaultPath: formData.value.fontLibraryPath || "",
             filters: [
-                { name: "文本文件", extensions: ["txt"] },
+                { name: "JSON 文件", extensions: ["json"] },
                 { name: "所有文件", extensions: ["*"] }
             ]
         });
@@ -125,8 +125,8 @@ const handleSelectFile = async () => {
         selectedFilePath.value = filePath; // 保存文件路径（用于内部逻辑）
         const text = readResult.content;
 
-        // 解析文件内容
-        const parsedData = parseFontLibraryFile(text);
+        // 解析文件内容（JSON 格式）
+        const parsedData = parseFontLibraryJson(text);
 
         if (parsedData.length === 0) {
             ElMessage.warning("文件中没有有效的字库数据");
@@ -148,39 +148,42 @@ const handleSelectFile = async () => {
     }
 };
 
-// 解析字库文件
-// 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
-// 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名（偏移点击区域默认为 0,0,0,0）
-const parseFontLibraryFile = (text) => {
-    const lines = text.split('\n');
+// 解析字库文件（JSON 格式）
+// 每项格式：{ "名字", "点阵", "长宽有效数量", "偏色", "偏移点击区域" }
+// 长宽有效数量 如 "88,49,858" 表示 长,宽,点阵总数量
+const parseFontLibraryJson = (text) => {
     const result = [];
+    let arr = [];
+    try {
+        const parsed = JSON.parse(text);
+        arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+    } catch (e) {
+        console.warn("字库 JSON 解析失败:", e);
+        return result;
+    }
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue; // 跳过空行
-
-        const parts = line.split('&');
-        if (parts.length < 4 || parts.length > 5) {
-            console.warn(`第 ${i + 1} 行格式不正确，已跳过: ${line}`);
+    for (let i = 0; i < arr.length; i++) {
+        const item = arr[i];
+        if (!item || !item["点阵"]) {
+            console.warn(`第 ${i + 1} 项缺少点阵，已跳过`);
             continue;
         }
 
-        const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
-
-        // 验证尺寸信息格式：长,宽,点阵总数量
-        const sizeMatch = sizeInfo.match(/^(\d+),(\d+),(\d+)$/);
+        const matrix = String(item["点阵"]).trim();
+        const sizeStr = (item["长宽有效数量"] != null && item["长宽有效数量"] !== "") ? String(item["长宽有效数量"]).trim() : "";
+        const sizeMatch = sizeStr.match(/^(\d+),(\d+),(\d+)$/);
         if (!sizeMatch) {
-            console.warn(`第 ${i + 1} 行尺寸信息格式不正确，已跳过: ${line}`);
+            console.warn(`第 ${i + 1} 项长宽有效数量格式不正确，已跳过: ${sizeStr}`);
             continue;
         }
 
         const [, width, height, totalCount] = sizeMatch;
         const sizeInfoFormatted = `${width}×${height} (${totalCount})`;
+        const deviation = (item["偏色"] != null && item["偏色"] !== "") ? String(item["偏色"]).trim() : "";
+        const name = (item["名字"] != null && item["名字"] !== "") ? String(item["名字"]).trim() : `字库${i + 1}`;
+        const clickOffsetArea = (item["偏移点击区域"] != null && item["偏移点击区域"] !== "") ? String(item["偏移点击区域"]).trim() : "0,0,0,0";
 
-        // 偏移点击区域，旧格式没有该字段时默认 0,0,0,0
-        const clickOffsetArea = (parts.length === 5 && offsetStr) ? offsetStr : "0,0,0,0";
-
-        // 从matrix还原binaryData用于显示
+        // 从 matrix 还原 binaryData 用于显示
         const binaryData = [];
         for (let j = 0; j < matrix.length; j++) {
             const hexChar = matrix[j];
@@ -191,22 +194,31 @@ const parseFontLibraryFile = (text) => {
         const pixels = binaryData.slice(0, totalPixels);
 
         result.push({
-            id: Date.now() + i, // 生成唯一ID
-            matrix: matrix,
+            id: Date.now() + i,
+            matrix,
             width: parseInt(width),
             height: parseInt(height),
             totalCount: parseInt(totalCount),
             sizeInfo: sizeInfoFormatted,
-            deviation: deviation,
-            name: name || `字库${i + 1}`,
+            deviation,
+            name,
             editing: false,
             clickOffsetArea,
-            binaryData: pixels // 保存二进制数据用于显示
+            binaryData: pixels
         });
     }
 
     return result;
 };
+
+// 将当前字库列表项转为 JSON 项格式（用于写回文件）
+const rowToJsonItem = (row) => ({
+    "名字": row.name || "",
+    "点阵": row.matrix || "",
+    "长宽有效数量": `${row.width},${row.height},${row.totalCount}`,
+    "偏色": row.deviation || "",
+    "偏移点击区域": row.clickOffsetArea || "0,0,0,0"
+});
 
 // 处理命名点击（进入编辑模式）
 const handleNameClick = async (row) => {
@@ -228,14 +240,13 @@ const handleNameClick = async (row) => {
     }
 };
 
-// 更新文件中的名称
+// 更新文件中的名称（JSON 格式）
 const updateNameInFile = async (row, oldName) => {
     if (!selectedFilePath.value) {
-        return; // 如果没有选择文件，不需要保存
+        return;
     }
 
     try {
-        // 读取文件内容
         const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
             filePath: selectedFilePath.value
         });
@@ -244,56 +255,31 @@ const updateNameInFile = async (row, oldName) => {
             throw new Error(readResult?.message || "读取文件失败");
         }
 
-        let content = readResult.content;
-        const lines = content.split('\n');
-
-        // 构建要匹配的条件（使用点阵、尺寸、偏色来匹配，因为名称可能已经改变）
-        // 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
-        // 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名
-        const targetMatrix = row.matrix;
-        const targetSizeInfo = `${row.width},${row.height},${row.totalCount}`;
-        const targetDeviation = row.deviation;
-        const targetClickOffsetArea = row.clickOffsetArea || "0,0,0,0";
-        
-        // 查找并更新匹配的行
-        const updatedLines = lines.map(line => {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) {
-                return line; // 保留空行
-            }
-
-            // 解析行内容
-            const parts = trimmedLine.split('&');
-            if (parts.length < 4 || parts.length > 5) {
-                return line; // 格式不正确的行，保持不变
-            }
-
-            const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
-            
-            // 精确匹配点阵、尺寸、偏色
-            if (matrix === targetMatrix && 
-                sizeInfo === targetSizeInfo && 
-                deviation === targetDeviation) {
-                // 构建新行，使用新的名称，并写入偏移点击区域（无则默认 0,0,0,0）
-                const newClickOffsetArea = targetClickOffsetArea || "0,0,0,0";
-                return `${row.matrix}&${row.width},${row.height},${row.totalCount}&${row.deviation}&${row.name}&${newClickOffsetArea}`;
-            }
-            
-            return line;
-        });
-
-        // 重新组合内容
-        content = updatedLines.join('\n');
-
-        // 如果文件末尾没有换行且还有内容，添加换行
-        if (content && !content.endsWith('\n') && updatedLines.length > 0) {
-            content += '\n';
+        let arr = [];
+        try {
+            const parsed = JSON.parse(readResult.content);
+            arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+        } catch (e) {
+            throw new Error("字库 JSON 格式无效");
         }
 
-        // 写入文件
+        const targetSizeStr = `${row.width},${row.height},${row.totalCount}`;
+        const targetClickOffsetArea = row.clickOffsetArea || "0,0,0,0";
+
+        const updatedArr = arr.map((item) => {
+            if (!item || item["点阵"] !== row.matrix) return item;
+            const sizeStr = (item["长宽有效数量"] != null) ? String(item["长宽有效数量"]).trim() : "";
+            const dev = (item["偏色"] != null) ? String(item["偏色"]).trim() : "";
+            const offset = (item["偏移点击区域"] != null && item["偏移点击区域"] !== "") ? String(item["偏移点击区域"]).trim() : "0,0,0,0";
+            if (sizeStr !== targetSizeStr || dev !== row.deviation || offset !== targetClickOffsetArea) return item;
+            return { ...item, "名字": row.name || "" };
+        });
+
+        const content = JSON.stringify(updatedArr, null, 2);
+
         const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
             filePath: selectedFilePath.value,
-            content: content
+            content
         });
 
         if (!writeResult || !writeResult.success) {
@@ -448,68 +434,42 @@ const handleDelete = async (index) => {
         return;
     }
 
-    // 如果已选择文件，需要从文件中删除对应的行
+    // 如果已选择文件，需要从 JSON 中删除对应项
     if (selectedFilePath.value) {
         try {
-            // 读取文件内容
             const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
                 filePath: selectedFilePath.value
             });
 
             if (readResult && readResult.success) {
-                let content = readResult.content;
-                const lines = content.split('\n');
-
-                // 过滤掉要删除的行（精确匹配字段，而不是整行字符串）
-                // 新格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
-                // 兼容旧格式：点阵&长,宽,点阵总数量&偏色&命名
-                const filteredLines = lines.filter(line => {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine) {
-                        return true;
-                    }
-
-                    const parts = trimmedLine.split('&');
-                    if (parts.length < 4 || parts.length > 5) {
-                        return true;
-                    }
-
-                    const [matrix, sizeInfo, deviation, name, offsetStr] = parts.map(p => p.trim());
-                    const sizeInfoExpected = `${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}`;
-                    const clickOffsetAreaExpected = itemToDelete.clickOffsetArea || "0,0,0,0";
-
-                    const isMatchBase =
-                        matrix === itemToDelete.matrix &&
-                        sizeInfo === sizeInfoExpected &&
-                        deviation === itemToDelete.deviation &&
-                        name === itemToDelete.name;
-
-                    if (!isMatchBase) {
-                        return true;
-                    }
-
-                    // 如果文件中没有偏移点击区域字段（旧格式），也认为匹配
-                    if (parts.length === 4) {
-                        return false;
-                    }
-
-                    // 有第 5 个字段时，要求偏移点击区域也一致
-                    const fileOffset = offsetStr || "0,0,0,0";
-                    return fileOffset !== clickOffsetAreaExpected;
-                });
-
-                // 重新组合内容
-                content = filteredLines.join('\n');
-
-                // 如果文件末尾没有换行且还有内容，添加换行
-                if (content && !content.endsWith('\n') && filteredLines.length > 0) {
-                    content += '\n';
+                let arr = [];
+                try {
+                    const parsed = JSON.parse(readResult.content);
+                    arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+                } catch (e) {
+                    throw new Error("字库 JSON 格式无效");
                 }
 
-                // 写入文件
+                const sizeStr = `${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}`;
+                const clickOffsetAreaExpected = itemToDelete.clickOffsetArea || "0,0,0,0";
+
+                const filteredArr = arr.filter((item) => {
+                    if (!item || item["点阵"] !== itemToDelete.matrix) return true;
+                    const itemSize = (item["长宽有效数量"] != null) ? String(item["长宽有效数量"]).trim() : "";
+                    if (itemSize !== sizeStr) return true;
+                    const itemDev = (item["偏色"] != null) ? String(item["偏色"]).trim() : "";
+                    if (itemDev !== itemToDelete.deviation) return true;
+                    const itemName = (item["名字"] != null) ? String(item["名字"]).trim() : "";
+                    if (itemName !== itemToDelete.name) return true;
+                    const itemOffset = (item["偏移点击区域"] != null && item["偏移点击区域"] !== "") ? String(item["偏移点击区域"]).trim() : "0,0,0,0";
+                    return itemOffset !== clickOffsetAreaExpected;
+                });
+
+                const content = JSON.stringify(filteredArr, null, 2);
+
                 const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
                     filePath: selectedFilePath.value,
-                    content: content
+                    content
                 });
 
                 if (!writeResult || !writeResult.success) {
@@ -548,7 +508,7 @@ const handleClearList = () => {
     ElMessage.success("已清空列表");
 };
 
-// 保存字库到文件
+// 保存字库到文件（JSON 格式，追加一项）
 const saveToFile = async (fontItem) => {
     if (!selectedFilePath.value) {
         ElMessage.warning("请先选择字库文件");
@@ -556,31 +516,26 @@ const saveToFile = async (fontItem) => {
     }
 
     try {
-        // 构建字库行：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
-        const clickOffsetArea = fontItem.clickOffsetArea || "0,0,0,0";
-        const line = `${fontItem.matrix}&${fontItem.width},${fontItem.height},${fontItem.totalCount}&${fontItem.deviation}&${fontItem.name}&${clickOffsetArea}`;
-
-        // 读取现有文件内容
+        let arr = [];
         const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
             filePath: selectedFilePath.value
         });
 
-        let content = '';
         if (readResult && readResult.success) {
-            content = readResult.content;
-            // 如果文件末尾没有换行，添加换行
-            if (content && !content.endsWith('\n')) {
-                content += '\n';
+            try {
+                const parsed = JSON.parse(readResult.content);
+                arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+            } catch (e) {
+                arr = [];
             }
         }
 
-        // 追加新行
-        content += line + '\n';
+        arr.push(rowToJsonItem(fontItem));
+        const content = JSON.stringify(arr, null, 2);
 
-        // 写入文件
         const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
             filePath: selectedFilePath.value,
-            content: content
+            content
         });
 
         if (!writeResult || !writeResult.success) {
@@ -697,8 +652,8 @@ const loadFontLibraryFile = async (filePath) => {
 
         const text = readResult.content;
 
-        // 解析文件内容
-        const parsedData = parseFontLibraryFile(text);
+        // 解析文件内容（JSON 格式）
+        const parsedData = parseFontLibraryJson(text);
 
         if (parsedData.length === 0) {
             // 文件为空或格式不正确，不清空路径，只清空列表
