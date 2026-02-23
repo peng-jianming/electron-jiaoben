@@ -38,6 +38,10 @@
         <template #renderNodeActions="{ node, defaultActions }">
           <el-button
             v-if="node.type == 'objectStart' && node.level != 0 && node.key != '可滑动区域' && node.key != '按钮' && node.key != '状态'"
+            type="primary" size="small"
+            @click="handleTest(node)">测试</el-button>
+          <el-button
+            v-if="node.type == 'objectStart' && node.level != 0 && node.key != '可滑动区域' && node.key != '按钮' && node.key != '状态'"
             type="danger" size="small" @click="handleDelete(node)">删除</el-button>
 
           <el-button v-if="node.key == '可滑动区域'" type="primary" size="small"
@@ -48,6 +52,26 @@
         </template>
       </vue-json-pretty>
     </div>
+
+    <!-- 测试弹框：按当前配置项名称（点阵名）查询所有同名点阵进行找字测试 -->
+    <el-dialog
+      v-model="testDialogVisible"
+      title="找字测试"
+      width="420px"
+      destroy-on-close
+      :close-on-click-modal="false"
+      class="config-test-dialog"
+      @closed="onTestDialogClosed"
+    >
+      <FontLibraryMatchDebug
+        v-if="testDialogVisible"
+        :current-device-id="currentDeviceId"
+        :font-library-list="fontLibraryList"
+        :initial-font-library-name="testFontLibraryName"
+        :initial-similarity="testSimilarity"
+        :initial-region="testRegion"
+      />
+    </el-dialog>
 
     <transition name="config-drawer-slide">
       <div v-if="drawer" class="config-drawer-wrapper">
@@ -160,6 +184,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Close, Picture } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
+import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
 
 const props = defineProps({
   currentImage: {
@@ -170,7 +195,20 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  fontLibraryList: {
+    type: Array,
+    default: () => [],
+  },
+  currentDeviceId: {
+    type: String,
+    default: "",
+  },
 });
+
+const testDialogVisible = ref(false);
+const testFontLibraryName = ref("");
+const testSimilarity = ref(undefined);
+const testRegion = ref("");
 
 
 const emit = defineEmits([
@@ -511,9 +549,11 @@ const handleAddSliderArea = (node) => {
 // 获取当前节点
 const getCurrentNode = (node) => {
   const keys = getPathKeys(node.path);
+
   if (node.level == 2 && keys.length >= 1) {
     return data.value[keys[0]];
   }
+
   if (node.level == 4 && keys.length >= 3) {
     return data.value[keys[0]][keys[1]][keys[2]];
   }
@@ -824,6 +864,29 @@ const handleConfirmAddConfig = async () => {
 const getPathKeys = (path) => {
   if (!path || typeof path !== "string") return [];
   return path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, "")) ?? [];
+};
+
+/** 点击测试：弹出找字测试弹框，按当前配置项名称（点阵名）查询所有同名点阵，并自动填入该配置的相似度、范围 */
+const handleTest = (node) => {
+  if (!node || node.key == null) return;
+
+  const path = getPathKeys(node.path);
+  let configItem = data.value;
+  for (const key of path) {
+    configItem = configItem?.[key];
+  }
+
+  testFontLibraryName.value = path.join('_');
+  testSimilarity.value = configItem?.相似度 != null ? Number(configItem.相似度) : undefined;
+  testRegion.value = configItem?.查找区域 != null && configItem.查找区域 !== "" ? String(configItem.查找区域).trim() : "";
+  testDialogVisible.value = true;
+};
+
+/** 测试弹框关闭时清空初始值 */
+const onTestDialogClosed = () => {
+  testFontLibraryName.value = "";
+  testSimilarity.value = undefined;
+  testRegion.value = "";
 };
 
 /** 删除节点对应的配置项 */

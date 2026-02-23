@@ -20,6 +20,8 @@
         <ConfigTab
           :current-image="currentImage"
           :selection-rect="selectionRect"
+          :font-library-list="fontLibraryList"
+          :current-device-id="currentDeviceId"
           ref="configTabRef"
           @start-code-generator-selection="
             (type) => $emit('start-code-generator-selection', type)
@@ -28,7 +30,7 @@
         />
       </el-tab-pane>
       <el-tab-pane label="字库">
-        <FontLibraryTab ref="fontLibraryTabRef" />
+        <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
       </el-tab-pane>
       <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab

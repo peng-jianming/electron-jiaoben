@@ -51,8 +51,8 @@
                         <el-button type="primary" size="small" link @click="handleShow(scope.row)">
                             展示
                         </el-button>
-                        <el-button type="primary" size="small" link @click="handleCopyDeviation(scope.row)">
-                            复制偏色
+                        <el-button type="primary" size="small" link @click="handleTest(scope.row)">
+                            测试
                         </el-button>
                         <el-button type="danger" size="small" link @click="handleDelete(scope.$index)">
                             删除
@@ -61,6 +61,26 @@
                 </template>
             </el-table-column>
         </el-table>
+
+        <!-- 测试弹框：用当前点阵做找字测试 -->
+        <el-dialog
+            v-model="testDialogVisible"
+            title="点阵测试"
+            width="600px"
+            destroy-on-close
+            :close-on-click-modal="false"
+            class="test-dialog"
+            @closed="currentTestRow = null"
+        >
+           <div style="height: 500px;">
+            <FontLibraryMatchDebug
+                v-if="currentTestRow"
+                :current-device-id="currentDeviceId"
+                :fixed-test-row="currentTestRow"
+            />
+
+           </div>
+        </el-dialog>
 
         <!-- 点阵图展示区域 -->
         <div class="result-section">
@@ -76,11 +96,20 @@
 
 <script setup>
 import { ref, nextTick, onMounted } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
+import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
 
-const props = defineProps({});
+const props = defineProps({
+    currentDeviceId: {
+        type: String,
+        default: "",
+    },
+});
+
+const testDialogVisible = ref(false);
+const currentTestRow = ref(null);
 
 const formData = ref({
     fontLibraryPath: "", // 字库文件路径
@@ -320,6 +349,12 @@ const handleNameBlur = async (row) => {
     }
 };
 
+// 处理测试按钮：弹出测试弹框，以当前点阵进行找字测试
+const handleTest = (row) => {
+    currentTestRow.value = row;
+    testDialogVisible.value = true;
+};
+
 // 处理展示按钮
 const handleShow = (row) => {
     // 更新点阵图显示
@@ -432,6 +467,20 @@ const handleDelete = async (index) => {
     const itemToDelete = fontLibraryList.value[index];
     if (!itemToDelete) {
         return;
+    }
+
+    try {
+        await ElMessageBox.confirm(
+            `确定要删除字库「${itemToDelete.name || "未命名"}」吗？此操作会从字库文件中移除该项。`,
+            "确认删除",
+            {
+                confirmButtonText: "确定",
+                cancelButtonText: "取消",
+                type: "warning",
+            }
+        );
+    } catch {
+        return; // 用户取消
     }
 
     // 如果已选择文件，需要从 JSON 中删除对应项

@@ -1,16 +1,19 @@
 <template>
     <div class="image-match-debug">
-      <el-form size="small" label-width="52px" class="match-form">
-        <el-form-item label="字库名">
+      <el-form size="small" label-width="60px" class="match-form">
+        <el-form-item v-if="!fixedTestRow" label="点阵名">
           <el-autocomplete
             v-model="fontLibraryName"
             :fetch-suggestions="queryFontLibraryNames"
-            placeholder="请输入字库名"
+            placeholder="请输入点阵名"
             size="small"
             clearable
             @select="handleFontLibraryNameSelect"
             class="full-width"
           />
+        </el-form-item>
+        <el-form-item v-else label="当前点阵">
+          <span class="fixed-font-name">{{ fixedTestRow.name || '-' }}</span>
         </el-form-item>
         <el-form-item label="大图">
           <div class="image-upload-area">
@@ -52,7 +55,7 @@
       </el-form>
   
       <el-button type="primary" size="small" :loading="matching"
-        :disabled="!fontLibraryName || (!largeImageUrl && !currentDeviceId)" @click="handleMatch"
+        :disabled="(fixedTestRow ? false : !fontLibraryName) || (!largeImageUrl && !currentDeviceId)" @click="handleMatch"
         class="match-btn">
         {{ matching ? "匹配中..." : "开始匹配" }}
       </el-button>
@@ -69,7 +72,7 @@
   </template>
   
   <script setup>
-  import { ref, onMounted, onUnmounted } from "vue";
+  import { ref, watch, onMounted, onUnmounted } from "vue";
   import { ElMessage } from "element-plus";
   import { Close } from "@element-plus/icons-vue";
   import { ipc } from "@/utils/ipcRenderer";
@@ -86,8 +89,28 @@
       type: Array,
       default: () => [],
     },
+    // 固定测试点阵（字库列表中点“测试”时传入，不显示字库名输入，直接用该点阵测试）
+    fixedTestRow: {
+      type: Object,
+      default: null,
+    },
+    // 初始字库名（如配置页点“测试”时传入，弹框内按该名字查询所有同名点阵进行测试）
+    initialFontLibraryName: {
+      type: String,
+      default: "",
+    },
+    // 初始相似度（如配置页测试时传入当前配置项的相似度）
+    initialSimilarity: {
+      type: Number,
+      default: undefined,
+    },
+    // 初始范围 x,y,w,h（如配置页测试时传入当前配置项的查找区域）
+    initialRegion: {
+      type: String,
+      default: "",
+    },
   });
-  
+
   const largeImageInputRef = ref(null);
   const largeImageUrl = ref(null);
   const largeImageFile = ref(null);
@@ -106,8 +129,11 @@
     return val.toFixed(1);
   };
   
-  // 获取字库列表（从 props）
+  // 获取字库列表。固定测试时只返回当前点击的那一条点阵（不按名字聚合同名点阵）
   const getFontLibraryList = () => {
+    if (props.fixedTestRow) {
+      return [props.fixedTestRow];
+    }
     return props.fontLibraryList || [];
   };
   
@@ -127,7 +153,43 @@
   const handleFontLibraryNameSelect = (item) => {
     fontLibraryName.value = item.value;
   };
-  
+
+  // 外部传入初始字库名时（如配置页测试弹框）同步到输入框，按该名字会查询所有同名点阵
+  watch(
+    () => props.initialFontLibraryName,
+    (val) => {
+      if (val != null && val !== undefined) {
+        fontLibraryName.value = String(val);
+      }
+    },
+    { immediate: true }
+  );
+
+  // 外部传入初始相似度时同步到滑块
+  watch(
+    () => props.initialSimilarity,
+    (val) => {
+      if (val != null && val !== undefined) {
+        const num = Number(val);
+        if (!Number.isNaN(num) && num >= 0.1 && num <= 1) {
+          similarity.value = num;
+        }
+      }
+    },
+    { immediate: true }
+  );
+
+  // 外部传入初始范围时同步到输入框
+  watch(
+    () => props.initialRegion,
+    (val) => {
+      if (val != null && val !== undefined) {
+        regionInput.value = String(val).trim();
+      }
+    },
+    { immediate: true }
+  );
+
   // 初始化 Socket 连接
   function initMatchSocket() {
     if (matchSocket) {
@@ -239,27 +301,31 @@
   
   // 处理匹配
   async function handleMatch() {
-    // 检查字库名
-    if (!fontLibraryName.value || !fontLibraryName.value.trim()) {
-      ElMessage.warning("请输入字库名");
-      return;
+    // 固定测试点阵时不需要字库名
+    if (!props.fixedTestRow) {
+      if (!fontLibraryName.value || !fontLibraryName.value.trim()) {
+        ElMessage.warning("请输入字库名");
+        return;
+      }
     }
-  
+
     // 检查是否有大图或设备ID（用于自动截图）
     if (!largeImageFile.value && !largeImageUrl.value && !props.currentDeviceId) {
       ElMessage.warning("请先上传大图或连接设备以自动截图");
       return;
     }
-  
-    // 获取字库列表
+
+    // 获取字库列表（固定测试时仅为当前点击的那一条点阵，不按名字聚合同名点阵）
     const fontLibraryList = getFontLibraryList();
     if (!fontLibraryList || fontLibraryList.length === 0) {
       ElMessage.warning("字库列表为空，请先在字库制作标签页中加载字库");
       return;
     }
-  
-    // 根据字库名匹配所有符合字库名的信息组合成数组
-    const matchedFontLibraries = fontLibraryList.filter(item => item.name === fontLibraryName.value);
+
+    // 固定测试：只测当前这一条点阵。非固定测试：按字库名匹配，所有同名点阵一起参与匹配
+    const matchedFontLibraries = props.fixedTestRow
+      ? fontLibraryList
+      : fontLibraryList.filter(item => item.name === fontLibraryName.value);
     if (matchedFontLibraries.length === 0) {
       ElMessage.warning(`未找到字库名为"${fontLibraryName.value}"的字库`);
       return;
@@ -403,6 +469,12 @@
 
   .full-width {
     width: 100%;
+  }
+
+  .fixed-font-name {
+    font-size: 12px;
+    color: #334155;
+    font-weight: 500;
   }
 
   .hidden-input {
