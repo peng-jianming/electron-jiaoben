@@ -16,9 +16,8 @@ from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 配置.设置 import (
     字库文件路径, 模型文件路径, 音乐文件路径,
-    未知截图目录, 未知界面超时时间
+    未知截图目录, 界面配置文件路径
 )
-from 配置.界面配置 import 界面集合
 
 
 class 任务执行器类:
@@ -32,7 +31,7 @@ class 任务执行器类:
         self.加载字库文件(字库文件路径)
         self._模型 = None
         self.界面识别缓存 = {}
-        self.界面集合 = self._加载界面配置(界面集合)
+        self.界面集合 = self._加载界面配置(界面配置文件路径)
         self._状态集合 = {}
         self._当前界面 = None
         self._上一界面 = None
@@ -42,7 +41,7 @@ class 任务执行器类:
         self._暂停事件.set()  # 初始为非暂停状态
         self._上下文 = {}
         self._未知开始时间 = None
-        self._未知超时时间 = 未知界面超时时间
+        self._未知超时时间 = 60
 
     def 注册界面(self, 界面名称):
         """装饰器：注册界面处理函数"""
@@ -328,8 +327,14 @@ class 任务执行器类:
         self._模型 = YOLO(模型路径)
         return self._模型
 
-    def _加载界面配置(self, 界面集合):
+    def _加载界面配置(self, 界面配置文件路径):
         """加载界面配置"""
+        with open(界面配置文件路径, "r", encoding="utf-8") as f:
+            界面集合 = json.load(f)
+        if not isinstance(界面集合, dict):
+            self.控制器.写入日志("界面配置文件格式错误：应为 JSON 对象")
+            return {}
+
         配置 = {}
         for 界面名称, 原始配置 in 界面集合.items():
             # 创建界面识别用的动作管理器

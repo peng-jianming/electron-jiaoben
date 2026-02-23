@@ -12,6 +12,20 @@ from PIL import Image
 class 动作管理器类:
     """动作管理器，处理图像识别和点击操作"""
 
+    @staticmethod
+    def _解析区域(区域):
+        """将区域配置解析为 [x, y, w, h] 列表，支持字符串 "x,y,w,h" 或已有列表/元组"""
+        if 区域 is None:
+            return None
+        if isinstance(区域, str):
+            部分 = [x.strip() for x in 区域.split(",")]
+            if len(部分) == 4:
+                return [int(x) for x in 部分]
+            return None
+        if isinstance(区域, (list, tuple)) and len(区域) == 4:
+            return list(区域)
+        return 区域
+
     def __init__(self, 配置, 控制器, 截图上下文=None):
         """
         初始化动作管理器
@@ -29,11 +43,17 @@ class 动作管理器类:
         self.分类名 = 配置.get("分类名")
         self.大图路径 = 配置.get("大图路径")
         self.相似度 = 配置.get("相似度", 0.8)
-        self.查找区域 = 配置.get("查找区域", [0, 0, 0, 0])
-        self.偏移点击区域 = 配置.get("偏移点击区域")
-        self.点击区域 = 配置.get("点击区域")
-        self.固定点击区域 = 配置.get("固定点击区域")
-        self.滑动查找区域 = 配置.get("滑动查找区域")
+        self.查找区域 = self._解析区域(配置.get("查找区域")) or [0, 0, 0, 0]
+        self.偏移点击区域 = self._解析区域(配置.get("偏移点击区域"))
+        self.点击区域 = self._解析区域(配置.get("点击区域"))
+        self.固定点击区域 = self._解析区域(配置.get("固定点击区域"))
+        raw_slide = 配置.get("滑动查找区域")
+        if raw_slide and isinstance(raw_slide, (list, tuple)) and len(raw_slide) >= 2:
+            self.滑动查找区域 = [self._解析区域(raw_slide[0]), self._解析区域(raw_slide[1])]
+            if self.滑动查找区域[0] is None or self.滑动查找区域[1] is None:
+                self.滑动查找区域 = None
+        else:
+            self.滑动查找区域 = None
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
@@ -141,8 +161,8 @@ class 动作管理器类:
         return self
 
     def 设置查找区域(self, 查找区域):
-        """设置查找区域"""
-        self.查找区域 = 查找区域
+        """设置查找区域（可为字符串 "x,y,w,h" 或 [x,y,w,h]）"""
+        self.查找区域 = self._解析区域(查找区域) or [0, 0, 0, 0]
         return self
 
     def 设置大图路径(self, 路径):

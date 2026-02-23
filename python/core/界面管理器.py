@@ -26,8 +26,10 @@ class 界面管理器类:
         if '按钮' in 配置字典:
             self.按钮 = type('按钮集合', (), {})()
             for 名称, 配置 in 配置字典['按钮'].items():
-                if isinstance(配置, list):
-                    # 固定点击区域
+                # 固定点击区域：配置为字符串 "x,y,w,h" 或原数组 [x,y,w,h]
+                if isinstance(配置, (list, tuple)) and len(配置) == 4 and all(isinstance(x, (int, float)) for x in 配置):
+                    字段 = 动作管理器类({"固定点击区域": 配置, "当前界面": 界面名称}, 控制器, 截图上下文)
+                elif isinstance(配置, str) and 配置.count(",") == 3:
                     字段 = 动作管理器类({"固定点击区域": 配置, "当前界面": 界面名称}, 控制器, 截图上下文)
                 else:
                     # 需要查找的按钮
