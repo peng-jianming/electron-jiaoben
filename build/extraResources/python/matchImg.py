@@ -1,4 +1,5 @@
 import cv2
+import json
 import numpy as np
 from PIL import Image
 
@@ -256,41 +257,57 @@ def opencv字库找图单个(large_image_path, line, region=(0, 0, 0, 0)):
     return _make_result(max_loc[0], max_loc[1], max_val)
 
 
-def _字库找图单个2_在图上(large_array, line, region=(0, 0, 0, 0)):
+def _解析字库项(item):
     """
-    opencv字库找图单个2 的核心算法：在给定的图像数组上做单次找图。
-    用于识字时在“当前图”（可能已被涂黑）上反复找同一模板直到找不到为止。
-    :param large_array: 大图 numpy 数组 (H, W, 3) RGB
-    :param line: 字库行字符串，格式同 opencv字库找图单个2
-    :param region: 检测区域 (x, y, width, height)，全0表示整图
-    :return: 一个匹配 {"origin_x", "origin_y", "origin_w", "origin_h", "x", "y", "w", "h", "similarity", "name"} 或 None
+    从字库 JSON 项（dict）解析出匹配所需字段。
+    :param item: 字库项 dict，键：点阵, 长宽有效数量, 偏色, 名字, 偏移点击区域
+    :return: (matrix_hex, width, height, deviation_str, name, target_offset_x, target_offset_y, target_offset_w, target_offset_h) 或 None
     """
-    line = line.strip()
-    if not line:
+    if not isinstance(item, dict):
         return None
-    parts = line.split('&')
-    if len(parts) != 5:
+    点阵 = (item.get("点阵") or "").strip()
+    长宽有效数量 = (item.get("长宽有效数量") or "").strip()
+    if not 点阵 or not 长宽有效数量:
         return None
-    matrix_hex, size_info, deviation_str, name, click_offset_area = [p.strip() for p in parts]
-    size_parts = size_info.split(',')
+    size_parts = 长宽有效数量.split(',')
     if len(size_parts) != 3:
         return None
     try:
         width = int(size_parts[0])
         height = int(size_parts[1])
-        total_count = int(size_parts[2])
     except ValueError:
         return None
-    target_offset_parts = click_offset_area.split(",")
-    if len(target_offset_parts) != 4:
+    偏色 = (item.get("偏色") or "").strip()
+    名字 = (item.get("名字") or "")
+    if not isinstance(名字, str):
+        名字 = str(名字)
+    偏移点击区域 = (item.get("偏移点击区域") or "").strip()
+    offset_parts = 偏移点击区域.split(",")
+    if len(offset_parts) != 4:
         return None
     try:
-        target_offset_x = int(target_offset_parts[0])
-        target_offset_y = int(target_offset_parts[1])
-        target_offset_w = int(target_offset_parts[2])
-        target_offset_h = int(target_offset_parts[3])
+        target_offset_x = int(offset_parts[0])
+        target_offset_y = int(offset_parts[1])
+        target_offset_w = int(offset_parts[2])
+        target_offset_h = int(offset_parts[3])
     except ValueError:
         return None
+    return (点阵, width, height, 偏色, 名字, target_offset_x, target_offset_y, target_offset_w, target_offset_h)
+
+
+def _字库找图单个2_在图上(large_array, 字库项, region=(0, 0, 0, 0)):
+    """
+    opencv字库找图单个2 的核心算法：在给定的图像数组上做单次找图。
+    用于识字时在“当前图”（可能已被涂黑）上反复找同一模板直到找不到为止。
+    :param large_array: 大图 numpy 数组 (H, W, 3) RGB
+    :param 字库项: 字库 JSON 项（dict），键：点阵, 长宽有效数量, 偏色, 名字, 偏移点击区域
+    :param region: 检测区域 (x, y, width, height)，全0表示整图
+    :return: 一个匹配 {"origin_x", "origin_y", "origin_w", "origin_h", "x", "y", "w", "h", "similarity", "name"} 或 None
+    """
+    parsed = _解析字库项(字库项)
+    if parsed is None:
+        return None
+    matrix_hex, width, height, deviation_str, name, target_offset_x, target_offset_y, target_offset_w, target_offset_h = parsed
     binary_data = []
     for hex_char in matrix_hex:
         bits = format(int(hex_char, 16), '04b')
@@ -391,12 +408,24 @@ def _字库找图单个2_在图上(large_array, line, region=(0, 0, 0, 0)):
     return _make_result(max_loc[0], max_loc[1], max_val)
 
 
+def _加载字库文件(字库路径):
+    """
+    从字库 JSON 文件路径加载字库，返回字库项数组（每项为 dict）。
+    格式：JSON 数组，每项为 {"名字","点阵","长宽有效数量","偏色","偏移点击区域"}。
+    """
+    with open(字库路径, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        data = [data]
+    return [item for item in data if isinstance(item, dict)]
+
+
 def opencv字库识字(识别图片, 字库路径, 识别区域, 相似度, 文字间隔=None):
     """
     根据点阵字库在识别图片上做识字，按间隔参数将识别到的单字组合成词并返回。
-    
+
     :param 识别图片: 要识别的图片路径（大图）
-    :param 字库路径: 字库文件路径，每行格式：点阵&长,宽,点阵总数量&偏色&命名&偏移点击区域
+    :param 字库路径: 字库 JSON 文件路径，格式见 字库.json
     :param 识别区域: (x, y, width, height)，全0表示整图
     :param 相似度: 0~1，只有 >= 该相似度的匹配才计入
     :param 文字间隔: 不传或 None 表示无间隔，所有识别到的字直接组合成一段。
@@ -412,14 +441,13 @@ def opencv字库识字(识别图片, 字库路径, 识别区域, 相似度, 文�
         interval_v = max(0, int(文字间隔[1])) if len(文字间隔) >= 2 else interval_h
     else:
         interval_h = interval_v = max(0, int(文字间隔))
-    # 读取字库，组合成数组
+    # 读取字库 JSON，得到字库项数组
     try:
-        with open(字库路径, 'r', encoding='utf-8') as f:
-            font_library_info_array = [ln.strip() for ln in f if ln.strip()]
+        font_library_list = _加载字库文件(字库路径)
     except Exception as e:
         print(f"识字：读取字库失败 {字库路径}, {e}")
         return ""
-    if not font_library_info_array:
+    if not font_library_list:
         return ""
     # 加载大图一次，后续在同一张图上反复找并涂黑
     try:
@@ -430,11 +458,11 @@ def opencv字库识字(识别图片, 字库路径, 识别区域, 相似度, 文�
         return ""
     if large_array is None or large_array.size == 0:
         return ""
-    # 遍历字库，每个点阵用 opencv字库找图单个2 的核心算法单次找图 → 命中则涂黑 → 继续找直到找不到
+    # 遍历字库，每个点阵用 _字库找图单个2_在图上 单次找图 → 命中则涂黑 → 继续找直到找不到
     all_matches = []
-    for line in font_library_info_array:
+    for 字库项 in font_library_list:
         while True:
-            match = _字库找图单个2_在图上(large_array, line, 识别区域)
+            match = _字库找图单个2_在图上(large_array, 字库项, 识别区域)
             if match is None or match.get("similarity", 0) < 相似度:
                 break
             all_matches.append(match)
