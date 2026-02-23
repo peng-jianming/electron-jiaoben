@@ -29,7 +29,7 @@
 
     </div>
     <div style="flex: 1; overflow: auto;">
-      <vue-json-pretty deep="1" :data="data">
+      <vue-json-pretty :deep="1" :data="data">
         <template #renderNodeValue="{ node, defaultValue }">
           <span v-if="node.key === '点阵'">{{ node.content ? '"已有点阵"' : '"没有点阵"' }}</span>
           <span v-else><el-input style="display: inline-block; width: 90%;" v-model="node.content" size="small"

@@ -261,6 +261,8 @@ const parseFontLibraryJson = (text) => {
         });
     }
 
+    // 按名称首字母排序
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || "", "zh-CN"));
     return result;
 };
 
@@ -272,6 +274,33 @@ const rowToJsonItem = (row) => ({
     "偏色": row.deviation || "",
     "偏移点击区域": row.clickOffsetArea || "0,0,0,0"
 });
+
+// 按名称首字母排序（用于字库列表与文件顺序一致）
+const sortFontLibraryByName = () => {
+    fontLibraryList.value.sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", "zh-CN")
+    );
+};
+
+// 将当前字库列表完整写回文件（保持按名称排序后的顺序）
+const saveFullListToFile = async () => {
+    if (!selectedFilePath.value) return;
+    try {
+        const arr = fontLibraryList.value.map((row) => rowToJsonItem(row));
+        const content = JSON.stringify(arr, null, 2);
+        const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
+            filePath: selectedFilePath.value,
+            content
+        });
+        if (!writeResult || !writeResult.success) {
+            throw new Error(writeResult?.message || "保存文件失败");
+        }
+    } catch (error) {
+        console.error("保存字库列表到文件失败:", error);
+        ElMessage.error("保存字库列表失败: " + (error.message || "未知错误"));
+        throw error;
+    }
+};
 
 // 处理命名点击（进入编辑模式）
 const handleNameClick = async (row) => {
@@ -359,7 +388,10 @@ const handleNameBlur = async (row) => {
     if (row.name !== oldName && selectedFilePath.value) {
         try {
             await updateNameInFile(row, oldName);
-            // 更新成功后，清除原始名称标记
+            // 更新成功后按名称首字母排序并写回文件
+            sortFontLibraryByName();
+            await saveFullListToFile();
+            // 清除原始名称标记
             row.originalName = null;
             ElMessage.success("名称已保存");
         } catch (error) {
@@ -642,12 +674,13 @@ const addFontLibraryItem = async (fontItem) => {
     try {
         // 添加到列表
         fontLibraryList.value.push(fontItem);
+        // 按名称首字母排序
+        sortFontLibraryByName();
+        // 将排序后的完整列表写回文件
+        await saveFullListToFile();
 
         // 生成点阵图并显示
         generateMatrixImage(fontItem.width, fontItem.height, fontItem.binaryData);
-
-        // 保存到文件
-        await saveToFile(fontItem);
 
         // 只有在成功保存后才显示成功消息
         ElMessage.success("字库添加成功并已保存到文件");
