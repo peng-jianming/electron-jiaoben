@@ -157,7 +157,6 @@ def 初始化客户端(url=None):
     if not _客户端.connected:
         try:
             _客户端.connect(url)
-            发送到Electron("connect-success", "连接成功")
             print(f"Socket.IO 客户端已连接到: {url}")
         except Exception as e:
             print(f"Socket.IO 连接失败: {e}")

@@ -38,8 +38,8 @@
         <!-- 底部状态指示 -->
         <div class="sidebar-footer">
           <div class="status-indicator">
-            <span class="status-dot" :class="{ online: isConnected && backendConnected }"></span>
-            <span class="status-text">{{ isConnected && backendConnected ? '已连接' : '未连接' }}</span>
+            <span class="status-dot" :class="{ online: isConnected }"></span>
+            <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
           </div>
         </div>
       </aside>
@@ -115,7 +115,6 @@ import { io } from "socket.io-client";
 
 const currentTab = ref("device");
 const isConnected = ref(false);
-const backendConnected = ref(false);
 const deviceList = ref([]);
 const taskList = ref([]);
 
@@ -227,6 +226,8 @@ function initMatchSocket() {
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
       isConnected.value = true;
+      handleGetDeviceList();
+      handleGetTaskList();
     });
 
     matchSocket.on("disconnect", () => {
@@ -234,12 +235,6 @@ function initMatchSocket() {
       isConnected.value = false;
     });
 
-    // 后端已经连接成功
-    matchSocket.on("connect-success", (data) => {
-      backendConnected.value = true;
-      handleGetDeviceList();
-      handleGetTaskList();
-    });
 
     // 接收设备列表
     matchSocket.on("device-list", (data) => {
