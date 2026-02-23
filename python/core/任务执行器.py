@@ -2,6 +2,7 @@
 任务执行器 - 状态机核心逻辑
 """
 import os
+import json
 import time
 import random
 import threading
@@ -10,7 +11,7 @@ from PIL import Image
 
 from .设备控制器 import 设备控制器类
 from .截图管理器 import 截图管理器类
-from .识字管理器 import 识字管理器类
+# from .识字管理器 import 识字管理器类
 from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 配置.设置 import (
@@ -26,7 +27,7 @@ class 任务执行器类:
 
         self.控制器 = 设备控制器类(设备ID)
         self._截图上下文 = 截图管理器类(self.控制器)
-        self.识字管理器 = 识字管理器类(self._截图上下文)
+        # self.识字管理器 = 识字管理器类(self._截图上下文)
         self.字库缓存 = {}
         self.加载字库文件(字库文件路径)
         self._模型 = None
@@ -207,26 +208,34 @@ class 任务执行器类:
         self._上下文.update(kwargs)
 
     def 加载字库文件(self, 字库文件路径):
-        """加载字库文件"""
+        """加载字库文件（JSON 格式）"""
         try:
             with open(字库文件路径, "r", encoding="utf-8") as f:
-                行列表 = f.readlines()
+                条目列表 = json.load(f)
         except Exception:
             self.控制器.写入日志("读取字库文件失败")
             return 0
 
+        if not isinstance(条目列表, list):
+            self.控制器.写入日志("字库文件格式错误：应为 JSON 数组")
+            return 0
+
         加载数量 = 0
 
-        for 行 in 行列表:
-            行 = 行.strip()
-            if not 行:
+        for 条目 in 条目列表:
+            if not isinstance(条目, dict):
                 continue
 
-            部分列表 = 行.split("&")
-            if len(部分列表) != 5:
+            名称 = 条目.get("名字")
+            点阵十六进制 = 条目.get("点阵")
+            尺寸信息 = 条目.get("长宽有效数量")
+            偏色字符串 = 条目.get("偏色")
+            目标偏移 = 条目.get("偏移点击区域")
+
+            if not all([名称, 点阵十六进制, 尺寸信息, 偏色字符串 is not None, 目标偏移 is not None]):
                 continue
 
-            点阵十六进制, 尺寸信息, 偏色字符串, 名称, 目标偏移 = [p.strip() for p in 部分列表]
+            偏色字符串 = 偏色字符串.strip() if isinstance(偏色字符串, str) else ""
 
             # 预解析偏色信息
             颜色容差列表 = []
@@ -234,40 +243,48 @@ class 任务执行器类:
                 颜色容差 = 颜色容差.strip()
                 if not 颜色容差:
                     continue
-                基础颜色十六进制, 容差十六进制 = 颜色容差.split("-")
-                颜色容差列表.append({
-                    "基础颜色": np.array([
-                        int(基础颜色十六进制[0:2], 16),
-                        int(基础颜色十六进制[2:4], 16),
-                        int(基础颜色十六进制[4:6], 16),
-                    ], dtype=np.int16),
-                    "容差": np.array([
-                        int(容差十六进制[0:2], 16),
-                        int(容差十六进制[2:4], 16),
-                        int(容差十六进制[4:6], 16),
-                    ], dtype=np.int16),
-                })
+                部分 = 颜色容差.split("-")
+                if len(部分) != 2:
+                    continue
+                基础颜色十六进制, 容差十六进制 = 部分
+                if len(基础颜色十六进制) != 6 or len(容差十六进制) != 6:
+                    continue
+                try:
+                    颜色容差列表.append({
+                        "基础颜色": np.array([
+                            int(基础颜色十六进制[0:2], 16),
+                            int(基础颜色十六进制[2:4], 16),
+                            int(基础颜色十六进制[4:6], 16),
+                        ], dtype=np.int16),
+                        "容差": np.array([
+                            int(容差十六进制[0:2], 16),
+                            int(容差十六进制[2:4], 16),
+                            int(容差十六进制[4:6], 16),
+                        ], dtype=np.int16),
+                    })
+                except ValueError:
+                    continue
 
-            尺寸部分 = 尺寸信息.split(",")
+            尺寸部分 = 尺寸信息.strip().split(",")
             if len(尺寸部分) != 3:
                 continue
 
             try:
-                宽度 = int(尺寸部分[0])
-                高度 = int(尺寸部分[1])
-                总数量 = int(尺寸部分[2])
+                宽度 = int(尺寸部分[0].strip())
+                高度 = int(尺寸部分[1].strip())
+                总数量 = int(尺寸部分[2].strip())
             except ValueError:
                 continue
 
-            目标偏移部分 = 目标偏移.split(",")
+            目标偏移部分 = 目标偏移.strip().split(",")
             if len(目标偏移部分) != 4:
                 continue
 
             try:
-                目标偏移x = int(目标偏移部分[0])
-                目标偏移y = int(目标偏移部分[1])
-                目标偏移宽 = int(目标偏移部分[2])
-                目标偏移高 = int(目标偏移部分[3])
+                目标偏移x = int(目标偏移部分[0].strip())
+                目标偏移y = int(目标偏移部分[1].strip())
+                目标偏移宽 = int(目标偏移部分[2].strip())
+                目标偏移高 = int(目标偏移部分[3].strip())
             except ValueError:
                 continue
 

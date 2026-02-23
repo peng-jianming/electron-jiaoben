@@ -16,7 +16,7 @@ import os
 未知截图目录 = os.path.join(资源目录, "未知界面截图目录")
 
 # 字库文件路径
-字库文件路径 = os.path.join(资源目录, "字库.txt")
+字库文件路径 = os.path.join(资源目录, "字库.json")
 
 # YOLO 模型路径
 模型文件路径 = os.path.join(资源目录, "模型.pt")
