@@ -13,7 +13,7 @@
 
         <!-- 字库列表表格 -->
         <el-table
-            :data="fontLibraryList"
+            :data="filteredFontLibraryList"
             height="100"
             size="small"
             empty-text="请先选择字库文件或制作字库"
@@ -23,8 +23,20 @@
         >
             <el-table-column type="index" label="#" width="36" />
 
-            <!-- 命名列（可编辑） -->
-            <el-table-column label="命名">
+            <!-- 命名列（可编辑）+ 表头筛选 -->
+            <el-table-column min-width="120">
+                <template #header>
+                    <div class="name-header-with-filter">
+                        <span>命名</span>
+                        <el-input
+                            v-model="nameFilter"
+                            placeholder="筛选"
+                            size="small"
+                            clearable
+                            class="name-filter-input"
+                        />
+                    </div>
+                </template>
                 <template #default="scope">
                     <div v-if="scope.row.editing" class="name-edit-cell">
                         <el-input v-model="scope.row.name" size="small" @blur="handleNameBlur(scope.row)"
@@ -38,11 +50,11 @@
             </el-table-column>
 
             <!-- 尺寸信息列 -->
-            <el-table-column label="尺寸" width="100">
+            <!-- <el-table-column label="尺寸" width="100">
                 <template #default="scope">
                     <span class="size-cell">{{ scope.row.sizeInfo || '-' }}</span>
                 </template>
-            </el-table-column>
+            </el-table-column> -->
 
             <!-- 操作列 -->
             <el-table-column label="操作" width="160">
@@ -54,7 +66,7 @@
                         <el-button type="primary" size="small" link @click="handleTest(scope.row)">
                             测试
                         </el-button>
-                        <el-button type="danger" size="small" link @click="handleDelete(scope.$index)">
+                        <el-button type="danger" size="small" link @click="handleDelete(scope.row)">
                             删除
                         </el-button>
                     </div>
@@ -95,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from "vue";
+import { ref, nextTick, onMounted, computed } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -119,6 +131,18 @@ const selectedFilePath = ref(""); // 保存当前选择的文件路径（用于�
 const fontLibraryList = ref([]);
 const fileLoading = ref(false);
 const matrixImageUrl = ref(null); // 点阵图图片URL
+
+// 命名列表头筛选
+const nameFilter = ref("");
+
+// 根据命名筛选后的列表（表格展示用）
+const filteredFontLibraryList = computed(() => {
+    const keyword = (nameFilter.value || "").trim().toLowerCase();
+    if (!keyword) return fontLibraryList.value;
+    return fontLibraryList.value.filter(
+        (row) => (row.name || "").toLowerCase().includes(keyword)
+    );
+});
 
 // 处理选择文件按钮点击
 const handleSelectFile = async () => {
@@ -463,7 +487,10 @@ const handleCopyDeviation = async (row) => {
 };
 
 // 处理删除按钮
-const handleDelete = async (index) => {
+const handleDelete = async (row) => {
+    const index = fontLibraryList.value.findIndex((item) => item.id === row.id);
+    if (index === -1) return;
+
     const itemToDelete = fontLibraryList.value[index];
     if (!itemToDelete) {
         return;
@@ -825,6 +852,20 @@ const isLightColor = (hex) => {
 
 .name-display-cell:hover {
     background: #f1f5f9;
+}
+
+.name-header-with-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.name-filter-input {
+    width: 80px;
+}
+
+.name-filter-input :deep(.el-input__wrapper) {
+    padding: 0 8px;
 }
 
 .size-cell {
