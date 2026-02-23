@@ -5,6 +5,6 @@
  */
 module.exports = () => {
   return {
-    openDevTools: true,
+    openDevTools: false,
   };
 };

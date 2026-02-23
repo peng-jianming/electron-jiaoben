@@ -9,7 +9,7 @@ const { getBaseDir } = require('ee-core/ps');
 module.exports = () => {
   return {
     openDevTools: true,
-    singleLock: true,
+    singleLock: false,
     windowsOption: {
       title: 'electron-egg',
       width: 1440,
