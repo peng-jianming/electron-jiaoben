@@ -6,7 +6,7 @@
 import socketio
 import time
 from 任务 import 获取任务管理器
-from 配置.设置 import 服务器地址
+from 设置 import 服务器地址
 from core.ADB控制器 import ADB控制器类
 from 任务.任务管理器 import 发现所有任务模块
 

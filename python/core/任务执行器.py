@@ -14,7 +14,7 @@ from .截图管理器 import 截图管理器类
 # from .识字管理器 import 识字管理器类
 from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
-from 配置.设置 import (
+from 设置 import (
     字库文件路径, 模型文件路径, 音乐文件路径,
     未知截图目录, 界面配置文件路径
 )

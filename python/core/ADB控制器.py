@@ -4,7 +4,7 @@ ADB 控制器 - 封装 ADB 命令实现截图和点击功能
 import subprocess
 import time
 import random
-from 配置.设置 import ADB路径
+from 设置 import ADB路径
 
 
 class ADB控制器类:

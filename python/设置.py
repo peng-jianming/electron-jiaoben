@@ -3,8 +3,8 @@
 """
 import os
 
-# 项目根目录
-项目根目录 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 项目根目录（与 main.py 同目录）
+项目根目录 = os.path.dirname(os.path.abspath(__file__))
 
 # 资源目录
 资源目录 = os.path.join(项目根目录, "资源")

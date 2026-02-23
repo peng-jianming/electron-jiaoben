@@ -10,7 +10,7 @@ from PIL import Image
 from io import BytesIO
 
 from .ADB控制器 import ADB控制器类
-from 配置.设置 import 服务器地址, 缓存目录
+from 设置 import 服务器地址, 缓存目录
 
 
 class 设备控制器类:
