@@ -1,11 +1,10 @@
 """
-任务管理器 - 多线程任务管理
-
+任务管理器 - 多线程任务管理（核心框架）
 """
 import threading
 import time
 
-from core.设备控制器 import 设备控制器类
+from .设备控制器 import 设备控制器类
 
 
 class 任务管理器类:
@@ -42,10 +41,10 @@ class 任务管理器类:
                 """获取队列中的当前任务和下一任务"""
                 if 设备ID not in self._任务队列集合:
                     return None, None
-                
+
                 队列 = self._任务队列集合[设备ID]
                 索引 = self._当前队列索引.get(设备ID, 0)
-                
+
                 当前任务 = 队列[索引] if 索引 < len(队列) else None
                 下一任务 = 队列[索引 + 1] if 索引 + 1 < len(队列) else None
                 控制器.更新设备状态(当前任务=当前任务 or "", 下一任务=下一任务 or "")
@@ -83,10 +82,10 @@ class 任务管理器类:
                 }
                 线程.start()
                 print(f"已启动任务: {任务键}")
-                
+
                 # 发送任务状态更新到前端
                 self._发送任务状态更新(设备ID, 清空=False)
-                
+
                 return True
             except Exception as e:
                 print(f"启动任务失败 {任务键}: {e}")
@@ -153,7 +152,7 @@ class 任务管理器类:
                 键 for 键, 信息 in self._任务集合.items()
                 if 信息['设备ID'] == 设备ID
             ]
-            
+
             if not 有队列 and not 要结束的任务键列表:
                 print(f"设备 {设备ID} 没有运行中的任务")
                 return False
@@ -219,7 +218,7 @@ class 任务管理器类:
             控制器.更新设备状态(已暂停=已暂停)
         except Exception as e:
             print(f"发送暂停状态更新失败: {e}")
-    
+
     def _发送故障状态更新(self, 设备ID, 故障):
         """发送暂停状态更新到前端"""
         try:
@@ -300,8 +299,8 @@ class 任务管理器类:
                     '运行时长': time.time() - 开始时间 if 线程.is_alive() else 0,
                 }
 
-            设备列表 = [设备ID] if 设备ID else list(self._任务队列集合.keys())
-            for 设备 in 设备列表:
+            状态设备列表 = [设备ID] if 设备ID else list(self._任务队列集合.keys())
+            for 设备 in 状态设备列表:
                 if 设备 in self._任务队列集合:
                     队列信息 = {
                         '队列': self._任务队列集合[设备],
@@ -343,28 +342,37 @@ def 获取任务管理器():
     return _任务管理器
 
 
-
-
-
 def 发现所有任务模块():
     import pkgutil
     import importlib
-    import sys
     """
-    扫描 任务 包下所有模块，以文件名作为任务名，收集 文件下的 创建任务 函数。
+    扫描同级的 `任务` 包下所有模块，以文件名作为任务名，收集文件下的 `创建任务` 函数。
+    兼容两种包结构：
+        - 顶层: core / 任务
+        - 上层包: python.core / python.任务
+    """
+    模块名片段 = __name__.split(".")
+    if len(模块名片段) >= 2:
+        # 去掉最后两个片段（如 core.任务管理器），在同一父包下寻找兄弟包 任务
+        父包片段 = 模块名片段[:-2]
+    else:
+        父包片段 = []
 
-    返回:
-        dict: { 任务名: 创建任务函数 }
-    """
-    任务包 = sys.modules[__name__].__package__
-    任务包模块 = sys.modules.get(任务包)
-    if 任务包模块 is None:
+    if 父包片段:
+        任务包名 = ".".join(父包片段 + ["任务"])
+    else:
+        任务包名 = "任务"
+
+    try:
+        任务包模块 = importlib.import_module(任务包名)
+    except Exception as e:
+        print(f"[任务发现] 导入任务包 {任务包名} 失败: {e}")
         return {}
 
     结果 = {}
-    忽略模块名 = {'任务管理器', '__init__'}
+    忽略模块名 = {'__init__', '任务管理器'}
 
-    for 查找器, 模块全名, 是否包 in pkgutil.iter_modules(任务包模块.__path__, 任务包 + '.'):
+    for 查找器, 模块全名, 是否包 in pkgutil.iter_modules(任务包模块.__path__, 任务包名 + '.'):
         # 文件名（不含 .py）即任务名
         任务名 = 模块全名.split('.')[-1]
         if 任务名 in 忽略模块名:
@@ -376,7 +384,6 @@ def 发现所有任务模块():
             continue
 
         创建任务 = getattr(模块, '创建任务', None)
-
         if 创建任务 is None:
             print(f"[任务发现] 跳过 {任务名}: 缺少 创建任务")
             continue
@@ -388,3 +395,4 @@ def 发现所有任务模块():
         print(f"[任务发现] 已注册任务: {任务名}")
 
     return 结果
+
