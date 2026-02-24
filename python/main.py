@@ -1,10 +1,13 @@
 """
 群控图色脚本 Python 后端入口
 通过 Socket.IO 与 Electron 前端通信
+方案 B：Socket 回调只入队，由单独 worker 线程串行处理，与任务管理器锁模型兼容。
 """
 
 import socketio
 import time
+import threading
+from queue import Queue
 from 任务 import 获取任务管理器
 from 设置 import 服务器地址
 from core.ADB控制器 import ADB控制器类
@@ -13,6 +16,9 @@ from 任务.任务管理器 import 发现所有任务模块
 
 # Socket.IO 客户端实例
 _客户端 = None
+
+# 消息队列：Socket 回调只入队，worker 线程从中取消息串行处理
+_消息队列 = Queue()
 
 
 def 开始任务(数据):
@@ -113,6 +119,35 @@ def 获取任务列表(数据):
     发送到Electron("task-list", list(任务列表.keys()))
 
 
+# 类型 -> 处理函数（供 worker 使用，定义于所有处理函数之后）
+_类型到处理函数 = {
+    "开始任务": 开始任务,
+    "结束任务": 结束任务,
+    "暂停任务": 暂停任务,
+    "恢复任务": 恢复任务,
+    "获取设备列表": 获取设备列表,
+    "获取任务列表": 获取任务列表,
+}
+
+
+def _worker_循环():
+    """单独线程：从队列取消息，按类型串行调用 开始/结束/暂停 等，与任务管理器锁兼容。"""
+    while True:
+        try:
+            类型, 数据 = _消息队列.get()
+            if 类型 is None:  # 可选的退出哨兵
+                break
+            处理函数 = _类型到处理函数.get(类型)
+            if 处理函数:
+                处理函数(数据)
+            else:
+                print(f"未知消息类型: {类型}")
+        except Exception as e:
+            print(f"Worker 处理消息异常: {e}")
+        finally:
+            _消息队列.task_done()
+
+
 def 发送到Electron(前端接收事件名, 数据):
     """向 Electron 发送数据"""
     try:
@@ -141,18 +176,17 @@ def 初始化客户端(url=None):
 
         @_客户端.on("message")
         def 收到消息(数据):
+            """只做基本校验并入队，不执行逻辑，避免阻塞 socket 线程。"""
             print(f"收到来自 Electron 的消息: {数据}")
-            if isinstance(数据, dict):
-                处理函数 = {
-                    "开始任务": 开始任务,
-                    "结束任务": 结束任务,
-                    "暂停任务": 暂停任务,
-                    "恢复任务": 恢复任务,
-                    "获取设备列表": 获取设备列表,
-                    "获取任务列表": 获取任务列表,
-                }.get(数据.get("类型"))
-                if 处理函数:
-                    处理函数(数据)
+            if isinstance(数据, dict) and 数据.get("类型"):
+                _消息队列.put((数据.get("类型"), 数据))
+            else:
+                print("忽略无效消息: 需为 dict 且包含 类型")
+
+    # 启动 worker 线程，串行处理队列中的 开始/结束/暂停 等
+    if not any(t.name == "socket-worker" for t in threading.enumerate()):
+        _worker = threading.Thread(target=_worker_循环, name="socket-worker", daemon=True)
+        _worker.start()
 
     if not _客户端.connected:
         try:

@@ -52,7 +52,6 @@ class 任务管理器类:
         except Exception as e:
             print(f"发送任务状态更新失败: {e}")
 
-
     def _启动任务(self, 设备ID, 任务类型):
         """内部方法：启动任务"""
         if 任务类型 not in self._任务类型映射:
