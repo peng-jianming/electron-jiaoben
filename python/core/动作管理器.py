@@ -47,6 +47,7 @@ class 动作管理器类:
         self.偏移点击区域 = self._解析区域(配置.get("偏移点击区域"))
         self.点击区域 = self._解析区域(配置.get("点击区域"))
         self.固定点击区域 = self._解析区域(配置.get("固定点击区域"))
+        self.滑动查找区域 = None
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
