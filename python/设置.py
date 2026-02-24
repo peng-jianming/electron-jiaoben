@@ -27,8 +27,23 @@ import os
 # 提示音乐路径
 音乐文件路径 = os.path.join(资源目录, "提示音乐.mp3")
 
-# ADB 路径
-ADB路径 = r"C:\platform-tools\adb.exe"
+# ADB 路径（优先使用项目内置 ADB）
+# 默认内置目录：<项目根目录>/adb/adb.exe
+内置ADB路径 = os.path.join(项目根目录, "adb", "adb.exe")
+默认系统ADB路径 = r"C:\platform-tools\adb.exe"
+
+# 允许通过环境变量 ADB_PATH 覆盖
+环境ADB路径 = os.environ.get("ADB_PATH")
+
+if 环境ADB路径 and os.path.exists(环境ADB路径):
+    ADB路径 = 环境ADB路径
+elif os.path.exists(内置ADB路径):
+    ADB路径 = 内置ADB路径
+elif os.path.exists(默认系统ADB路径):
+    ADB路径 = 默认系统ADB路径
+else:
+    # 最后退回到系统 PATH 中的 adb 命令名
+    ADB路径 = "adb"
 
 # Socket.IO 服务器地址
 服务器地址 = "http://127.0.0.1:7072"
