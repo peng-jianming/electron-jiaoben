@@ -47,13 +47,6 @@ class 动作管理器类:
         self.偏移点击区域 = self._解析区域(配置.get("偏移点击区域"))
         self.点击区域 = self._解析区域(配置.get("点击区域"))
         self.固定点击区域 = self._解析区域(配置.get("固定点击区域"))
-        raw_slide = 配置.get("滑动查找区域")
-        if raw_slide and isinstance(raw_slide, (list, tuple)) and len(raw_slide) >= 2:
-            self.滑动查找区域 = [self._解析区域(raw_slide[0]), self._解析区域(raw_slide[1])]
-            if self.滑动查找区域[0] is None or self.滑动查找区域[1] is None:
-                self.滑动查找区域 = None
-        else:
-            self.滑动查找区域 = None
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
@@ -74,12 +67,12 @@ class 动作管理器类:
             return self._截图上下文.获取截图()
         return self.控制器.截图到内存()
 
-    def 查找(self, reload=False):
+    def 查找(self):
         """执行查找"""
         if not self.查找字符串:
             return self
 
-        截图 =  self._获取截图() if not reload else self.控制器.截图到内存()
+        截图 =  self._获取截图()
         self.x = 0
         self.y = 0
         self.w = 0
@@ -112,14 +105,16 @@ class 动作管理器类:
         # 滑动查找,找到则提前退出,没找到则找满次数
         # 正向滑动对应次数
         for _ in range(次数):
-            if self.查找(True).是否找到():
+            self._截图上下文.新轮次()
+            if self.查找().是否找到():
                 return self
             self.控制器.拟人滑动_区域(self.滑动查找区域[0], self.滑动查找区域[1])
             time.sleep(random.uniform(0.3, 0.6))
 
         # 反向滑动对应次数（起点和终点交换）
         for _ in range(次数):
-            if self.查找(True).是否找到():
+            self._截图上下文.新轮次()
+            if self.查找().是否找到():
                 return self
             self.控制器.拟人滑动_区域(self.滑动查找区域[1], self.滑动查找区域[0])
             time.sleep(random.uniform(0.3, 0.6))
@@ -163,6 +158,15 @@ class 动作管理器类:
     def 设置查找区域(self, 查找区域):
         """设置查找区域（可为字符串 "x,y,w,h" 或 [x,y,w,h]）"""
         self.查找区域 = self._解析区域(查找区域) or [0, 0, 0, 0]
+        return self
+
+    def 设置滑动查找区域(self, 滑动查找区域):
+        if 滑动查找区域 and isinstance(滑动查找区域, (list, tuple)) and len(滑动查找区域) >= 2:
+            self.滑动查找区域 = [self._解析区域(滑动查找区域[0]), self._解析区域(滑动查找区域[1])]
+            if self.滑动查找区域[0] is None or self.滑动查找区域[1] is None:
+                self.滑动查找区域 = None
+        else:
+            self.滑动查找区域 = None
         return self
 
     def 设置大图路径(self, 路径):
