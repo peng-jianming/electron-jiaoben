@@ -27,8 +27,7 @@ class 任务执行器类:
         self.控制器 = 设备控制器类(设备ID)
         self._截图上下文 = 截图管理器类(self.控制器)
         # self.识字管理器 = 识字管理器类(self._截图上下文)
-        self.字库缓存 = {}
-        self.加载字库文件(字库文件路径)
+        self.字库缓存 = self.加载字库文件(字库文件路径)
         self._模型 = None
         self.界面识别缓存 = {}
         self.界面集合 = self._加载界面配置(界面配置文件路径)
@@ -213,12 +212,14 @@ class 任务执行器类:
                 条目列表 = json.load(f)
         except Exception:
             self.控制器.写入日志("读取字库文件失败")
-            return 0
+            return {}
 
         if not isinstance(条目列表, list):
             self.控制器.写入日志("字库文件格式错误：应为 JSON 数组")
-            return 0
+            return {}
 
+        # 重置字库缓存
+        self.字库缓存 = {}
         加载数量 = 0
 
         for 条目 in 条目列表:
@@ -319,7 +320,7 @@ class 任务执行器类:
 
             加载数量 += 1
         self.控制器.写入日志(f"成功加载 {加载数量} 个字库到缓存")
-        return 加载数量
+        return self.字库缓存
 
     def 加载模型文件(self, 模型路径):
         """加载 YOLO 模型"""
