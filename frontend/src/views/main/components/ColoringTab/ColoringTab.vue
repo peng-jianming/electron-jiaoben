@@ -1,4 +1,5 @@
 <template>
+  <!-- 调色面板组件 -->
   <div class="content-layout">
     <!-- 左侧：处理模块配置区 -->
     <div class="modules-panel">
