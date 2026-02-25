@@ -9,7 +9,7 @@ class 滑动区域操作类:
 
     def __init__(self, 控制器, 区域列表):
         """
-        区域列表: 解析后的 [区域0, 区域1]，均为 [x, y, w, h]
+        区域列表: [区域0字符串, 区域1字符串]，格式 "x,y,w,h"
         """
         self._控制器 = 控制器
         self._区域列表 = 区域列表
@@ -67,10 +67,7 @@ class 界面管理器类:
         if '按钮' in 配置字典:
             self.按钮 = type('按钮集合', (), {})()
             for 名称, 配置 in 配置字典['按钮'].items():
-                # 固定点击区域：配置为字符串 "x,y,w,h" 或原数组 [x,y,w,h]
-                if isinstance(配置, (list, tuple)) and len(配置) == 4 and all(isinstance(x, (int, float)) for x in 配置):
-                    字段 = 动作管理器类({"固定点击区域": 配置, "当前界面": 界面名称}, 控制器, 截图上下文)
-                elif isinstance(配置, str) and 配置.count(",") == 3:
+                if isinstance(配置, str) and 配置.count(",") == 3:
                     字段 = 动作管理器类({"固定点击区域": 配置, "当前界面": 界面名称}, 控制器, 截图上下文)
                 else:
                     # 需要查找的按钮
@@ -98,19 +95,12 @@ class 界面管理器类:
             self.滑动查找区域 = type('滑动查找区域集合', (), {})()
             for 名称, 配置 in 配置字典['滑动查找区域'].items():
                 # 支持 界面.滑动查找区域.活动面板.正向滑动() / 反向滑动()
-                if isinstance(配置, (list, tuple)) and len(配置) >= 2:
-                    解析后 = [
-                        动作管理器类._解析区域(配置[0]),
-                        动作管理器类._解析区域(配置[1]),
-                    ]
-                    if 解析后[0] is not None and 解析后[1] is not None:
-                        setattr(
-                            self.滑动查找区域,
-                            名称,
-                            滑动区域操作类(控制器, 解析后),
-                        )
-                    else:
-                        setattr(self.滑动查找区域, 名称, None)
+                if isinstance(配置, (list, tuple)) and len(配置) >= 2 and 配置[0] and 配置[1]:
+                    setattr(
+                        self.滑动查找区域,
+                        名称,
+                        滑动区域操作类(控制器, [配置[0], 配置[1]]),
+                    )
                 else:
                     setattr(self.滑动查找区域, 名称, None)
         else:

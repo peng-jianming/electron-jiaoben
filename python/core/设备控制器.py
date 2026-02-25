@@ -95,9 +95,10 @@ class 设备控制器类:
         if x and y:
             self.adb.模拟点击(x, y, (0, 0.3))
 
-    def 随机ADB点击(self, x, y, 宽, 高):
-        """随机ADB点击"""
-        if x and y and 宽 and 高:
+    def 随机ADB点击(self, 区域):
+        """随机ADB点击，区域格式: "x,y,w,h" """
+        if 区域:
+            x, y, 宽, 高 = [int(v) for v in 区域.split(",")]
             随机x = random.randint(x, x + 宽)
             随机y = random.randint(y, y + 高)
             self.adb.模拟点击(随机x, 随机y, (0, 0.3))

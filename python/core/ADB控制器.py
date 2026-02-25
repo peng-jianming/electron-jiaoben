@@ -428,20 +428,12 @@ class ADB控制器类:
         - 终点：在“主方向”上随机（由两个区域的大致位置决定），
                 在“非主方向”上仅在起点附近做小幅偏移，避免出现左右大位移变成横向滑动。
 
-        参数格式（只接受数组/列表或元组）：
-            起始区域、结束区域: [x, y, width, height] 或 (x, y, width, height)
+        参数格式：
+            起始区域、结束区域: "x,y,w,h" 字符串
         """
-
-        def 解析区域(region):
-            # 强制为长度为 4 的序列 [x, y, w, h]
-            if not isinstance(region, (list, tuple)) or len(region) != 4:
-                raise ValueError("区域必须是长度为 4 的数组/列表/元组：[x, y, width, height]")
-            x, y, w, h = region
-            return float(x), float(y), float(w), float(h)
-
         try:
-            sx, sy, sw, sh = 解析区域(起始区域)
-            ex, ey, ew, eh = 解析区域(结束区域)
+            sx, sy, sw, sh = [float(v) for v in 起始区域.split(",")]
+            ex, ey, ew, eh = [float(v) for v in 结束区域.split(",")]
         except Exception as e:
             print(f"拟人滑动_区域 参数解析失败: {e}")
             return False

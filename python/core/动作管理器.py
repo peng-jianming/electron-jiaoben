@@ -12,20 +12,6 @@ from PIL import Image
 class 动作管理器类:
     """动作管理器，处理图像识别和点击操作"""
 
-    @staticmethod
-    def _解析区域(区域):
-        """将区域配置解析为 [x, y, w, h] 列表，支持字符串 "x,y,w,h" 或已有列表/元组"""
-        if 区域 is None:
-            return None
-        if isinstance(区域, str):
-            部分 = [x.strip() for x in 区域.split(",")]
-            if len(部分) == 4:
-                return [int(x) for x in 部分]
-            return None
-        if isinstance(区域, (list, tuple)) and len(区域) == 4:
-            return list(区域)
-        return 区域
-
     def __init__(self, 配置, 控制器, 截图上下文=None):
         """
         初始化动作管理器
@@ -43,10 +29,10 @@ class 动作管理器类:
         self.分类名 = 配置.get("分类名")
         self.大图路径 = 配置.get("大图路径")
         self.相似度 = 配置.get("相似度", 0.8)
-        self.查找区域 = self._解析区域(配置.get("查找区域")) or [0, 0, 0, 0]
-        self.偏移点击区域 = self._解析区域(配置.get("偏移点击区域"))
-        self.点击区域 = self._解析区域(配置.get("点击区域"))
-        self.固定点击区域 = self._解析区域(配置.get("固定点击区域"))
+        self.查找区域 = 配置.get("查找区域", "")
+        self.偏移点击区域 = 配置.get("偏移点击区域", "")
+        self.点击区域 = 配置.get("点击区域", "")
+        self.固定点击区域 = 配置.get("固定点击区域", "")
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
@@ -69,7 +55,8 @@ class 动作管理器类:
             if self.方式 == "yolo":
                 结果 = self._yolo检测(截图, self.相似度)
                 if len(结果):
-                    rx, ry, _, _ = self.查找区域
+                    区域值 = [int(v) for v in self.查找区域.split(",")] if self.查找区域 else [0, 0, 0, 0]
+                    rx, ry = 区域值[0], 区域值[1]
                     for r in 结果:
                         if r["分类名"] == self.分类名:
                             self.x = rx + math.ceil(r["x"])
@@ -88,30 +75,28 @@ class 动作管理器类:
                     self.h = 结果["目标高"]
         return self
 
-    def 点击(self, x=None, y=None, w=None, h=None):
+    def 点击(self):
         """点击操作"""
         if self.是否找到():
-            if x and y and w and h:
-                self.控制器.随机ADB点击(x, y, w, h)
-            elif x and y:
-                self.控制器.ADB点击(x, y)
-            elif self.偏移点击区域:
-                self.偏移点击(*self.偏移点击区域)
+            if self.偏移点击区域:
+                self.偏移点击(self.偏移点击区域)
             elif self.点击区域:
-                self.控制器.随机ADB点击(*self.点击区域)
+                self.控制器.随机ADB点击(self.点击区域)
             else:
-                self.控制器.随机ADB点击(self.x, self.y, self.w, self.h)
+                self.控制器.随机ADB点击(f"{self.x},{self.y},{self.w},{self.h}")
         elif self.固定点击区域:
-            self.控制器.随机ADB点击(*self.固定点击区域)
+            self.控制器.随机ADB点击(self.固定点击区域)
         return self
 
-    def 偏移点击(self, x=None, y=None, w=None, h=None):
-        """偏移点击"""
-        if self.是否找到():
-            if not w and not h:
-                self.控制器.ADB点击(self.x + x, self.y + y)
-            if w and h:
-                self.控制器.随机ADB点击(self.x + x, self.y + y, w, h)
+    def 偏移点击(self, 区域):
+        """偏移点击，区域格式: "ox,oy,w,h" 或 "ox,oy" """
+        if self.是否找到() and 区域:
+            部分 = [int(v) for v in 区域.split(",")]
+            ox, oy = 部分[0], 部分[1]
+            if len(部分) == 4 and 部分[2] and 部分[3]:
+                self.控制器.随机ADB点击(f"{self.x + ox},{self.y + oy},{部分[2]},{部分[3]}")
+            else:
+                self.控制器.ADB点击(self.x + ox, self.y + oy)
         return self
 
     def 随机延时(self, 开始, 结束):
@@ -123,8 +108,8 @@ class 动作管理器类:
         return self
 
     def 设置查找区域(self, 查找区域):
-        """设置查找区域（可为字符串 "x,y,w,h" 或 [x,y,w,h]）"""
-        self.查找区域 = self._解析区域(查找区域) or [0, 0, 0, 0]
+        """设置查找区域"""
+        self.查找区域 = 查找区域 or ""
         return self
 
     def 设置大图路径(self, 路径):
@@ -155,7 +140,7 @@ class 动作管理器类:
         if self.分类名:
             return self.分类名
         if self.固定点击区域:
-            return "固定点击_" + str(self.固定点击区域)
+            return "固定点击_" + self.固定点击区域
         return None
 
     def 找到则点击(self, 延时=(1, 3), 日志=None) -> bool:
@@ -185,7 +170,7 @@ class 动作管理器类:
             目标标识 = self._获取目标标识()
             if not self.控制器.是否允许操作(目标标识):
                 return False
-            self.控制器.随机ADB点击(*self.固定点击区域)
+            self.控制器.随机ADB点击(self.固定点击区域)
             self.控制器.记录操作(目标标识)
             if 日志:
                 self.控制器.写入日志(f"{self.当前界面}: {日志}")
@@ -194,8 +179,8 @@ class 动作管理器类:
             return True
         return self.找到则点击(延时, 日志)
 
-    def _字库找图(self, 大图, 字库名, 相似度=0.9, 区域=(0, 0, 0, 0)):
-        """根据字库名字进行颜色偏色找图"""
+    def _字库找图(self, 大图, 字库名, 相似度=0.9, 区域=""):
+        """根据字库名字进行颜色偏色找图，区域格式: "x,y,w,h" """
         if 字库名 not in self.字库集合:
             self.控制器.写入日志(f"未找到字库: {字库名}")
             return None
@@ -216,7 +201,7 @@ class 动作管理器类:
             return None
 
         大图高, 大图宽 = 大图数组.shape[:2]
-        x, y, 宽, 高 = 区域
+        x, y, 宽, 高 = [int(v) for v in 区域.split(",")] if 区域 else [0, 0, 0, 0]
 
         # 判断是否指定了检测区域
         if x == 0 and y == 0 and 宽 == 0 and 高 == 0:
