@@ -1,7 +1,7 @@
 <template>
   <div class="config-tab-container">
     <!-- 配置 JSON 文件选择 -->
-    <div style="margin-bottom: 6px;">
+    <div >
       <el-input
         v-model="configForm.configPath"
         placeholder="请选择配置 JSON 文件"
@@ -9,11 +9,10 @@
         size="small"
       >
         <template #prepend>
-          <el-button size="small" @click="handleSelectConfigFile">选择文件</el-button>
+          <el-button @click="handleSelectConfigFile">选择文件</el-button>
         </template>
         <template #append>
           <el-button
-          size="small"
             @click="handleOpenConfigFile"
             :disabled="!configForm.configPath"
           >
@@ -958,7 +957,6 @@ defineExpose({
   position: relative;
   overflow: hidden;
   height: 100%;
-  padding: 4px 2px;
   display: flex;
   flex-direction: column;
   gap: 6px;

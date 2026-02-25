@@ -138,7 +138,8 @@ const fontNameInput = ref("");
 const configData = ref({});
 const configPathRef = ref(""); // 保存配置路径，用于切换 tab 时重新拉取
 const cascaderOptionsKey = computed(() =>
-  JSON.stringify(Object.keys(configData.value || {}).sort())
+  // 当任意层级的配置数据变化时，都重新生成 key，强制重建 Cascader
+  JSON.stringify(configData.value || {})
 );
 const cascaderProps = {
   lazy: true,
