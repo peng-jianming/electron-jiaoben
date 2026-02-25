@@ -5,6 +5,7 @@
       <!-- 图像上传区 -->
       <ImageUploadCard
         :image-file-name="imageFileName"
+        :original-image-url="originalImageUrl"
         @image-select="handleImageSelect"
       />
 
@@ -79,43 +80,40 @@
         >
           清空
         </el-button>
-        <div class="action-right">
-          <el-button
-            type="success"
-            :icon="Download"
-            @click="handleSaveImage"
-            :disabled="processing"
-          >
-            保存图片
-          </el-button>
-          <el-button
-            type="primary"
-            :icon="VideoPlay"
-            @click="startProcessing"
-            :disabled="processing"
-            :loading="processing"
-          >
-            {{ processing ? '处理中...' : (pipeline.length === 0 ? '显示原图' : '开始处理') }}
-          </el-button>
-        </div>
+        <el-button
+          type="success"
+          :icon="Download"
+          @click="handleSaveImage"
+          :disabled="processing"
+        >
+          保存图片
+        </el-button>
       </div>
     </div>
 
     <!-- 右侧图片预览区域 -->
-    <div class="image-preview-panel">
+    <div class="image-preview-panel"
+         ref="previewContainerRef"
+         :style="{ cursor: previewCursor }"
+         @wheel="handlePreviewWheel"
+         @mousedown="handlePreviewMouseDown"
+         @mousemove="handlePreviewMouseMove"
+         @mouseup="handlePreviewMouseUp"
+         @click="handlePreviewClick"
+    >
       <div v-if="!processedImage" class="preview-empty">
         <el-icon class="preview-empty-icon"><Picture /></el-icon>
         <p>处理后的图片将显示在这里</p>
-        <p class="hint">上传图片并执行处理后查看结果</p>
+        <p class="hint">上传图片并添加处理步骤</p>
       </div>
-      <div v-else class="preview-content">
+      <div v-else class="preview-image-wrapper" :style="previewWrapperStyle">
         <img
           :src="processedImage"
           alt="处理结果"
-          class="preview-image"
           ref="previewImageRef"
-          :class="{ 'selecting-point': !!activeFloodFillStepId }"
-          @click="onPreviewImageClick"
+          :style="previewImageStyle"
+          @load="handlePreviewImageLoad"
+          draggable="false"
         />
       </div>
     </div>
@@ -123,19 +121,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import {
-  List, Plus, Delete, Download, VideoPlay, DocumentAdd,
+  List, Plus, Delete, Download, DocumentAdd,
   Brush, MagicStick, Aim, Picture,
 } from '@element-plus/icons-vue';
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
 import PipelineStepCard from './cards/PipelineStepCard.vue';
 
+const previewContainerRef = ref(null);
 const previewImageRef = ref(null);
 
 const {
   imageFileName,
+  originalImageUrl,
   processing,
   imageLoaded,
   processedImage,
@@ -158,26 +158,138 @@ const {
   handleDragOver,
   handleDrop,
   handleDragEnd,
-  startProcessing,
 
   initSocket,
   initIpcListeners,
   cleanup,
 } = useColoring();
 
-function onPreviewImageClick(event) {
-  if (!previewImageRef.value) return;
+// ==================== Preview Zoom/Pan ====================
 
-  const img = previewImageRef.value;
-  const rect = img.getBoundingClientRect();
+const previewScale = ref(1);
+const previewTranslateX = ref(0);
+const previewTranslateY = ref(0);
+const previewIsDragging = ref(false);
+let previewDragStartX = 0;
+let previewDragStartY = 0;
+let previewDragStartTranslateX = 0;
+let previewDragStartTranslateY = 0;
+let previewSuppressClick = false;
 
-  const scaleX = img.naturalWidth / rect.width;
-  const scaleY = img.naturalHeight / rect.height;
+const previewWrapperStyle = computed(() => ({
+  transform: `translate(${previewTranslateX.value}px, ${previewTranslateY.value}px)`,
+  position: 'absolute',
+  top: 0,
+  left: 0,
+}));
 
-  const actualX = Math.round((event.clientX - rect.left) * scaleX);
-  const actualY = Math.round((event.clientY - rect.top) * scaleY);
+const previewImageStyle = computed(() => ({
+  transform: `scale(${previewScale.value})`,
+  transformOrigin: 'top left',
+  display: 'block',
+}));
+
+const previewCursor = computed(() => {
+  if (activeFloodFillStepId.value) return 'crosshair';
+  if (previewIsDragging.value) return 'grabbing';
+  return 'default';
+});
+
+function handlePreviewImageLoad() {
+  nextTick(() => {
+    calculatePreviewTransform();
+  });
+}
+
+function calculatePreviewTransform() {
+  if (!previewImageRef.value || !previewContainerRef.value) return;
+  const containerRect = previewContainerRef.value.getBoundingClientRect();
+  const imgWidth = previewImageRef.value.naturalWidth;
+  const imgHeight = previewImageRef.value.naturalHeight;
+
+  const scaleX = containerRect.width / imgWidth;
+  const scaleY = containerRect.height / imgHeight;
+  const scale = Math.min(scaleX, scaleY, 1);
+
+  previewScale.value = scale;
+  const scaledWidth = imgWidth * scale;
+  const scaledHeight = imgHeight * scale;
+  previewTranslateX.value = (containerRect.width - scaledWidth) / 2;
+  previewTranslateY.value = (containerRect.height - scaledHeight) / 2;
+}
+
+function handlePreviewWheel(event) {
+  if (!processedImage.value || !previewImageRef.value || !previewContainerRef.value) return;
+  if (!event.ctrlKey && !event.metaKey) return;
+
+  event.preventDefault();
+  const containerRect = previewContainerRef.value.getBoundingClientRect();
+  const mouseX = event.clientX - containerRect.left;
+  const mouseY = event.clientY - containerRect.top;
+
+  const imgX = (mouseX - previewTranslateX.value) / previewScale.value;
+  const imgY = (mouseY - previewTranslateY.value) / previewScale.value;
+
+  const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.1, Math.min(10, previewScale.value * zoomFactor));
+
+  previewTranslateX.value = mouseX - imgX * newScale;
+  previewTranslateY.value = mouseY - imgY * newScale;
+  previewScale.value = newScale;
+}
+
+function handlePreviewMouseDown(event) {
+  if (!processedImage.value || event.button !== 0) return;
+  previewIsDragging.value = true;
+  previewDragStartX = event.clientX;
+  previewDragStartY = event.clientY;
+  previewDragStartTranslateX = previewTranslateX.value;
+  previewDragStartTranslateY = previewTranslateY.value;
+  event.preventDefault();
+}
+
+function handlePreviewMouseMove(event) {
+  if (!previewIsDragging.value) return;
+  const deltaX = event.clientX - previewDragStartX;
+  const deltaY = event.clientY - previewDragStartY;
+  previewTranslateX.value = previewDragStartTranslateX + deltaX;
+  previewTranslateY.value = previewDragStartTranslateY + deltaY;
+}
+
+function handlePreviewMouseUp(event) {
+  if (previewIsDragging.value) {
+    const dx = Math.abs(event.clientX - previewDragStartX);
+    const dy = Math.abs(event.clientY - previewDragStartY);
+    if (dx > 3 || dy > 3) {
+      previewSuppressClick = true;
+    }
+    previewIsDragging.value = false;
+  }
+}
+
+function handlePreviewClick(event) {
+  if (previewSuppressClick) {
+    previewSuppressClick = false;
+    return;
+  }
+  if (!activeFloodFillStepId.value) return;
+  if (!previewImageRef.value || !previewContainerRef.value) return;
+
+  const containerRect = previewContainerRef.value.getBoundingClientRect();
+  const containerX = event.clientX - containerRect.left;
+  const containerY = event.clientY - containerRect.top;
+  const imageX = containerX - previewTranslateX.value;
+  const imageY = containerY - previewTranslateY.value;
+  const actualX = Math.round(imageX / previewScale.value);
+  const actualY = Math.round(imageY / previewScale.value);
 
   handleImageClick(actualX, actualY);
+}
+
+function handleGlobalPreviewMouseUp() {
+  if (previewIsDragging.value) {
+    previewIsDragging.value = false;
+  }
 }
 
 defineExpose({
@@ -189,10 +301,12 @@ defineExpose({
 onMounted(() => {
   initSocket();
   initIpcListeners();
+  document.addEventListener('mouseup', handleGlobalPreviewMouseUp);
 });
 
 onUnmounted(() => {
   cleanup();
+  document.removeEventListener('mouseup', handleGlobalPreviewMouseUp);
 });
 </script>
 
@@ -296,24 +410,24 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
-.action-right {
-  display: flex;
-  gap: 10px;
-}
-
 /* ===== 右侧图片预览区域 ===== */
 .image-preview-panel {
   flex: 1;
   min-width: 0;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: #1a1a2e;
   border-left: 1px solid var(--border-color);
-  overflow: auto;
-  padding: 16px;
+  overflow: hidden;
+  position: relative;
+  user-select: none;
   box-sizing: border-box;
+  background-image:
+    linear-gradient(45deg, #1e1e3a 25%, transparent 25%),
+    linear-gradient(-45deg, #1e1e3a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e1e3a 75%),
+    linear-gradient(-45deg, transparent 75%, #1e1e3a 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
 }
 
 .preview-empty {
@@ -321,6 +435,8 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
   color: #64748b;
   text-align: center;
   gap: 4px;
@@ -339,27 +455,21 @@ onUnmounted(() => {
   opacity: 0.6;
 }
 
-.preview-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
+.preview-image-wrapper {
+  display: inline-block;
+  position: relative;
+  user-select: none;
 }
 
-.preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 4px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  cursor: default;
-  transition: box-shadow 0.2s;
-}
-
-.preview-image.selecting-point {
-  cursor: crosshair;
-  box-shadow: 0 0 0 3px #10b981, 0 4px 24px rgba(0, 0, 0, 0.4);
+.preview-image-wrapper img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  user-select: none;
+  pointer-events: none;
+  border-radius: 0;
 }
 
 /* TransitionGroup 动画 */

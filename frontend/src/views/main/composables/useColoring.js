@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, watch, computed } from "vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
@@ -24,6 +24,7 @@ export function useColoring() {
   const processing = ref(false);
   const imageLoaded = ref(false);
   const processedImage = ref(null);
+  const originalImageUrl = ref(null);
 
   const pipeline = ref([]);
   const dragIndex = ref(null);
@@ -32,6 +33,7 @@ export function useColoring() {
   let socket = null;
   let stepIdCounter = 0;
   let hasShownCompleteMessage = false;
+  let processDebounceTimer = null;
 
   function generateStepId() {
     return `step_${Date.now()}_${++stepIdCounter}`;
@@ -115,6 +117,14 @@ export function useColoring() {
     imageLoaded.value = true;
     pipeline.value.forEach(step => step.completed = false);
 
+    if (fileObj instanceof Blob) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        originalImageUrl.value = e.target.result;
+      };
+      reader.readAsDataURL(fileObj);
+    }
+
     const imagePath = fileObj.path || fileObj.name;
     if (!imagePath) {
       console.error("无法获取文件路径");
@@ -186,10 +196,7 @@ export function useColoring() {
   // ==================== 执行处理 ====================
 
   function startProcessing() {
-    if (!imageLoaded.value) {
-      ElMessage.warning('请先上传图片');
-      return;
-    }
+    if (!imageLoaded.value) return;
 
     pipeline.value.forEach(step => step.completed = false);
     processing.value = true;
@@ -209,6 +216,20 @@ export function useColoring() {
     });
   }
 
+  // ==================== Auto Processing ====================
+
+  const pipelineSignature = computed(() => {
+    return JSON.stringify(pipeline.value.map(s => ({ type: s.type, params: s.params })));
+  });
+
+  watch(pipelineSignature, () => {
+    if (!imageLoaded.value) return;
+    if (processDebounceTimer) clearTimeout(processDebounceTimer);
+    processDebounceTimer = setTimeout(() => {
+      startProcessing();
+    }, 500);
+  });
+
   // ==================== Socket / IPC ====================
 
   const handleProcessedImage = (data) => {
@@ -227,15 +248,14 @@ export function useColoring() {
 
       if ((isLastStep || isComplete) && data.success) {
         processing.value = false;
-        if (!hasShownCompleteMessage) {
-          hasShownCompleteMessage = true;
-          ElMessage.success('处理完成');
-        }
       } else if (!data.success) {
         processing.value = false;
       }
     } else {
       processing.value = false;
+      if (pipeline.value.length > 0) {
+        startProcessing();
+      }
     }
 
     if (data && !data.success && data.error) {
@@ -266,10 +286,12 @@ export function useColoring() {
 
   function cleanup() {
     if (socket) socket.disconnect();
+    if (processDebounceTimer) clearTimeout(processDebounceTimer);
   }
 
   return {
     imageFileName,
+    originalImageUrl,
     processing,
     imageLoaded,
     processedImage,

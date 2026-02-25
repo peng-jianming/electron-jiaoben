@@ -7,7 +7,24 @@
       <h2>图像加载</h2>
     </div>
     <div class="card-body">
+      <div v-if="originalImageUrl" class="uploaded-state">
+        <div class="thumb-wrapper">
+          <img :src="originalImageUrl" alt="已上传图片" class="thumb-image" />
+        </div>
+        <div class="upload-meta">
+          <span class="file-name" :title="imageFileName">{{ imageFileName }}</span>
+          <el-upload
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="handleImageSelect"
+            accept="image/*"
+          >
+            <el-button size="small" type="primary" :icon="RefreshRight">重新选择</el-button>
+          </el-upload>
+        </div>
+      </div>
       <el-upload
+        v-else
         :auto-upload="false"
         :show-file-list="false"
         :on-change="handleImageSelect"
@@ -17,25 +34,19 @@
       >
         <div class="upload-content">
           <el-icon class="upload-big-icon"><Upload /></el-icon>
-          <div class="upload-text">
-            <p class="primary-text">拖拽图像文件到此处</p>
-            <p class="secondary-text">或点击选择文件</p>
-          </div>
+          <p class="primary-text">拖拽或点击上传图片</p>
         </div>
       </el-upload>
-      <div v-if="imageFileName" class="file-info">
-        <el-icon><Document /></el-icon>
-        <span>{{ imageFileName }}</span>
-      </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { Upload, Document } from '@element-plus/icons-vue';
+import { Upload, RefreshRight } from '@element-plus/icons-vue';
 
 defineProps({
-  imageFileName: String
+  imageFileName: String,
+  originalImageUrl: String,
 });
 
 const emit = defineEmits(['image-select']);
@@ -62,27 +73,27 @@ function handleImageSelect(file) {
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  gap: 10px;
+  padding: 10px 16px;
   background: rgba(51, 65, 85, 0.3);
   border-bottom: 1px solid var(--border-color);
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   flex: 1;
 }
 
 .card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .upload-icon {
@@ -91,7 +102,7 @@ function handleImageSelect(file) {
 }
 
 .card-body {
-  padding: 20px;
+  padding: 12px;
 }
 
 .upload-card {
@@ -105,9 +116,9 @@ function handleImageSelect(file) {
 .upload-dragger :deep(.el-upload-dragger) {
   background: transparent;
   border: 2px dashed var(--border-color);
-  border-radius: 12px;
+  border-radius: 10px;
   transition: all 0.3s ease;
-  padding: 40px 20px;
+  padding: 16px;
 }
 
 .upload-dragger :deep(.el-upload-dragger:hover) {
@@ -117,42 +128,57 @@ function handleImageSelect(file) {
 
 .upload-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  justify-content: center;
 }
 
 .upload-big-icon {
-  font-size: 48px;
+  font-size: 28px;
   color: var(--primary-light);
-}
-
-.upload-text {
-  text-align: center;
 }
 
 .primary-text {
-  font-size: 16px;
-  color: var(--text-primary);
-  margin: 0 0 4px 0;
-}
-
-.secondary-text {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: 0;
 }
 
-.file-info {
+.uploaded-state {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px 16px;
-  background: rgba(99, 102, 241, 0.1);
+  gap: 12px;
+}
+
+.thumb-wrapper {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
   border-radius: 8px;
-  color: var(--primary-light);
-  font-size: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: #0f172a;
+}
+
+.thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.upload-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
-
