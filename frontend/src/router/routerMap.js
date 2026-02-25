@@ -28,11 +28,6 @@ const constantRouterMap = [
     ]
   },
   {
-    path: '/image-result',
-    name: 'ImageResult',
-    component: () => import('@/views/image-result/Index.vue')
-  },
-  {
     path: '/screenshot-preview',
     name: 'ScreenshotPreview',
     component: () => import('@/views/screenshot-preview/Index.vue')

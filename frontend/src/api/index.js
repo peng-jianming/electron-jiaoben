@@ -12,7 +12,6 @@ const ipcApiRoute = {
   开始任务: 'controller/example/开始任务',
   结束任务: 'controller/example/结束任务',
   sendToPython: 'controller/example/sendToPython',
-  handleImageClick: 'controller/example/handleImageClick',
   openSaveDialog: 'controller/example/openSaveDialog',
   saveBase64Image: 'controller/example/saveBase64Image',
   openDirectoryDialog: 'controller/example/openDirectoryDialog',

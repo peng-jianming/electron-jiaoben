@@ -1,119 +1,144 @@
 <template>
-  <div class="coloring-layout">
-    <!-- 图像上传区 -->
-    <ImageUploadCard
-      :image-file-name="imageFileName"
-      @image-select="handleImageSelect"
-    />
+  <div class="coloring-root">
+    <!-- 左侧控制面板 -->
+    <div class="coloring-layout">
+      <!-- 图像上传区 -->
+      <ImageUploadCard
+        :image-file-name="imageFileName"
+        @image-select="handleImageSelect"
+      />
 
-    <!-- 管线区域 -->
-    <div class="pipeline-section">
-      <!-- 管线头部：标题 + 添加步骤 -->
-      <div class="pipeline-toolbar">
-        <div class="toolbar-left">
-          <el-icon class="pipeline-icon"><List /></el-icon>
-          <span class="pipeline-title">处理管线</span>
-          <el-tag size="small" type="info" effect="dark">{{ pipeline.length }} 步</el-tag>
+      <!-- 管线区域 -->
+      <div class="pipeline-section">
+        <!-- 管线头部：标题 + 添加步骤 -->
+        <div class="pipeline-toolbar">
+          <div class="toolbar-left">
+            <el-icon class="pipeline-icon"><List /></el-icon>
+            <span class="pipeline-title">处理管线</span>
+            <el-tag size="small" type="info" effect="dark">{{ pipeline.length }} 步</el-tag>
+          </div>
+          <el-dropdown trigger="click" @command="addStep" :disabled="!imageLoaded">
+            <el-button type="primary" size="small" :icon="Plus" :disabled="!imageLoaded">
+              添加步骤
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="color_filter">
+                  <el-icon><Brush /></el-icon> 颜色过滤
+                </el-dropdown-item>
+                <el-dropdown-item command="binary">
+                  <el-icon><MagicStick /></el-icon> 二值化
+                </el-dropdown-item>
+                <el-dropdown-item command="flood_fill">
+                  <el-icon><Aim /></el-icon> 洪水填充
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
-        <el-dropdown trigger="click" @command="addStep" :disabled="!imageLoaded">
-          <el-button type="primary" size="small" :icon="Plus" :disabled="!imageLoaded">
-            添加步骤
+
+        <!-- 步骤列表 -->
+        <div class="pipeline-list" v-if="pipeline.length > 0">
+          <TransitionGroup name="list">
+            <PipelineStepCard
+              v-for="(step, index) in pipeline"
+              :key="step.id"
+              :step="step"
+              :index="index"
+              :is-dragging="dragIndex === index"
+              :is-selecting-point="activeFloodFillStepId === step.id"
+              :get-color-preview="getColorPreview"
+              @update:params="updateStepParams(step.id, $event)"
+              @toggle-expand="toggleStepExpand(step.id)"
+              @remove="removeStep(index)"
+              @show-animation="showFloodFillAnimation(index, step)"
+              @select-point="startPointSelection(step.id)"
+              @drag-start="handleDragStart"
+              @drag-over="handleDragOver"
+              @drag-end="handleDragEnd"
+              @drop="handleDrop"
+            />
+          </TransitionGroup>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else class="empty-pipeline">
+          <el-icon class="empty-icon"><DocumentAdd /></el-icon>
+          <p>暂无处理步骤</p>
+          <p class="hint">点击上方「添加步骤」来构建处理管线</p>
+        </div>
+      </div>
+
+      <!-- 底部操作栏 -->
+      <div class="action-bar" v-if="imageLoaded">
+        <el-button
+          type="danger"
+          :icon="Delete"
+          @click="clearAllSteps"
+          :disabled="processing || pipeline.length === 0"
+        >
+          清空
+        </el-button>
+        <div class="action-right">
+          <el-button
+            type="success"
+            :icon="Download"
+            @click="handleSaveImage"
+            :disabled="processing"
+          >
+            保存图片
           </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="color_filter">
-                <el-icon><Brush /></el-icon> 颜色过滤
-              </el-dropdown-item>
-              <el-dropdown-item command="binary">
-                <el-icon><MagicStick /></el-icon> 二值化
-              </el-dropdown-item>
-              <el-dropdown-item command="flood_fill">
-                <el-icon><Aim /></el-icon> 洪水填充
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-
-      <!-- 步骤列表 -->
-      <div class="pipeline-list" v-if="pipeline.length > 0">
-        <TransitionGroup name="list">
-          <PipelineStepCard
-            v-for="(step, index) in pipeline"
-            :key="step.id"
-            :step="step"
-            :index="index"
-            :is-dragging="dragIndex === index"
-            :is-selecting-point="activeFloodFillStepId === step.id"
-            :get-color-preview="getColorPreview"
-            @update:params="updateStepParams(step.id, $event)"
-            @toggle-expand="toggleStepExpand(step.id)"
-            @remove="removeStep(index)"
-            @show-animation="showFloodFillAnimation(index, step)"
-            @select-point="startPointSelection(step.id)"
-            @drag-start="handleDragStart"
-            @drag-over="handleDragOver"
-            @drag-end="handleDragEnd"
-            @drop="handleDrop"
-          />
-        </TransitionGroup>
-      </div>
-
-      <!-- 空状态 -->
-      <div v-else class="empty-pipeline">
-        <el-icon class="empty-icon"><DocumentAdd /></el-icon>
-        <p>暂无处理步骤</p>
-        <p class="hint">点击上方「添加步骤」来构建处理管线</p>
+          <el-button
+            type="primary"
+            :icon="VideoPlay"
+            @click="startProcessing"
+            :disabled="processing"
+            :loading="processing"
+          >
+            {{ processing ? '处理中...' : (pipeline.length === 0 ? '显示原图' : '开始处理') }}
+          </el-button>
+        </div>
       </div>
     </div>
 
-    <!-- 底部操作栏 -->
-    <div class="action-bar" v-if="imageLoaded">
-      <el-button
-        type="danger"
-        :icon="Delete"
-        @click="clearAllSteps"
-        :disabled="processing || pipeline.length === 0"
-      >
-        清空
-      </el-button>
-      <div class="action-right">
-        <el-button
-          type="success"
-          :icon="Download"
-          @click="handleSaveImage"
-          :disabled="processing"
-        >
-          保存图片
-        </el-button>
-        <el-button
-          type="primary"
-          :icon="VideoPlay"
-          @click="startProcessing"
-          :disabled="processing"
-          :loading="processing"
-        >
-          {{ processing ? '处理中...' : (pipeline.length === 0 ? '显示原图' : '开始处理') }}
-        </el-button>
+    <!-- 右侧图片预览区域 -->
+    <div class="image-preview-panel">
+      <div v-if="!processedImage" class="preview-empty">
+        <el-icon class="preview-empty-icon"><Picture /></el-icon>
+        <p>处理后的图片将显示在这里</p>
+        <p class="hint">上传图片并执行处理后查看结果</p>
+      </div>
+      <div v-else class="preview-content">
+        <img
+          :src="processedImage"
+          alt="处理结果"
+          class="preview-image"
+          ref="previewImageRef"
+          :class="{ 'selecting-point': !!activeFloodFillStepId }"
+          @click="onPreviewImageClick"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import {
   List, Plus, Delete, Download, VideoPlay, DocumentAdd,
-  Brush, MagicStick, Aim,
+  Brush, MagicStick, Aim, Picture,
 } from '@element-plus/icons-vue';
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
 import PipelineStepCard from './cards/PipelineStepCard.vue';
 
+const previewImageRef = ref(null);
+
 const {
   imageFileName,
   processing,
   imageLoaded,
+  processedImage,
   pipeline,
   dragIndex,
   activeFloodFillStepId,
@@ -125,6 +150,7 @@ const {
   removeStep,
   clearAllSteps,
   handleImageSelect,
+  handleImageClick,
   handleSaveImage,
   startPointSelection,
   showFloodFillAnimation,
@@ -138,6 +164,21 @@ const {
   initIpcListeners,
   cleanup,
 } = useColoring();
+
+function onPreviewImageClick(event) {
+  if (!previewImageRef.value) return;
+
+  const img = previewImageRef.value;
+  const rect = img.getBoundingClientRect();
+
+  const scaleX = img.naturalWidth / rect.width;
+  const scaleY = img.naturalHeight / rect.height;
+
+  const actualX = Math.round((event.clientX - rect.left) * scaleX);
+  const actualY = Math.round((event.clientY - rect.top) * scaleY);
+
+  handleImageClick(actualX, actualY);
+}
 
 defineExpose({
   handleSaveImage,
@@ -156,14 +197,23 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.coloring-root {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 .coloring-layout {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 100%;
+  width: 420px;
+  min-width: 420px;
+  max-width: 420px;
   height: 100%;
-  max-width: 900px;
-  margin: 0 auto;
   padding: 8px;
   overflow: hidden;
   box-sizing: border-box;
@@ -249,6 +299,67 @@ onUnmounted(() => {
 .action-right {
   display: flex;
   gap: 10px;
+}
+
+/* ===== 右侧图片预览区域 ===== */
+.image-preview-panel {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+  border-left: 1px solid var(--border-color);
+  overflow: auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  text-align: center;
+  gap: 4px;
+}
+.preview-empty-icon {
+  font-size: 64px;
+  margin-bottom: 12px;
+  opacity: 0.3;
+}
+.preview-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+.preview-empty .hint {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.preview-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  cursor: default;
+  transition: box-shadow 0.2s;
+}
+
+.preview-image.selecting-point {
+  cursor: crosshair;
+  box-shadow: 0 0 0 3px #10b981, 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
 /* TransitionGroup 动画 */

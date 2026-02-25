@@ -88,12 +88,6 @@ class ExampleController {
       }
       
       // 图像处理结果事件 (image-processed)
-      // 只要有图像数据（原图或处理后的图像），就在新窗口中显示
-      if (imageData && imageData.success && (imageData.processedImage || imageData.originalImage)) {
-        exampleService.showImageResultWindow(imageData);
-      }
-      
-      // 同时向前端发送处理结果（保持原有功能）
       const socketServer = getSocketServer();
       if (socketServer) {
         socketServer.io.emit('image-processed', imageData);
@@ -128,29 +122,6 @@ class ExampleController {
       
       return { success: true, message: '消息已发送' };
     } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 处理图片点击事件（从图片显示窗口发送）
-   * @param {Object} args - 参数对象 {x, y}
-   * @param {Object} event - 事件对象
-   */
-  handleImageClick(args, event) {
-    try {
-      const { exampleService } = require('../service/example');
-      const { getMainWindow } = require('ee-core/electron');
-      
-      // 转发到主窗口
-      const mainWindow = getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('image-click', args);
-      }
-      
-      return { success: true, message: '图片点击事件已转发' };
-    } catch (error) {
-      console.error('转发图片点击事件错误:', error);
       return { success: false, message: error.message };
     }
   }

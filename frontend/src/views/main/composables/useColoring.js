@@ -23,6 +23,7 @@ export function useColoring() {
   const imageFileName = ref(null);
   const processing = ref(false);
   const imageLoaded = ref(false);
+  const processedImage = ref(null);
 
   const pipeline = ref([]);
   const dragIndex = ref(null);
@@ -211,6 +212,12 @@ export function useColoring() {
   // ==================== Socket / IPC ====================
 
   const handleProcessedImage = (data) => {
+    if (data && data.success && data.processedImage) {
+      const isJpeg = data.processedImage.startsWith('/9j/');
+      const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+      processedImage.value = `data:${mimeType};base64,${data.processedImage}`;
+    }
+
     if (data && data.stepIndex !== undefined) {
       if (data.stepIndex < pipeline.value.length) {
         pipeline.value[data.stepIndex].completed = true;
@@ -254,26 +261,18 @@ export function useColoring() {
   }
 
   function initIpcListeners() {
-    const handler = (_event, data) => handleImageClick(data.x, data.y);
-    if (ipc) {
-      ipc.on('image-click', handler);
-    } else if (window.ipcRenderer) {
-      window.ipcRenderer.on('image-click', handler);
-    } else if (window.electron && window.electron.ipcRenderer) {
-      window.electron.ipcRenderer.on('image-click', handler);
-    }
+    // no-op: image clicks are now handled directly in the same window
   }
 
   function cleanup() {
     if (socket) socket.disconnect();
-    const targets = [ipc, window.ipcRenderer, window.electron?.ipcRenderer].filter(Boolean);
-    targets.forEach(t => t.removeAllListeners?.('image-click'));
   }
 
   return {
     imageFileName,
     processing,
     imageLoaded,
+    processedImage,
     pipeline,
     dragIndex,
     activeFloodFillStepId,
@@ -285,6 +284,7 @@ export function useColoring() {
     removeStep,
     clearAllSteps,
     handleImageSelect,
+    handleImageClick,
     handleSaveImage,
     startPointSelection,
     showFloodFillAnimation,
