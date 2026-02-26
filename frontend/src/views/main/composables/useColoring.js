@@ -1,4 +1,4 @@
-import { ref, watch, computed } from "vue";
+import { ref, watch } from "vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
@@ -242,18 +242,8 @@ export function useColoring() {
   }
 
   // ==================== Auto Processing ====================
-
-  const pipelineSignature = computed(() => {
-    return JSON.stringify(pipeline.value.map(s => ({ type: s.type, params: s.params })));
-  });
-
-  watch(pipelineSignature, () => {
-    if (!imageLoaded.value) return;
-    if (processDebounceTimer) clearTimeout(processDebounceTimer);
-    processDebounceTimer = setTimeout(() => {
-      startProcessing();
-    }, 500);
-  });
+  // 已改为纯手动模式：不再监听管线变化自动触发处理，
+  // 仅在外部显式调用 startProcessing 时才会发送处理请求。
 
   // ==================== Socket / IPC ====================
 

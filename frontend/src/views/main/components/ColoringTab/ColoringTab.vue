@@ -33,20 +33,30 @@
             <el-tag size="small" type="info" effect="dark">{{ pipeline.length }} 步</el-tag>
           </div>
           <el-button
-          type="danger"
-          :icon="Delete"
-          size="small" 
-          @click="clearAllSteps"
-          :disabled="processing || pipeline.length === 0"
-        >
-          清空
-        </el-button>
+            type="success"
+            :icon="VideoPlay"
+            size="small"
+            :loading="processing"
+            :disabled="!imageLoaded || pipeline.length === 0"
+            @click="startProcessing"
+          >
+            开始处理
+          </el-button>
+          <el-button
+            type="danger"
+            :icon="Delete"
+            size="small"
+            @click="clearAllSteps"
+            :disabled="processing || pipeline.length === 0"
+          >
+            清空
+          </el-button>
           <el-dropdown trigger="click" @command="addStep">
             <el-button type="primary" size="small" :icon="Plus">
               添加步骤
             </el-button>
             <template #dropdown>
-            <!-- 颜色过滤,二值化,膨胀, 腐蚀,洪水填充 -->
+              <!-- 颜色过滤,二值化,膨胀, 腐蚀,洪水填充 -->
               <el-dropdown-menu>
                 <el-dropdown-item command="color_filter">
                   <el-icon><Brush /></el-icon> 颜色过滤
@@ -235,7 +245,7 @@
           :class="{ active: previewMode === 'processed' }"
           @click="previewMode = 'processed'"
         >
-          处理结果
+          管线处理结果
         </div>
         <div
           class="preview-mode-tab"
@@ -365,6 +375,7 @@ const {
   handleDragOver,
   handleDrop,
   handleDragEnd,
+  startProcessing,
 
   openDeviceDialog,
   refreshDevices,
