@@ -14,7 +14,11 @@
       <ImageUploadCard
         :image-file-name="imageFileName"
         :original-image-url="originalImageUrl"
+        :current-device-id="currentDeviceId"
+        :screenshot-loading="screenshotLoading"
         @image-select="handleImageSelect"
+        @open-device-dialog="openDeviceDialog"
+        @capture-screenshot="captureScreenshot"
       />
 
       <!-- 管线区域 -->
@@ -126,6 +130,19 @@
         />
       </div>
     </div>
+
+    <!-- 设备连接弹框（与 ImageProcessor 共用组件） -->
+    <ImageProcessorDeviceDialog
+      v-model:visible="deviceDialogVisible"
+      v-model:tab="deviceTab"
+      :device-list="deviceList"
+      :device-loading="deviceLoading"
+      :selected-device-id="selectedDeviceId"
+      :current-device-id="currentDeviceId"
+      @update:selected-device-id="(val) => (selectedDeviceId = val)"
+      @refresh-devices="refreshDevices"
+      @connect-selected-device="connectSelectedDevice"
+    />
   </div>
 </template>
 
@@ -138,8 +155,10 @@ import {
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
 import PipelineStepCard from './cards/PipelineStepCard.vue';
+import ImageProcessorDeviceDialog from '../ImageProcessor/dialogs/ImageProcessorDeviceDialog.vue';
 
 const previewContainerRef = ref(null);
+const deviceTab = ref('mobile');
 const previewImageRef = ref(null);
 
 const {
@@ -151,6 +170,13 @@ const {
   pipeline,
   dragIndex,
   activeFloodFillStepId,
+
+  deviceDialogVisible,
+  deviceList,
+  deviceLoading,
+  selectedDeviceId,
+  currentDeviceId,
+  screenshotLoading,
 
   getColorPreview,
   addStep,
@@ -167,6 +193,11 @@ const {
   handleDragOver,
   handleDrop,
   handleDragEnd,
+
+  openDeviceDialog,
+  refreshDevices,
+  connectSelectedDevice,
+  captureScreenshot,
 
   initSocket,
   initIpcListeners,

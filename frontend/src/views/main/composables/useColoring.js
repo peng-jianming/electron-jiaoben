@@ -30,6 +30,14 @@ export function useColoring() {
   const dragIndex = ref(null);
   const activeFloodFillStepId = ref(null);
 
+  // 设备连接（参考 ImageProcessorTab）
+  const deviceDialogVisible = ref(false);
+  const deviceList = ref([]);
+  const deviceLoading = ref(false);
+  const selectedDeviceId = ref("");
+  const currentDeviceId = ref("");
+  const screenshotLoading = ref(false);
+
   let socket = null;
   let stepIdCounter = 0;
   let hasShownCompleteMessage = false;
@@ -273,11 +281,114 @@ export function useColoring() {
     }
   };
 
+  // 仅处理来源为 coloring-tab 的截图
+  function handleDeviceScreenshot(data) {
+    if (data?.source !== "coloring-tab") return;
+    screenshotLoading.value = false;
+    if (!data?.success || !data?.image) {
+      ElMessage.error(data?.error || "获取截图失败");
+      return;
+    }
+    const url = `data:image/png;base64,${data.image}`;
+    imageFileName.value = `手机截图_${new Date().toLocaleTimeString().replace(/[/:]/g, "-")}.png`;
+    originalImageUrl.value = url;
+    imageLoaded.value = true;
+    pipeline.value.forEach((step) => (step.completed = false));
+    processing.value = true;
+    ipc.invoke(ipcApiRoute.sendToPython, {
+      type: "upload_image",
+      base64: data.image,
+    }).catch((err) => {
+      console.error("上传截图失败:", err);
+      processing.value = false;
+    });
+  }
+
+  function handleDeviceList(data) {
+    deviceLoading.value = false;
+    if (!data?.success) {
+      deviceList.value = [];
+      if (data?.error) ElMessage.error(data.error);
+      return;
+    }
+    deviceList.value = data.devices || [];
+    if (data.currentDeviceId) {
+      currentDeviceId.value = data.currentDeviceId;
+      selectedDeviceId.value = data.currentDeviceId;
+    } else if (deviceList.value.length > 0 && !selectedDeviceId.value) {
+      selectedDeviceId.value = deviceList.value[0];
+    }
+  }
+
+  function handleDeviceSelected(data) {
+    if (!data?.success && data?.error) {
+      ElMessage.error(data.error);
+      return;
+    }
+    currentDeviceId.value = data?.currentDeviceId ?? "";
+    if (currentDeviceId.value) {
+      selectedDeviceId.value = currentDeviceId.value;
+      ElMessage.success(`已连接设备: ${currentDeviceId.value}`);
+    } else {
+      ElMessage.info("已清除当前连接设备");
+    }
+  }
+
   function initSocket() {
     socket = io("ws://localhost:7070");
     socket.on("connect", () => console.log("Socket 连接成功"));
     socket.on("image-processed", handleProcessedImage);
     socket.on("image-saved", handleSaveResult);
+    socket.on("device-list", handleDeviceList);
+    socket.on("device-selected", handleDeviceSelected);
+    socket.on("device-screenshot", handleDeviceScreenshot);
+  }
+
+  function openDeviceDialog() {
+    deviceDialogVisible.value = true;
+    refreshDevices();
+  }
+
+  async function refreshDevices() {
+    deviceLoading.value = true;
+    try {
+      await ipc.invoke(ipcApiRoute.sendToPython, { type: "get_devices" });
+    } catch (err) {
+      console.error("刷新设备失败:", err);
+      ElMessage.error(`刷新设备失败: ${err?.message || "未知错误"}`);
+      deviceLoading.value = false;
+    }
+  }
+
+  async function connectSelectedDevice() {
+    if (!selectedDeviceId.value) return;
+    try {
+      await ipc.invoke(ipcApiRoute.sendToPython, {
+        type: "set_device",
+        deviceId: selectedDeviceId.value,
+      });
+    } catch (err) {
+      console.error("连接设备失败:", err);
+      ElMessage.error(`连接设备失败: ${err?.message || "未知错误"}`);
+    }
+  }
+
+  async function captureScreenshot() {
+    if (!currentDeviceId.value) {
+      ElMessage.warning("请先连接设备");
+      return;
+    }
+    screenshotLoading.value = true;
+    try {
+      await ipc.invoke(ipcApiRoute.sendToPython, {
+        type: "capture_screenshot",
+        source: "coloring-tab",
+      });
+    } catch (err) {
+      console.error("截图失败:", err);
+      ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
+      screenshotLoading.value = false;
+    }
   }
 
   function initIpcListeners() {
@@ -299,6 +410,13 @@ export function useColoring() {
     dragIndex,
     activeFloodFillStepId,
 
+    deviceDialogVisible,
+    deviceList,
+    deviceLoading,
+    selectedDeviceId,
+    currentDeviceId,
+    screenshotLoading,
+
     getColorPreview,
     addStep,
     updateStepParams,
@@ -315,6 +433,11 @@ export function useColoring() {
     handleDrop,
     handleDragEnd,
     startProcessing,
+
+    openDeviceDialog,
+    refreshDevices,
+    connectSelectedDevice,
+    captureScreenshot,
 
     initSocket,
     initIpcListeners,

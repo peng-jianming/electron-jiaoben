@@ -28,14 +28,34 @@ _steps_stop_event = threading.Event()
 
 
 def 上传图片(data):
-    """处理图像上传请求"""
+    """处理图像上传请求，支持 path（本地路径）或 base64（如设备截图）"""
     global _current_image, _current_processed_image, _step_images
 
     try:
         image_path = data.get("path")
+        image_base64 = data.get("base64")
+
+        if image_base64:
+            # 设备截图等：直接传 base64
+            try:
+                raw = base64.b64decode(image_base64)
+                nparr = np.frombuffer(raw, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            except Exception as e:
+                send_image_result(error=f"解码 base64 图像时出错: {str(e)}")
+                return
+            if img is None:
+                send_image_result(error="无法解码 base64 图像")
+                return
+            _current_image = img
+            _current_processed_image = None
+            _step_images = {}
+            print("图像已加载（base64）")
+            send_image_result(processed_image=img)
+            return
 
         if not image_path:
-            send_image_result(error="未提供图像路径")
+            send_image_result(error="未提供图像路径或 base64")
             return
 
         if not os.path.exists(image_path):

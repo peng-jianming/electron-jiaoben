@@ -60,10 +60,10 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="💻 电脑" name="pc">
+      <el-tab-pane label="💻 窗口" name="pc">
         <div class="device-placeholder">
           <span class="placeholder-icon">🚧</span>
-          <span>电脑连接功能开发中...</span>
+          <span>窗口连接功能开发中...</span>
         </div>
       </el-tab-pane>
 
