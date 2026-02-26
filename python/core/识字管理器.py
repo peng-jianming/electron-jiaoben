@@ -15,15 +15,18 @@ os.environ["PADDLE_PDX_CACHE_HOME"] = _cache_dir
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 from paddleocr import PaddleOCR  # noqa: E402
+from paddle import device
 
 _ocr = None
 
 def get_ocr():
     global _ocr
     if _ocr is None:
+        print(device.is_compiled_with_cuda(), device.cuda.device_count())
         # 只在第一次调用时初始化
         # enable_mkldnn=False：避免 CPU 上 New IR + OneDNN 的 NotImplementedError
         _ocr = PaddleOCR(
+                    device="cpu",
                     use_doc_orientation_classify=False,
                     use_doc_unwarping=False,
                     use_textline_orientation=False,
