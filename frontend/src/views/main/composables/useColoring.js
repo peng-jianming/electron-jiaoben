@@ -37,6 +37,7 @@ export function useColoring() {
   const selectedDeviceId = ref("");
   const currentDeviceId = ref("");
   const screenshotLoading = ref(false);
+  const captureWindowLoading = ref(false);
 
   let socket = null;
   let stepIdCounter = 0;
@@ -391,6 +392,57 @@ export function useColoring() {
     }
   }
 
+  async function openCaptureWindow() {
+    try {
+      const result = await ipc.invoke(ipcApiRoute.openCaptureWindow, {});
+      if (result?.success) {
+        ElMessage.success("截屏窗口已打开，可拖动调整区域后点击「截图」");
+      } else {
+        ElMessage.warning(result?.message || "打开截屏窗口失败");
+      }
+    } catch (err) {
+      console.error("打开截屏窗口失败:", err);
+      ElMessage.error(`打开截屏窗口失败: ${err?.message || "未知错误"}`);
+    }
+  }
+
+  async function captureWindowScreenshot() {
+    try {
+      const status = await ipc.invoke(ipcApiRoute.getCaptureStatus, {});
+      if (!status?.hasCaptureWindow) {
+        ElMessage.warning("请先打开截屏窗口");
+        return;
+      }
+      captureWindowLoading.value = true;
+      const result = await ipc.invoke(ipcApiRoute.captureScreenOnce, {});
+      if (!result?.success || !result?.image) {
+        captureWindowLoading.value = false;
+        ElMessage.error(result?.message || "截图失败");
+        return;
+      }
+      captureWindowLoading.value = false;
+      const url = result.image.startsWith("data:") ? result.image : `data:image/png;base64,${result.image}`;
+      imageFileName.value = `截屏窗口_${new Date().toLocaleTimeString().replace(/[/:]/g, "-")}.png`;
+      originalImageUrl.value = url;
+      imageLoaded.value = true;
+      pipeline.value.forEach((step) => (step.completed = false));
+      processing.value = true;
+      const base64 = result.image.replace(/^data:image\/\w+;base64,/, "");
+      ipc.invoke(ipcApiRoute.sendToPython, {
+        type: "upload_image",
+        base64,
+      }).catch((err) => {
+        console.error("上传截图失败:", err);
+        processing.value = false;
+      });
+      ElMessage.success("已截取截屏窗口区域");
+    } catch (err) {
+      console.error("截屏窗口截图失败:", err);
+      captureWindowLoading.value = false;
+      ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
+    }
+  }
+
   function initIpcListeners() {
     // no-op: image clicks are now handled directly in the same window
   }
@@ -416,6 +468,7 @@ export function useColoring() {
     selectedDeviceId,
     currentDeviceId,
     screenshotLoading,
+    captureWindowLoading,
 
     getColorPreview,
     addStep,
@@ -438,6 +491,8 @@ export function useColoring() {
     refreshDevices,
     connectSelectedDevice,
     captureScreenshot,
+    openCaptureWindow,
+    captureWindowScreenshot,
 
     initSocket,
     initIpcListeners,

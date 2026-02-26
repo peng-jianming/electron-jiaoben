@@ -422,6 +422,74 @@ class ExampleService {
     }
   }
 
+  /**
+   * 执行一次截屏窗口区域截图并返回 base64 给调用方（供主进程 IPC 返回给渲染进程）
+   * @returns {Promise<{ success: boolean, image?: string, message?: string }>}
+   */
+  async captureScreenOnce() {
+    if (!this.captureWindow || this.captureWindow.isDestroyed()) {
+      return { success: false, message: '请先打开截屏窗口' };
+    }
+
+    try {
+      const bounds = this.captureWindow.getBounds();
+      const borderWidth = 3;
+
+      await this.captureWindow.webContents.executeJavaScript(`
+        document.querySelectorAll('.close-btn, .resize-handle, .info-label').forEach(el => {
+          el.style.visibility = 'hidden';
+        });
+      `);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: {
+          width: screen.getPrimaryDisplay().size.width,
+          height: screen.getPrimaryDisplay().size.height
+        }
+      });
+
+      await this.captureWindow.webContents.executeJavaScript(`
+        document.querySelectorAll('.close-btn, .resize-handle, .info-label').forEach(el => {
+          el.style.visibility = 'visible';
+        });
+      `);
+
+      if (sources.length === 0) {
+        return { success: false, message: '没有可用的屏幕源' };
+      }
+
+      const source = sources[0];
+      const thumbnail = source.thumbnail;
+      const cropX = bounds.x + borderWidth;
+      const cropY = bounds.y + borderWidth;
+      const cropWidth = Math.max(1, bounds.width - borderWidth * 2);
+      const cropHeight = Math.max(1, bounds.height - borderWidth * 2);
+
+      const croppedImage = thumbnail.crop({
+        x: cropX,
+        y: cropY,
+        width: cropWidth,
+        height: cropHeight
+      });
+      const base64Image = croppedImage.toDataURL();
+      return { success: true, image: base64Image };
+    } catch (error) {
+      console.error('截屏窗口截图错误:', error);
+      try {
+        if (this.captureWindow && !this.captureWindow.isDestroyed()) {
+          await this.captureWindow.webContents.executeJavaScript(`
+            document.querySelectorAll('.close-btn, .resize-handle, .info-label').forEach(el => {
+              el.style.visibility = 'visible';
+            });
+          `);
+        }
+      } catch (e) {}
+      return { success: false, message: error.message || '截图失败' };
+    }
+  }
+
   // ==================== 路径规划功能 ====================
 
   /**

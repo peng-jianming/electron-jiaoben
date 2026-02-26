@@ -15,10 +15,12 @@
         :image-file-name="imageFileName"
         :original-image-url="originalImageUrl"
         :current-device-id="currentDeviceId"
+        :device-tab="deviceTab"
         :screenshot-loading="screenshotLoading"
+        :capture-window-loading="captureWindowLoading"
         @image-select="handleImageSelect"
         @open-device-dialog="openDeviceDialog"
-        @capture-screenshot="captureScreenshot"
+        @capture-screenshot="handleCaptureScreenshot"
       />
 
       <!-- 管线区域 -->
@@ -142,6 +144,7 @@
       @update:selected-device-id="(val) => (selectedDeviceId = val)"
       @refresh-devices="refreshDevices"
       @connect-selected-device="connectSelectedDevice"
+      @open-capture-window="openCaptureWindow"
     />
   </div>
 </template>
@@ -177,6 +180,7 @@ const {
   selectedDeviceId,
   currentDeviceId,
   screenshotLoading,
+  captureWindowLoading,
 
   getColorPreview,
   addStep,
@@ -198,11 +202,21 @@ const {
   refreshDevices,
   connectSelectedDevice,
   captureScreenshot,
+  openCaptureWindow,
+  captureWindowScreenshot,
 
   initSocket,
   initIpcListeners,
   cleanup,
 } = useColoring();
+
+function handleCaptureScreenshot() {
+  if (deviceTab.value === "capture-window") {
+    captureWindowScreenshot();
+  } else {
+    captureScreenshot();
+  }
+}
 
 // ==================== Preview Zoom/Pan ====================
 

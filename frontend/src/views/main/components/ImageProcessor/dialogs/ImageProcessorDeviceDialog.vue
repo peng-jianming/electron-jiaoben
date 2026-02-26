@@ -73,6 +73,15 @@
           <span>虚拟机连接功能开发中...</span>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="🖼️ 截屏窗口" name="capture-window">
+        <div class="capture-window-section">
+          <p class="capture-window-hint">打开后可拖动、缩放截屏框，在外部点击「截图」即可截取框内区域。</p>
+          <el-button type="primary" @click="$emit('open-capture-window')">
+            打开截屏窗口
+          </el-button>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </el-dialog>
 </template>
@@ -112,7 +121,8 @@ const emits = defineEmits([
   'update:tab',
   'update:selected-device-id',
   'refresh-devices',
-  'connect-selected-device'
+  'connect-selected-device',
+  'open-capture-window'
 ]);
 
 const innerVisible = computed({
@@ -261,6 +271,22 @@ const innerSelectedDeviceId = computed({
 .placeholder-icon {
   font-size: 28px;
   opacity: 0.6;
+}
+
+.capture-window-section {
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.capture-window-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.5;
 }
 </style>
 

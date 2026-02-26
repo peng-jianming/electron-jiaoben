@@ -6,17 +6,17 @@
         <span class="section-icon">📱</span>
         <span>设备连接</span>
       </div>
-      <div class="device-status" :class="{ connected: !!currentDeviceId }">
+      <div class="device-status" :class="{ connected: isConnected }">
         <span class="device-dot"></span>
-        <span class="device-text" :title="currentDeviceId || '未连接'">{{ currentDeviceId ? currentDeviceId.slice(0, 14) : "未连接" }}</span>
+        <span class="device-text" :title="statusText">{{ statusText }}</span>
       </div>
       <div class="btn-row">
         <el-button size="small" @click="$emit('open-device-dialog')">连接</el-button>
         <el-button
           size="small"
           type="primary"
-          :loading="screenshotLoading"
-          :disabled="!currentDeviceId"
+          :loading="deviceTab === 'capture-window' ? captureWindowLoading : screenshotLoading"
+          :disabled="!canScreenshot"
           @click="$emit('capture-screenshot')"
         >截图</el-button>
       </div>
@@ -77,13 +77,22 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 
-defineProps({
+const props = defineProps({
   currentDeviceId: {
     type: String,
     default: "",
   },
+  deviceTab: {
+    type: String,
+    default: "mobile",
+  },
   screenshotLoading: {
+    type: Boolean,
+    default: false,
+  },
+  captureWindowLoading: {
     type: Boolean,
     default: false,
   },
@@ -99,6 +108,32 @@ defineProps({
     type: Boolean,
     default: false,
   },
+});
+
+const canScreenshot = computed(
+  () =>
+    (props.deviceTab === "mobile" && !!props.currentDeviceId) ||
+    props.deviceTab === "capture-window"
+);
+
+// 设备状态文案：
+// - 手机/窗口/虚拟机：显示对应 ID（由上游保证含义）
+// - 截屏窗口：固定显示“截屏”
+const statusText = computed(() => {
+  if (props.deviceTab === "capture-window") {
+    return "截屏";
+  }
+  if (!props.currentDeviceId) {
+    return "未连接";
+  }
+  return props.currentDeviceId.slice(0, 14);
+});
+
+const isConnected = computed(() => {
+  if (props.deviceTab === "capture-window") {
+    return true;
+  }
+  return !!props.currentDeviceId;
 });
 
 defineEmits([

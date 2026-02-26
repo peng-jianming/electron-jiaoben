@@ -6,13 +6,15 @@
       <div class="left-panel">
         <ImageProcessorLeftPanel
           :current-device-id="currentDeviceId"
+          :device-tab="deviceTab"
           :screenshot-loading="screenshotLoading"
+          :capture-window-loading="captureWindowLoading"
           :selection-enabled="selectionEnabled"
           :selectionInfo="selectionInfo"
           :has-image="!!currentImage"
           @load-image="handleLoadImage"
           @open-device-dialog="openDeviceDialog"
-          @capture-screenshot="captureScreenshot"
+          @capture-screenshot="handleCaptureScreenshot"
           @toggle-selection="toggleSelectionMode"
           @fit-to-window="fitToWindow"
           @reset-zoom="resetZoom"
@@ -128,6 +130,7 @@
       @update:selected-device-id="(val) => (selectedDeviceId = val)"
       @refresh-devices="refreshDevices"
       @connect-selected-device="connectSelectedDevice"
+      @open-capture-window="openCaptureWindow"
     />
 
   </div>
@@ -254,6 +257,7 @@ const deviceLoading = ref(false);
 const selectedDeviceId = ref("");
 const currentDeviceId = ref("");
 const screenshotLoading = ref(false);
+const captureWindowLoading = ref(false);
 const isRightPanelScreenshoting = ref(false); // 标记右侧面板是否正在截图
 let deviceSocket = null;
 
@@ -598,6 +602,71 @@ async function captureScreenshot() {
     console.error("截图失败:", error);
     ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
     screenshotLoading.value = false;
+  }
+}
+
+async function openCaptureWindow() {
+  try {
+    const result = await ipc.invoke(ipcApiRoute.openCaptureWindow, {});
+    if (result?.success) {
+      ElMessage.success("截屏窗口已打开，可拖动调整区域后点击「截图」");
+    } else {
+      ElMessage.warning(result?.message || "打开截屏窗口失败");
+    }
+  } catch (err) {
+    console.error("打开截屏窗口失败:", err);
+    ElMessage.error(`打开截屏窗口失败: ${err?.message || "未知错误"}`);
+  }
+}
+
+async function captureWindowScreenshot() {
+  try {
+    const status = await ipc.invoke(ipcApiRoute.getCaptureStatus, {});
+    if (!status?.hasCaptureWindow) {
+      ElMessage.warning("请先打开截屏窗口");
+      return;
+    }
+    captureWindowLoading.value = true;
+    const result = await ipc.invoke(ipcApiRoute.captureScreenOnce, {});
+    if (!result?.success || !result?.image) {
+      captureWindowLoading.value = false;
+      ElMessage.error(result?.message || "截图失败");
+      return;
+    }
+    captureWindowLoading.value = false;
+    const url = result.image.startsWith("data:") ? result.image : `data:image/png;base64,${result.image}`;
+    const img = new Image();
+    img.onload = () => {
+      const imageData = {
+        name: `截屏窗口_${new Date().toLocaleTimeString()}.png`,
+        url,
+        file: null,
+        info: {
+          fileSize: "--",
+          format: "PNG",
+          width: img.width,
+          height: img.height,
+        },
+        selectedColors: [],
+        selectionRect: null,
+      };
+      images.value.push(imageData);
+      currentImageIndex.value = String(images.value.length - 1);
+      ElMessage.success("已截取截屏窗口区域");
+    };
+    img.src = url;
+  } catch (err) {
+    console.error("截屏窗口截图失败:", err);
+    captureWindowLoading.value = false;
+    ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
+  }
+}
+
+function handleCaptureScreenshot() {
+  if (deviceTab.value === "capture-window") {
+    captureWindowScreenshot();
+  } else {
+    captureScreenshot();
   }
 }
 

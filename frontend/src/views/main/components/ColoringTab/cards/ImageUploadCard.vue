@@ -1,11 +1,5 @@
 <template>
   <section class="card upload-card">
-    <div class="card-header">
-      <div class="card-icon upload-icon">
-        <el-icon><Upload /></el-icon>
-      </div>
-      <h2>图像加载</h2>
-    </div>
     <div class="card-body">
       <!-- 设备连接（参考 ImageProcessorLeftPanel） -->
       <div class="device-section">
@@ -13,17 +7,17 @@
           <span class="section-icon">📱</span>
           <span>设备连接</span>
         </div>
-        <div class="device-status" :class="{ connected: !!currentDeviceId }">
+        <div class="device-status" :class="{ connected: isConnected }">
           <span class="device-dot"></span>
-          <span class="device-text" :title="currentDeviceId || '未连接'">{{ currentDeviceId ? currentDeviceId.slice(0, 14) : "未连接" }}</span>
+          <span class="device-text" :title="statusText">{{ statusText }}</span>
         </div>
         <div class="btn-row">
           <el-button size="small" @click="$emit('open-device-dialog')">连接</el-button>
           <el-button
             size="small"
             type="primary"
-            :loading="screenshotLoading"
-            :disabled="!currentDeviceId"
+            :loading="deviceTab === 'capture-window' ? captureWindowLoading : screenshotLoading"
+            :disabled="!canScreenshot"
             @click="$emit('capture-screenshot')"
           >截图</el-button>
         </div>
@@ -64,16 +58,50 @@
 </template>
 
 <script setup>
-import { Upload, RefreshRight } from '@element-plus/icons-vue';
+import { computed } from "vue";
+import { Upload, RefreshRight } from "@element-plus/icons-vue";
 
-defineProps({
+const props = defineProps({
   imageFileName: String,
   originalImageUrl: String,
   currentDeviceId: { type: String, default: "" },
+  deviceTab: { type: String, default: "mobile" },
   screenshotLoading: { type: Boolean, default: false },
+  captureWindowLoading: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['image-select', 'open-device-dialog', 'capture-screenshot']);
+const canScreenshot = computed(
+  () =>
+    (props.deviceTab === "mobile" && !!props.currentDeviceId) ||
+    props.deviceTab === "capture-window"
+);
+
+// 设备状态文案：
+// - 手机/窗口/虚拟机：显示对应 ID（由上游保证含义）
+// - 截屏窗口：固定显示“截屏”
+const statusText = computed(() => {
+  if (props.deviceTab === "capture-window") {
+    return "截屏";
+  }
+  if (!props.currentDeviceId) {
+    return "未连接";
+  }
+  return props.currentDeviceId.slice(0, 14);
+});
+
+const isConnected = computed(() => {
+  if (props.deviceTab === "capture-window") {
+    // 截屏模式下，只要选择了该 Tab，就认为“已准备好截屏”
+    return true;
+  }
+  return !!props.currentDeviceId;
+});
+
+const emit = defineEmits([
+  "image-select",
+  "open-device-dialog",
+  "capture-screenshot",
+]);
 
 function handleImageSelect(file) {
   emit('image-select', file);

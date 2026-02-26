@@ -22,6 +22,7 @@ const ipcApiRoute = {
   // 截图功能
   openCaptureWindow: 'controller/example/openCaptureWindow',
   closeCaptureWindow: 'controller/example/closeCaptureWindow',
+  captureScreenOnce: 'controller/example/captureScreenOnce',
   startCapturing: 'controller/example/startCapturing',
   stopCapturing: 'controller/example/stopCapturing',
   getCaptureStatus: 'controller/example/getCaptureStatus',

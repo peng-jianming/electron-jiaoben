@@ -336,6 +336,18 @@ class ExampleController {
   }
 
   /**
+   * 执行一次截屏窗口区域截图并返回 base64 给渲染进程
+   */
+  async captureScreenOnce(args, event) {
+    try {
+      return await exampleService.captureScreenOnce();
+    } catch (error) {
+      console.error('截屏窗口截图错误:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
    * 开始连续截图
    */
   async startCapturing(args, event) {
