@@ -38,11 +38,27 @@ export function useColoring() {
   const currentDeviceId = ref("");
   const screenshotLoading = ref(false);
   const captureWindowLoading = ref(false);
+  const deviceTab = ref('mobile');
+
+  // 拼接状态
+  const stitchedImage = ref(null);
+  const stitchCount = ref(0);
+  const isAutoStitching = ref(false);
+  const stitchLoading = ref(false);
+  const lastStitchConfidence = ref(0);
+  const pendingStitch = ref(false);
+  const stitchMaxDx = ref(300);
+  const stitchMaxDy = ref(200);
+  const stitchInterval = ref(500);
+  const previewMode = ref('processed');
+  const stitchBatchFiles = ref([]);
+  const batchStitching = ref(false);
 
   let socket = null;
   let stepIdCounter = 0;
   let hasShownCompleteMessage = false;
   let processDebounceTimer = null;
+  let autoStitchTimer = null;
 
   function generateStepId() {
     return `step_${Date.now()}_${++stepIdCounter}`;
@@ -257,13 +273,24 @@ export function useColoring() {
 
       if ((isLastStep || isComplete) && data.success) {
         processing.value = false;
+        // 处理完成后触发拼接
+        if (pendingStitch.value || isAutoStitching.value) {
+          pendingStitch.value = false;
+          stitchCurrentImage();
+        }
       } else if (!data.success) {
         processing.value = false;
+        if (isAutoStitching.value) {
+          stopAutoStitch();
+        }
       }
     } else {
       processing.value = false;
       if (pipeline.value.length > 0) {
         startProcessing();
+      } else if (pendingStitch.value || isAutoStitching.value) {
+        pendingStitch.value = false;
+        stitchCurrentImage();
       }
     }
 
@@ -282,12 +309,54 @@ export function useColoring() {
     }
   };
 
+  const handleStitchResult = (data) => {
+    if (data && data.cleared) {
+      stitchedImage.value = null;
+      stitchCount.value = 0;
+      lastStitchConfidence.value = 0;
+      stitchLoading.value = false;
+      return;
+    }
+    if (data && data.success && data.stitchedImage) {
+      stitchedImage.value = `data:image/png;base64,${data.stitchedImage}`;
+      stitchCount.value = data.count || 0;
+      lastStitchConfidence.value = data.confidence || 0;
+      if (previewMode.value === 'stitched' || isAutoStitching.value || batchStitching.value) {
+        previewMode.value = 'stitched';
+      }
+    } else if (data && !data.success && data.error) {
+      console.error("拼接失败:", data.error);
+      ElMessage.error(`拼接失败: ${data.error}`);
+    }
+    // 批量拼接完成
+    if (data && data.isComplete) {
+      batchStitching.value = false;
+      stitchLoading.value = false;
+      if (data.success) {
+        ElMessage.success(`批量拼接完成: 共${data.count}张`);
+      }
+      return;
+    }
+    // 自动拼接（连续截图模式）：完成后继续下一轮
+    if (isAutoStitching.value && !batchStitching.value) {
+      stitchLoading.value = false;
+      autoStitchTimer = setTimeout(() => {
+        if (isAutoStitching.value) {
+          takeScreenshotForStitch();
+        }
+      }, stitchInterval.value);
+    } else if (!batchStitching.value) {
+      stitchLoading.value = false;
+    }
+  };
+
   // 仅处理来源为 coloring-tab 的截图
   function handleDeviceScreenshot(data) {
     if (data?.source !== "coloring-tab") return;
     screenshotLoading.value = false;
     if (!data?.success || !data?.image) {
       ElMessage.error(data?.error || "获取截图失败");
+      if (isAutoStitching.value) stopAutoStitch();
       return;
     }
     const url = `data:image/png;base64,${data.image}`;
@@ -343,6 +412,7 @@ export function useColoring() {
     socket.on("device-list", handleDeviceList);
     socket.on("device-selected", handleDeviceSelected);
     socket.on("device-screenshot", handleDeviceScreenshot);
+    socket.on("stitch-result", handleStitchResult);
   }
 
   function openDeviceDialog() {
@@ -377,6 +447,7 @@ export function useColoring() {
   async function captureScreenshot() {
     if (!currentDeviceId.value) {
       ElMessage.warning("请先连接设备");
+      if (isAutoStitching.value) stopAutoStitch();
       return;
     }
     screenshotLoading.value = true;
@@ -389,6 +460,7 @@ export function useColoring() {
       console.error("截图失败:", err);
       ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
       screenshotLoading.value = false;
+      if (isAutoStitching.value) stopAutoStitch();
     }
   }
 
@@ -411,6 +483,7 @@ export function useColoring() {
       const status = await ipc.invoke(ipcApiRoute.getCaptureStatus, {});
       if (!status?.hasCaptureWindow) {
         ElMessage.warning("请先打开截屏窗口");
+        if (isAutoStitching.value) stopAutoStitch();
         return;
       }
       captureWindowLoading.value = true;
@@ -418,6 +491,7 @@ export function useColoring() {
       if (!result?.success || !result?.image) {
         captureWindowLoading.value = false;
         ElMessage.error(result?.message || "截图失败");
+        if (isAutoStitching.value) stopAutoStitch();
         return;
       }
       captureWindowLoading.value = false;
@@ -434,12 +508,159 @@ export function useColoring() {
       }).catch((err) => {
         console.error("上传截图失败:", err);
         processing.value = false;
+        if (isAutoStitching.value) stopAutoStitch();
       });
-      ElMessage.success("已截取截屏窗口区域");
     } catch (err) {
       console.error("截屏窗口截图失败:", err);
       captureWindowLoading.value = false;
       ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
+      if (isAutoStitching.value) stopAutoStitch();
+    }
+  }
+
+  // ==================== 拼接功能 ====================
+
+  function stitchCurrentImage() {
+    stitchLoading.value = true;
+    ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'stitch_image',
+      maxDx: stitchMaxDx.value,
+      maxDy: stitchMaxDy.value,
+    }).catch((error) => {
+      console.error("拼接失败:", error);
+      ElMessage.error(`拼接失败: ${error.message || '未知错误'}`);
+      stitchLoading.value = false;
+      if (isAutoStitching.value) stopAutoStitch();
+    });
+  }
+
+  function takeScreenshotForStitch() {
+    if (deviceTab.value === 'capture-window') {
+      captureWindowScreenshot();
+    } else {
+      captureScreenshot();
+    }
+  }
+
+  // ---- 批量拼接（拼接一次：上传多张图片） ----
+
+  function addStitchFiles(file) {
+    const raw = file.raw || file;
+    if (!raw) return;
+    const exists = stitchBatchFiles.value.some(
+      (f) => f.name === raw.name && f.size === raw.size
+    );
+    if (!exists) {
+      stitchBatchFiles.value.push(raw);
+    }
+  }
+
+  function removeStitchFile(index) {
+    stitchBatchFiles.value.splice(index, 1);
+  }
+
+  function clearStitchFiles() {
+    stitchBatchFiles.value = [];
+  }
+
+  function doBatchStitch() {
+    if (stitchBatchFiles.value.length === 0) {
+      ElMessage.warning('请先选择要拼接的图片');
+      return;
+    }
+    const imagePaths = stitchBatchFiles.value
+      .map((f) => f.path)
+      .filter(Boolean);
+    if (imagePaths.length === 0) {
+      ElMessage.warning('无法获取图片文件路径');
+      return;
+    }
+
+    stitchLoading.value = true;
+    batchStitching.value = true;
+    previewMode.value = 'stitched';
+
+    const steps = JSON.parse(
+      JSON.stringify(pipeline.value.map((s) => ({ type: s.type, params: s.params })))
+    );
+
+    ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'batch_stitch',
+      imagePaths,
+      steps,
+      maxDx: stitchMaxDx.value,
+      maxDy: stitchMaxDy.value,
+    }).catch((error) => {
+      console.error('批量拼接失败:', error);
+      ElMessage.error(`拼接失败: ${error.message || '未知错误'}`);
+      stitchLoading.value = false;
+      batchStitching.value = false;
+    });
+  }
+
+  function startAutoStitch() {
+    if (!currentDeviceId.value && deviceTab.value !== 'capture-window') {
+      ElMessage.warning("请先连接设备或打开截屏窗口");
+      return;
+    }
+    if (pipeline.value.length === 0) {
+      ElMessage.warning("请先添加处理步骤（至少需要二值化步骤）");
+      return;
+    }
+    isAutoStitching.value = true;
+    pendingStitch.value = true;
+    takeScreenshotForStitch();
+    ElMessage.success('已开始连续拼接');
+  }
+
+  function stopAutoStitch() {
+    isAutoStitching.value = false;
+    pendingStitch.value = false;
+    if (autoStitchTimer) {
+      clearTimeout(autoStitchTimer);
+      autoStitchTimer = null;
+    }
+    ElMessage.info('已停止连续拼接');
+  }
+
+  function clearStitch() {
+    ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'clear_stitch',
+    }).catch((error) => {
+      console.error("清空拼接失败:", error);
+    });
+    stitchedImage.value = null;
+    stitchCount.value = 0;
+    lastStitchConfidence.value = 0;
+    ElMessage.info('已清空拼接结果');
+  }
+
+  async function handleSaveStitchedImage() {
+    if (!stitchedImage.value) {
+      ElMessage.warning('没有拼接结果可保存');
+      return;
+    }
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const result = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+        defaultName: `stitched_${timestamp}.png`,
+      });
+      if (!result.success || result.canceled) return;
+
+      const base64Data = stitchedImage.value.replace(/^data:image\/\w+;base64,/, '');
+      const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+        filePath: result.filePath,
+        imageData: base64Data,
+      });
+
+      if (saveResult.success) {
+        ElMessage.success(`拼接图已保存: ${result.filePath}`);
+      } else {
+        ElMessage.error(`保存失败: ${saveResult.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("保存拼接图失败:", error);
+      ElMessage.error(`保存失败: ${error.message || '未知错误'}`);
     }
   }
 
@@ -450,6 +671,8 @@ export function useColoring() {
   function cleanup() {
     if (socket) socket.disconnect();
     if (processDebounceTimer) clearTimeout(processDebounceTimer);
+    if (autoStitchTimer) clearTimeout(autoStitchTimer);
+    isAutoStitching.value = false;
   }
 
   return {
@@ -469,6 +692,18 @@ export function useColoring() {
     currentDeviceId,
     screenshotLoading,
     captureWindowLoading,
+    deviceTab,
+
+    // 拼接状态
+    stitchedImage,
+    stitchCount,
+    isAutoStitching,
+    stitchLoading,
+    lastStitchConfidence,
+    stitchMaxDx,
+    stitchMaxDy,
+    stitchInterval,
+    previewMode,
 
     getColorPreview,
     addStep,
@@ -493,6 +728,18 @@ export function useColoring() {
     captureScreenshot,
     openCaptureWindow,
     captureWindowScreenshot,
+
+    // 拼接功能
+    stitchBatchFiles,
+    batchStitching,
+    addStitchFiles,
+    removeStitchFile,
+    clearStitchFiles,
+    doBatchStitch,
+    startAutoStitch,
+    stopAutoStitch,
+    clearStitch,
+    handleSaveStitchedImage,
 
     initSocket,
     initIpcListeners,

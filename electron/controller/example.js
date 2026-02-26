@@ -76,6 +76,15 @@ class ExampleController {
         }
         return { success: true, message: '字库识字结果已发送' };
       }
+
+      // 拼接结果事件
+      if (prop === 'stitch-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('stitch-result', imageData);
+        }
+        return { success: true, message: '拼接结果已发送' };
+      }
       
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {

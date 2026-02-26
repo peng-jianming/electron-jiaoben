@@ -9,6 +9,7 @@ import threading
 from collections import deque
 import tempfile
 from matchImg import opencv字库找图, opencv字库识字
+from pingjie import find_offset_by_correlation, stitch_maps
 
 # Socket.IO 客户端实例
 _client = None
@@ -25,6 +26,10 @@ _flood_fill_stop_event = threading.Event()
 # 步骤处理控制
 _steps_processing = False
 _steps_stop_event = threading.Event()
+
+# 拼接状态
+_stitched_image = None  # 累积拼接结果（0/1 二值矩阵）
+_stitch_count = 0
 
 
 def 上传图片(data):
@@ -600,6 +605,9 @@ def init_client(url="http://127.0.0.1:7070"):
                 "capture_screenshot": 截图当前设备,
                 "font_library_match": 字库匹配,
                 "font_library_ocr": 字库识字,
+                "stitch_image": 拼接当前图片,
+                "clear_stitch": 清空拼接,
+                "batch_stitch": 批量拼接图片,
             }
             
             handler = handlers.get(data.get("type"))
@@ -1052,6 +1060,207 @@ def 字库识字(data):
     except Exception as e:
         traceback.print_exc()
         发送字库识字结果(error=str(e))
+
+
+# ==================== 拼接功能 ====================
+
+
+def 拼接当前图片(data):
+    """将当前处理后的图片拼接到已有拼接结果上"""
+    global _stitched_image, _stitch_count
+
+    if _current_processed_image is None:
+        send_stitch_result(error="没有已处理的图片，请先上传并处理图片")
+        return
+
+    try:
+        img = _current_processed_image
+
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img.copy()
+
+        _, binary = cv2.threshold(gray, 127, 1, cv2.THRESH_BINARY)
+        binary = binary.astype(np.uint8)
+
+        max_dx = data.get("maxDx", 300)
+        max_dy = data.get("maxDy", 200)
+        confidence = 1.0
+
+        if _stitched_image is None:
+            _stitched_image = binary
+            _stitch_count = 1
+            print(f"拼接: 第一张图片，尺寸: {binary.shape}")
+        else:
+            dx, dy, confidence = find_offset_by_correlation(
+                _stitched_image, binary, max_dx, max_dy
+            )
+            print(f"拼接: dx={dx}, dy={dy}, confidence={confidence:.4f}")
+            _stitched_image = stitch_maps(_stitched_image, binary, dx, dy)
+            _stitch_count += 1
+            print(f"拼接完成: 第{_stitch_count}张, 尺寸: {_stitched_image.shape}")
+
+        vis = (_stitched_image * 255).astype(np.uint8)
+        send_stitch_result(
+            stitched_image=vis, count=_stitch_count, confidence=confidence
+        )
+
+    except Exception as e:
+        traceback.print_exc()
+        send_stitch_result(error=str(e))
+
+
+def 清空拼接(data):
+    """清空拼接状态"""
+    global _stitched_image, _stitch_count
+    _stitched_image = None
+    _stitch_count = 0
+    print("拼接已清空")
+    send_stitch_result(cleared=True)
+
+
+def 批量拼接图片(data):
+    """接收多张图片（路径或base64），每张经过步骤处理后拼接"""
+    global _stitched_image, _stitch_count
+
+    try:
+        image_paths = data.get("imagePaths", [])
+        image_base64_list = data.get("images", [])
+        steps = data.get("steps", [])
+        max_dx = data.get("maxDx", 300)
+        max_dy = data.get("maxDy", 200)
+
+        images = []
+        for img_path in image_paths:
+            if not os.path.exists(img_path):
+                print(f"图片不存在: {img_path}")
+                continue
+            try:
+                with open(img_path, "rb") as f:
+                    nparr = np.frombuffer(f.read(), np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is not None:
+                    images.append(img)
+            except Exception as e:
+                print(f"读取图片失败 {img_path}: {e}")
+
+        for b64 in image_base64_list:
+            try:
+                raw = base64.b64decode(b64)
+                nparr = np.frombuffer(raw, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is not None:
+                    images.append(img)
+            except Exception as e:
+                print(f"解码base64图片失败: {e}")
+
+        if not images:
+            send_stitch_result(error="没有有效的图片")
+            return
+
+        print(f"批量拼接: 共{len(images)}张图片, {len(steps)}个处理步骤")
+
+        _stitched_image = None
+        _stitch_count = 0
+        confidence = 1.0
+
+        for i, img in enumerate(images):
+            current_img = img.copy()
+
+            for step in steps:
+                step_type = step.get("type")
+                params = step.get("params", {})
+
+                if step_type == "color_filter":
+                    result = 对图像应用颜色过滤(
+                        current_img,
+                        params.get("keepColors", []),
+                        params.get("filterColors", []),
+                    )
+                elif step_type == "binary":
+                    result = 对图像应用二值化(current_img, params.get("threshold", 127))
+                elif step_type == "flood_fill":
+                    if len(current_img.shape) == 2:
+                        current_img = cv2.cvtColor(current_img, cv2.COLOR_GRAY2BGR)
+                    result = 逐步洪水填充算法(
+                        current_img,
+                        (params.get("x", 0), params.get("y", 0)),
+                        send_progress=False,
+                    )
+                else:
+                    continue
+
+                if result is None:
+                    break
+                current_img = result
+
+            if current_img is None:
+                print(f"图片 {i + 1} 处理失败，跳过")
+                continue
+
+            if len(current_img.shape) == 3:
+                gray = cv2.cvtColor(current_img, cv2.COLOR_BGR2GRAY)
+            else:
+                gray = current_img.copy()
+            _, binary = cv2.threshold(gray, 127, 1, cv2.THRESH_BINARY)
+            binary = binary.astype(np.uint8)
+
+            if _stitched_image is None:
+                _stitched_image = binary
+                _stitch_count = 1
+                confidence = 1.0
+            else:
+                dx, dy, conf = find_offset_by_correlation(
+                    _stitched_image, binary, max_dx, max_dy
+                )
+                confidence = conf
+                _stitched_image = stitch_maps(_stitched_image, binary, dx, dy)
+                _stitch_count += 1
+
+            print(f"批量拼接: 第{_stitch_count}/{len(images)}张, confidence={confidence:.4f}")
+
+            vis = (_stitched_image * 255).astype(np.uint8)
+            is_last = i == len(images) - 1
+            send_stitch_result(
+                stitched_image=vis,
+                count=_stitch_count,
+                confidence=confidence,
+                is_complete=is_last,
+            )
+
+        if _stitch_count == 0:
+            send_stitch_result(error="所有图片处理失败")
+
+    except Exception as e:
+        traceback.print_exc()
+        send_stitch_result(error=str(e))
+
+
+def send_stitch_result(stitched_image=None, error=None, count=0, confidence=0,
+                       cleared=False, is_complete=False):
+    """发送拼接结果到 Electron"""
+    message = {"success": error is None}
+
+    if error:
+        message["error"] = error
+    elif cleared:
+        message["cleared"] = True
+        message["count"] = 0
+    elif stitched_image is not None:
+        _, buffer = cv2.imencode(".png", stitched_image, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+        message["stitchedImage"] = base64.b64encode(buffer).decode("utf-8")
+        message["count"] = count
+        message["confidence"] = round(confidence, 4)
+
+    if is_complete:
+        message["isComplete"] = True
+
+    send_to_electron(
+        prop="stitch-result",
+        message=message,
+        wait_response=True,
+    )
 
 
 #================================================================

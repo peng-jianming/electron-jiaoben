@@ -32,8 +32,8 @@
             <span class="pipeline-title">处理管线</span>
             <el-tag size="small" type="info" effect="dark">{{ pipeline.length }} 步</el-tag>
           </div>
-          <el-dropdown trigger="click" @command="addStep" :disabled="!imageLoaded">
-            <el-button type="primary" size="small" :icon="Plus" :disabled="!imageLoaded">
+          <el-dropdown trigger="click" @command="addStep">
+            <el-button type="primary" size="small" :icon="Plus">
               添加步骤
             </el-button>
             <template #dropdown>
@@ -85,6 +85,137 @@
         </div>
       </div>
 
+      <!-- 拼接控制区域 -->
+      <div class="stitch-section">
+        <div class="stitch-toolbar">
+          <div class="toolbar-left">
+            <el-icon class="pipeline-icon"><Connection /></el-icon>
+            <span class="pipeline-title">拼接控制</span>
+            <el-tag v-if="stitchCount > 0" size="small" type="success" effect="dark">
+              {{ stitchCount }} 张
+            </el-tag>
+          </div>
+        </div>
+        <div class="stitch-body">
+          <!-- 批量图片上传区（用于"拼接一次"） -->
+          <div class="batch-upload-area">
+            <div class="batch-upload-header">
+              <span class="param-label">批量图片</span>
+              <div class="batch-upload-btns">
+                <el-upload
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="(file) => addStitchFiles(file)"
+                  accept="image/*"
+                  multiple
+                >
+                  <el-button size="small" :icon="Upload" :disabled="batchStitching">选择图片</el-button>
+                </el-upload>
+                <el-button
+                  v-if="stitchBatchFiles.length > 0"
+                  size="small"
+                  text
+                  type="danger"
+                  @click="clearStitchFiles"
+                  :disabled="batchStitching"
+                >清空</el-button>
+              </div>
+            </div>
+            <div v-if="stitchBatchFiles.length > 0" class="batch-file-list">
+              <div
+                v-for="(file, idx) in stitchBatchFiles"
+                :key="idx"
+                class="batch-file-item"
+              >
+                <span class="batch-file-name" :title="file.name">{{ idx + 1 }}. {{ file.name }}</span>
+                <el-icon
+                  class="batch-file-remove"
+                  @click="removeStitchFile(idx)"
+                  v-if="!batchStitching"
+                ><CircleClose /></el-icon>
+              </div>
+            </div>
+            <div v-else class="batch-empty-hint">选择多张图片后点击「拼接一次」</div>
+          </div>
+
+          <!-- 拼接参数 -->
+          <div class="stitch-params">
+            <div class="param-row">
+              <span class="param-label">水平搜索</span>
+              <el-input-number v-model="stitchMaxDx" :min="50" :max="1000" :step="50" size="small" controls-position="right" />
+            </div>
+            <div class="param-row">
+              <span class="param-label">垂直搜索</span>
+              <el-input-number v-model="stitchMaxDy" :min="50" :max="1000" :step="50" size="small" controls-position="right" />
+            </div>
+            <div class="param-row">
+              <span class="param-label">间隔(ms)</span>
+              <el-input-number v-model="stitchInterval" :min="100" :max="5000" :step="100" size="small" controls-position="right" />
+            </div>
+          </div>
+          <!-- 状态信息 -->
+          <div v-if="stitchCount > 0" class="stitch-status">
+            <span>已拼接: <strong>{{ stitchCount }}</strong> 张</span>
+            <span v-if="lastStitchConfidence > 0">
+              置信度: <strong :class="lastStitchConfidence >= 0.5 ? 'conf-good' : 'conf-warn'">
+                {{ (lastStitchConfidence * 100).toFixed(1) }}%
+              </strong>
+            </span>
+          </div>
+          <!-- 操作按钮 -->
+          <div class="stitch-actions">
+            <el-button
+              size="small"
+              type="primary"
+              :icon="Connection"
+              :loading="batchStitching"
+              :disabled="isAutoStitching || stitchBatchFiles.length === 0"
+              @click="doBatchStitch"
+            >
+              拼接一次 ({{ stitchBatchFiles.length }})
+            </el-button>
+            <el-button
+              v-if="!isAutoStitching"
+              size="small"
+              type="success"
+              :icon="VideoPlay"
+              :disabled="batchStitching"
+              @click="startAutoStitch"
+            >
+              连续拼接
+            </el-button>
+            <el-button
+              v-else
+              size="small"
+              type="warning"
+              :icon="VideoPause"
+              @click="stopAutoStitch"
+            >
+              停止拼接
+            </el-button>
+          </div>
+          <div class="stitch-actions">
+            <el-button
+              size="small"
+              :icon="RefreshLeft"
+              :disabled="stitchCount === 0 || isAutoStitching || batchStitching"
+              @click="clearStitch"
+            >
+              清空拼接
+            </el-button>
+            <el-button
+              size="small"
+              type="success"
+              :icon="Download"
+              :disabled="!stitchedImage"
+              @click="handleSaveStitchedImage"
+            >
+              保存拼接图
+            </el-button>
+          </div>
+        </div>
+      </div>
+
       <!-- 底部操作栏 -->
       <div class="action-bar" v-if="imageLoaded">
         <el-button
@@ -107,29 +238,57 @@
     </div>
 
     <!-- 右侧图片预览区域 -->
-    <div class="image-preview-panel"
-         ref="previewContainerRef"
-         :style="{ cursor: previewCursor }"
-         @wheel="handlePreviewWheel"
-         @mousedown="handlePreviewMouseDown"
-         @mousemove="handlePreviewMouseMove"
-         @mouseup="handlePreviewMouseUp"
-         @click="handlePreviewClick"
-    >
-      <div v-if="!processedImage" class="preview-empty">
-        <el-icon class="preview-empty-icon"><Picture /></el-icon>
-        <p>处理后的图片将显示在这里</p>
-        <p class="hint">上传图片并添加处理步骤</p>
+    <div class="image-preview-panel-wrapper">
+      <!-- 预览模式切换 -->
+      <div class="preview-mode-bar">
+        <div
+          class="preview-mode-tab"
+          :class="{ active: previewMode === 'processed' }"
+          @click="previewMode = 'processed'"
+        >
+          处理结果
+        </div>
+        <div
+          class="preview-mode-tab"
+          :class="{ active: previewMode === 'stitched' }"
+          @click="previewMode = 'stitched'"
+        >
+          拼接结果
+          <el-tag v-if="stitchCount > 0" size="small" type="success" effect="dark" style="margin-left: 6px;">
+            {{ stitchCount }}
+          </el-tag>
+        </div>
+        <div v-if="isAutoStitching" class="auto-stitch-indicator">
+          <span class="auto-stitch-dot"></span>
+          连续拼接中...
+        </div>
       </div>
-      <div v-else class="preview-image-wrapper" :style="previewWrapperStyle">
-        <img
-          :src="processedImage"
-          alt="处理结果"
-          ref="previewImageRef"
-          :style="previewImageStyle"
-          @load="handlePreviewImageLoad"
-          draggable="false"
-        />
+      <div class="image-preview-panel"
+           ref="previewContainerRef"
+           :style="{ cursor: previewCursor }"
+           @wheel="handlePreviewWheel"
+           @mousedown="handlePreviewMouseDown"
+           @mousemove="handlePreviewMouseMove"
+           @mouseup="handlePreviewMouseUp"
+           @click="handlePreviewClick"
+      >
+        <div v-if="!displayImage" class="preview-empty">
+          <el-icon class="preview-empty-icon"><Picture /></el-icon>
+          <p v-if="previewMode === 'stitched'">拼接结果将显示在这里</p>
+          <p v-else>处理后的图片将显示在这里</p>
+          <p class="hint" v-if="previewMode === 'stitched'">点击「拼接一次」或「连续拼接」开始</p>
+          <p class="hint" v-else>上传图片并添加处理步骤</p>
+        </div>
+        <div v-else class="preview-image-wrapper" :style="previewWrapperStyle">
+          <img
+            :src="displayImage"
+            :alt="previewMode === 'stitched' ? '拼接结果' : '处理结果'"
+            ref="previewImageRef"
+            :style="previewImageStyle"
+            @load="handlePreviewImageLoad"
+            draggable="false"
+          />
+        </div>
       </div>
     </div>
 
@@ -154,6 +313,8 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import {
   List, Plus, Delete, Download, DocumentAdd,
   Brush, MagicStick, Aim, Picture,
+  Connection, VideoPause, VideoPlay, RefreshLeft,
+  Upload, CircleClose,
 } from '@element-plus/icons-vue';
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
@@ -161,7 +322,6 @@ import PipelineStepCard from './cards/PipelineStepCard.vue';
 import ImageProcessorDeviceDialog from '../ImageProcessor/dialogs/ImageProcessorDeviceDialog.vue';
 
 const previewContainerRef = ref(null);
-const deviceTab = ref('mobile');
 const previewImageRef = ref(null);
 
 const {
@@ -181,6 +341,17 @@ const {
   currentDeviceId,
   screenshotLoading,
   captureWindowLoading,
+  deviceTab,
+
+  stitchedImage,
+  stitchCount,
+  isAutoStitching,
+  stitchLoading,
+  lastStitchConfidence,
+  stitchMaxDx,
+  stitchMaxDy,
+  stitchInterval,
+  previewMode,
 
   getColorPreview,
   addStep,
@@ -205,10 +376,28 @@ const {
   openCaptureWindow,
   captureWindowScreenshot,
 
+  stitchBatchFiles,
+  batchStitching,
+  addStitchFiles,
+  removeStitchFile,
+  clearStitchFiles,
+  doBatchStitch,
+  startAutoStitch,
+  stopAutoStitch,
+  clearStitch,
+  handleSaveStitchedImage,
+
   initSocket,
   initIpcListeners,
   cleanup,
 } = useColoring();
+
+const displayImage = computed(() => {
+  if (previewMode.value === 'stitched' && stitchedImage.value) {
+    return stitchedImage.value;
+  }
+  return processedImage.value;
+});
 
 function handleCaptureScreenshot() {
   if (deviceTab.value === "capture-window") {
@@ -273,7 +462,7 @@ function calculatePreviewTransform() {
 }
 
 function handlePreviewWheel(event) {
-  if (!processedImage.value || !previewImageRef.value || !previewContainerRef.value) return;
+  if (!displayImage.value || !previewImageRef.value || !previewContainerRef.value) return;
   if (!event.ctrlKey && !event.metaKey) return;
 
   event.preventDefault();
@@ -293,7 +482,7 @@ function handlePreviewWheel(event) {
 }
 
 function handlePreviewMouseDown(event) {
-  if (!processedImage.value || event.button !== 0) return;
+  if (!displayImage.value || event.button !== 0) return;
   previewIsDragging.value = true;
   previewDragStartX = event.clientX;
   previewDragStartY = event.clientY;
@@ -453,6 +642,155 @@ onUnmounted(() => {
   opacity: 0.7;
 }
 
+/* ===== 拼接控制区域 ===== */
+.stitch-section {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.stitch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(16, 185, 129, 0.1);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stitch-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 批量图片上传 */
+.batch-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.batch-upload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.batch-upload-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.batch-file-list {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(51, 65, 85, 0.3);
+  border-radius: 6px;
+}
+
+.batch-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
+.batch-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-file-remove {
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.batch-file-remove:hover {
+  color: #ef4444;
+  opacity: 1;
+}
+
+.batch-empty-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  text-align: center;
+  padding: 6px;
+}
+
+.stitch-params {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.param-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  min-width: 64px;
+}
+
+.param-row .el-input-number {
+  width: 140px;
+}
+
+.stitch-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(51, 65, 85, 0.3);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.conf-good {
+  color: #10b981;
+}
+
+.conf-warn {
+  color: #f59e0b;
+}
+
+.stitch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stitch-actions .el-button {
+  flex: 1;
+}
+
 /* ===== 底部操作栏 ===== */
 .action-bar {
   display: flex;
@@ -465,12 +803,76 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 /* ===== 右侧图片预览区域 ===== */
-.image-preview-panel {
+.image-preview-panel-wrapper {
   flex: 1;
   min-width: 0;
   height: 100%;
-  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid var(--border-color);
+}
+
+.preview-mode-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: rgba(30, 30, 46, 0.95);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  height: 36px;
+  gap: 2px;
+}
+
+.preview-mode-tab {
+  display: flex;
+  align-items: center;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.preview-mode-tab:hover {
+  color: var(--text-primary);
+}
+
+.preview-mode-tab.active {
+  color: var(--primary-light);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.auto-stitch-indicator {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #10b981;
+  animation: pulse-opacity 1.5s ease-in-out infinite;
+}
+
+.auto-stitch-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.image-preview-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #1a1a2e;
   overflow: hidden;
   position: relative;
   user-select: none;
