@@ -32,6 +32,15 @@
             <span class="pipeline-title">处理管线</span>
             <el-tag size="small" type="info" effect="dark">{{ pipeline.length }} 步</el-tag>
           </div>
+          <el-button
+          type="danger"
+          :icon="Delete"
+          size="small" 
+          @click="clearAllSteps"
+          :disabled="processing || pipeline.length === 0"
+        >
+          清空
+        </el-button>
           <el-dropdown trigger="click" @command="addStep">
             <el-button type="primary" size="small" :icon="Plus">
               添加步骤
@@ -215,26 +224,6 @@
           </div>
         </div>
       </div>
-
-      <!-- 底部操作栏 -->
-      <div class="action-bar" v-if="imageLoaded">
-        <el-button
-          type="danger"
-          :icon="Delete"
-          @click="clearAllSteps"
-          :disabled="processing || pipeline.length === 0"
-        >
-          清空
-        </el-button>
-        <el-button
-          type="success"
-          :icon="Download"
-          @click="handleSaveImage"
-          :disabled="processing"
-        >
-          保存图片
-        </el-button>
-      </div>
     </div>
 
     <!-- 右侧图片预览区域 -->
@@ -262,6 +251,14 @@
           <span class="auto-stitch-dot"></span>
           连续拼接中...
         </div>
+        <el-button
+          type="success"
+          :icon="Download"
+          @click="handleSaveImage"
+          :disabled="processing"
+        >
+          保存图片
+        </el-button>
       </div>
       <div class="image-preview-panel"
            ref="previewContainerRef"
@@ -816,7 +813,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 0 12px;
-  background: rgba(30, 30, 46, 0.95);
+  /* background: rgba(30, 30, 46, 0.95); */
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   height: 36px;
