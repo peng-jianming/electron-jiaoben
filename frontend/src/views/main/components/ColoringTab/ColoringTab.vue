@@ -56,16 +56,12 @@
               添加步骤
             </el-button>
             <template #dropdown>
-              <!-- 颜色过滤,二值化,膨胀, 腐蚀,洪水填充 -->
               <el-dropdown-menu>
                 <el-dropdown-item command="color_filter">
                   <el-icon><Brush /></el-icon> 颜色过滤
                 </el-dropdown-item>
                 <el-dropdown-item command="binary">
                   <el-icon><MagicStick /></el-icon> 二值化
-                </el-dropdown-item>
-                <el-dropdown-item command="flood_fill">
-                  <el-icon><Aim /></el-icon> 洪水填充
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -81,13 +77,11 @@
               :step="step"
               :index="index"
               :is-dragging="dragIndex === index"
-              :is-selecting-point="activeFloodFillStepId === step.id"
+              :is-selecting-point="false"
               :get-color-preview="getColorPreview"
               @update:params="updateStepParams(step.id, $event)"
               @toggle-expand="toggleStepExpand(step.id)"
               @remove="removeStep(index)"
-              @show-animation="showFloodFillAnimation(index, step)"
-              @select-point="startPointSelection(step.id)"
               @drag-start="handleDragStart"
               @drag-over="handleDragOver"
               @drag-end="handleDragEnd"
@@ -234,6 +228,62 @@
           </div>
         </div>
       </div>
+
+      <!-- 洪水填充区域 -->
+      <div class="flood-fill-section">
+        <div class="flood-fill-toolbar">
+          <div class="toolbar-left">
+            <el-icon class="pipeline-icon flood-fill-icon"><Aim /></el-icon>
+            <span class="pipeline-title">洪水填充</span>
+          </div>
+        </div>
+        <div class="flood-fill-body">
+          <!-- 图片来源选择 -->
+          <div class="param-row">
+            <span class="param-label">填充来源</span>
+            <el-radio-group v-model="floodFillSource" size="small">
+              <el-radio-button value="processed">管线结果</el-radio-button>
+              <el-radio-button value="stitched">拼接结果</el-radio-button>
+            </el-radio-group>
+          </div>
+          <!-- 坐标 -->
+          <div class="flood-coord-row">
+            <span class="param-label">X:</span>
+            <el-input-number v-model="floodFillX" :min="0" size="small" controls-position="right" />
+            <span class="param-label">Y:</span>
+            <el-input-number v-model="floodFillY" :min="0" size="small" controls-position="right" />
+            <el-button
+              type="primary" size="small"
+              :class="{ 'is-selecting': isSelectingFloodFillPoint }"
+              :disabled="(floodFillSource === 'processed' && !processedImage) || (floodFillSource === 'stitched' && !stitchedImage)"
+              @click="startFloodFillPointSelection"
+            >
+              <el-icon><Aim /></el-icon>
+              <span>{{ isSelectingFloodFillPoint ? '点击图片...' : '拾取' }}</span>
+            </el-button>
+          </div>
+          <!-- 操作按钮 -->
+          <div class="flood-fill-actions">
+            <el-button
+              type="success" size="small"
+              :icon="VideoPlay"
+              :loading="floodFillProcessing"
+              :disabled="(floodFillSource === 'processed' && !processedImage) || (floodFillSource === 'stitched' && !stitchedImage)"
+              @click="executeFloodFill"
+            >
+              执行填充
+            </el-button>
+            <el-button
+              size="small"
+              :icon="Film"
+              :disabled="(floodFillSource === 'processed' && !processedImage) || (floodFillSource === 'stitched' && !stitchedImage)"
+              @click="showFloodFillAnimation"
+            >
+              查看动画
+            </el-button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 右侧图片预览区域 -->
@@ -255,6 +305,16 @@
           拼接结果
           <el-tag v-if="stitchCount > 0" size="small" type="success" effect="dark" style="margin-left: 6px;">
             {{ stitchCount }}
+          </el-tag>
+        </div>
+        <div
+          class="preview-mode-tab"
+          :class="{ active: previewMode === 'flood-fill' }"
+          @click="previewMode = 'flood-fill'"
+        >
+          洪水填充
+          <el-tag v-if="floodFillResult" size="small" type="warning" effect="dark" style="margin-left: 6px;">
+            ✓
           </el-tag>
         </div>
         <div v-if="isAutoStitching" class="auto-stitch-indicator">
@@ -282,14 +342,16 @@
         <div v-if="!displayImage" class="preview-empty">
           <el-icon class="preview-empty-icon"><Picture /></el-icon>
           <p v-if="previewMode === 'stitched'">拼接结果将显示在这里</p>
+          <p v-else-if="previewMode === 'flood-fill'">洪水填充结果将显示在这里</p>
           <p v-else>处理后的图片将显示在这里</p>
           <p class="hint" v-if="previewMode === 'stitched'">点击「拼接一次」或「连续拼接」开始</p>
+          <p class="hint" v-else-if="previewMode === 'flood-fill'">选择来源图片并执行填充</p>
           <p class="hint" v-else>上传图片并添加处理步骤</p>
         </div>
         <div v-else class="preview-image-wrapper" :style="previewWrapperStyle">
           <img
             :src="displayImage"
-            :alt="previewMode === 'stitched' ? '拼接结果' : '处理结果'"
+            :alt="previewMode === 'stitched' ? '拼接结果' : previewMode === 'flood-fill' ? '洪水填充结果' : '处理结果'"
             ref="previewImageRef"
             :style="previewImageStyle"
             @load="handlePreviewImageLoad"
@@ -321,7 +383,7 @@ import {
   List, Plus, Delete, Download, DocumentAdd,
   Brush, MagicStick, Aim, Picture,
   Connection, VideoPause, VideoPlay, RefreshLeft,
-  Upload, CircleClose,
+  Upload, CircleClose, Film,
 } from '@element-plus/icons-vue';
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
@@ -339,7 +401,14 @@ const {
   processedImage,
   pipeline,
   dragIndex,
-  activeFloodFillStepId,
+
+  // 独立洪水填充
+  floodFillSource,
+  floodFillX,
+  floodFillY,
+  floodFillResult,
+  floodFillProcessing,
+  isSelectingFloodFillPoint,
 
   deviceDialogVisible,
   deviceList,
@@ -367,15 +436,18 @@ const {
   removeStep,
   clearAllSteps,
   handleImageSelect,
-  handleImageClick,
   handleSaveImage,
-  startPointSelection,
-  showFloodFillAnimation,
   handleDragStart,
   handleDragOver,
   handleDrop,
   handleDragEnd,
   startProcessing,
+
+  // 独立洪水填充方法
+  startFloodFillPointSelection,
+  handleFloodFillImageClick,
+  executeFloodFill,
+  showFloodFillAnimation,
 
   openDeviceDialog,
   refreshDevices,
@@ -403,6 +475,9 @@ const {
 const displayImage = computed(() => {
   if (previewMode.value === 'stitched' && stitchedImage.value) {
     return stitchedImage.value;
+  }
+  if (previewMode.value === 'flood-fill' && floodFillResult.value) {
+    return floodFillResult.value;
   }
   return processedImage.value;
 });
@@ -441,7 +516,7 @@ const previewImageStyle = computed(() => ({
 }));
 
 const previewCursor = computed(() => {
-  if (activeFloodFillStepId.value) return 'crosshair';
+  if (isSelectingFloodFillPoint.value) return 'crosshair';
   if (previewIsDragging.value) return 'grabbing';
   return 'default';
 });
@@ -523,7 +598,7 @@ function handlePreviewClick(event) {
     previewSuppressClick = false;
     return;
   }
-  if (!activeFloodFillStepId.value) return;
+  if (!isSelectingFloodFillPoint.value) return;
   if (!previewImageRef.value || !previewContainerRef.value) return;
 
   const containerRect = previewContainerRef.value.getBoundingClientRect();
@@ -534,7 +609,7 @@ function handlePreviewClick(event) {
   const actualX = Math.round(imageX / previewScale.value);
   const actualY = Math.round(imageY / previewScale.value);
 
-  handleImageClick(actualX, actualY);
+  handleFloodFillImageClick(actualX, actualY);
 }
 
 function handleGlobalPreviewMouseUp() {
@@ -799,17 +874,66 @@ onUnmounted(() => {
   flex: 1;
 }
 
-/* ===== 底部操作栏 ===== */
-.action-bar {
+/* ===== 洪水填充区域 ===== */
+.flood-fill-section {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
+  flex-direction: column;
   background: var(--bg-card);
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--border-color);
+  overflow: hidden;
   flex-shrink: 0;
 }
+
+.flood-fill-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(16, 185, 129, 0.08);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.flood-fill-icon {
+  color: #10b981 !important;
+}
+
+.flood-fill-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flood-coord-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flood-coord-row :deep(.el-input-number) {
+  width: 100px;
+}
+
+.flood-fill-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flood-fill-actions .el-button {
+  flex: 1;
+}
+
+.is-selecting {
+  animation: pulse-selecting 1.2s infinite;
+}
+
+@keyframes pulse-selecting {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+
 /* ===== 右侧图片预览区域 ===== */
 .image-preview-panel-wrapper {
   flex: 1;

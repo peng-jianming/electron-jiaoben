@@ -7,14 +7,12 @@ import { ElMessage } from 'element-plus';
 export const STEP_TYPES = {
   color_filter: { label: '颜色过滤', gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
   binary: { label: '二值化', gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)' },
-  flood_fill: { label: '洪水填充', gradient: 'linear-gradient(135deg, #10b981, #34d399)' },
 };
 
 function getDefaultParams(type) {
   switch (type) {
     case 'color_filter': return { keepColors: [], filterColors: [] };
     case 'binary': return { threshold: 127 };
-    case 'flood_fill': return { x: 0, y: 0 };
     default: return {};
   }
 }
@@ -28,7 +26,14 @@ export function useColoring() {
 
   const pipeline = ref([]);
   const dragIndex = ref(null);
-  const activeFloodFillStepId = ref(null);
+
+  // 独立洪水填充
+  const floodFillSource = ref('processed'); // 'processed' | 'stitched'
+  const floodFillX = ref(0);
+  const floodFillY = ref(0);
+  const floodFillResult = ref(null);
+  const floodFillProcessing = ref(false);
+  const isSelectingFloodFillPoint = ref(false);
 
   // 设备连接（参考 ImageProcessorTab）
   const deviceDialogVisible = ref(false);
@@ -186,32 +191,71 @@ export function useColoring() {
     }
   }
 
-  // ==================== 洪水填充坐标选取 ====================
+  // ==================== 独立洪水填充 ====================
 
-  function startPointSelection(stepId) {
-    activeFloodFillStepId.value = stepId;
-    ElMessage.info('请在图片上点击选择填充起始位置');
-  }
-
-  function handleImageClick(x, y) {
-    if (!imageLoaded.value) return;
-    if (activeFloodFillStepId.value) {
-      const step = pipeline.value.find(s => s.id === activeFloodFillStepId.value);
-      if (step && step.type === 'flood_fill') {
-        step.params = { ...step.params, x, y };
-        ElMessage.success(`已选择填充起始位置: (${x}, ${y})`);
-      }
-      activeFloodFillStepId.value = null;
+  function startFloodFillPointSelection() {
+    const src = floodFillSource.value;
+    if (src === 'processed' && !processedImage.value) {
+      ElMessage.warning('没有管线处理结果，请先执行管线处理');
+      return;
     }
+    if (src === 'stitched' && !stitchedImage.value) {
+      ElMessage.warning('没有拼接结果，请先进行拼接');
+      return;
+    }
+    isSelectingFloodFillPoint.value = true;
+    previewMode.value = src;
+    ElMessage.info('请在右侧图片上点击选择填充起始位置');
   }
 
-  function showFloodFillAnimation(stepIndex, step) {
-    if (!step || step.type !== 'flood_fill') return;
-    const params = JSON.parse(JSON.stringify(step.params));
+  function handleFloodFillImageClick(x, y) {
+    if (!isSelectingFloodFillPoint.value) return;
+    floodFillX.value = x;
+    floodFillY.value = y;
+    isSelectingFloodFillPoint.value = false;
+    ElMessage.success(`已选择填充起始位置: (${x}, ${y})`);
+  }
+
+  function executeFloodFill() {
+    const src = floodFillSource.value;
+    if (src === 'processed' && !processedImage.value) {
+      ElMessage.warning('没有管线处理结果');
+      return;
+    }
+    if (src === 'stitched' && !stitchedImage.value) {
+      ElMessage.warning('没有拼接结果');
+      return;
+    }
+
+    floodFillProcessing.value = true;
     ipc.invoke(ipcApiRoute.sendToPython, {
-      type: 'flood_fill_animation',
-      stepIndex,
-      params,
+      type: 'standalone_flood_fill',
+      source: src,
+      x: floodFillX.value,
+      y: floodFillY.value,
+    }).catch((error) => {
+      console.error("洪水填充失败:", error);
+      ElMessage.error(`填充失败: ${error.message || '未知错误'}`);
+      floodFillProcessing.value = false;
+    });
+  }
+
+  function showFloodFillAnimation() {
+    const src = floodFillSource.value;
+    if (src === 'processed' && !processedImage.value) {
+      ElMessage.warning('没有管线处理结果');
+      return;
+    }
+    if (src === 'stitched' && !stitchedImage.value) {
+      ElMessage.warning('没有拼接结果');
+      return;
+    }
+
+    ipc.invoke(ipcApiRoute.sendToPython, {
+      type: 'standalone_flood_fill_animation',
+      source: src,
+      x: floodFillX.value,
+      y: floodFillY.value,
     }).catch((error) => {
       console.error("显示动画失败:", error);
       ElMessage.error(`显示动画失败: ${error.message || '未知错误'}`);
@@ -394,6 +438,17 @@ export function useColoring() {
     }
   }
 
+  const handleFloodFillResult = (data) => {
+    floodFillProcessing.value = false;
+    if (data?.success && data?.image) {
+      floodFillResult.value = `data:image/png;base64,${data.image}`;
+      previewMode.value = 'flood-fill';
+      ElMessage.success('洪水填充完成');
+    } else {
+      ElMessage.error(data?.error || '洪水填充失败');
+    }
+  };
+
   function initSocket() {
     socket = io("ws://localhost:7070");
     socket.on("connect", () => console.log("Socket 连接成功"));
@@ -403,6 +458,7 @@ export function useColoring() {
     socket.on("device-selected", handleDeviceSelected);
     socket.on("device-screenshot", handleDeviceScreenshot);
     socket.on("stitch-result", handleStitchResult);
+    socket.on("flood-fill-result", handleFloodFillResult);
   }
 
   function openDeviceDialog() {
@@ -673,7 +729,14 @@ export function useColoring() {
     processedImage,
     pipeline,
     dragIndex,
-    activeFloodFillStepId,
+
+    // 独立洪水填充
+    floodFillSource,
+    floodFillX,
+    floodFillY,
+    floodFillResult,
+    floodFillProcessing,
+    isSelectingFloodFillPoint,
 
     deviceDialogVisible,
     deviceList,
@@ -702,15 +765,18 @@ export function useColoring() {
     removeStep,
     clearAllSteps,
     handleImageSelect,
-    handleImageClick,
     handleSaveImage,
-    startPointSelection,
-    showFloodFillAnimation,
     handleDragStart,
     handleDragOver,
     handleDrop,
     handleDragEnd,
     startProcessing,
+
+    // 独立洪水填充方法
+    startFloodFillPointSelection,
+    handleFloodFillImageClick,
+    executeFloodFill,
+    showFloodFillAnimation,
 
     openDeviceDialog,
     refreshDevices,

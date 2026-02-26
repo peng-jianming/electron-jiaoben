@@ -608,6 +608,10 @@ def init_client(url="http://127.0.0.1:7070"):
                 "stitch_image": 拼接当前图片,
                 "clear_stitch": 清空拼接,
                 "batch_stitch": 批量拼接图片,
+                "get_stored_image": 获取存储图片,
+                "upload_flood_fill_image": 上传洪水填充图片,
+                "standalone_flood_fill": 独立洪水填充,
+                "standalone_flood_fill_animation": 独立洪水填充动画,
             }
             
             handler = handlers.get(data.get("type"))
@@ -1060,6 +1064,237 @@ def 字库识字(data):
     except Exception as e:
         traceback.print_exc()
         发送字库识字结果(error=str(e))
+
+
+# ==================== 独立洪水填充模块 ====================
+
+# 独立洪水填充模块使用的图片（与管线处理分离）
+_flood_fill_custom_image = None
+
+
+def 获取存储图片(data):
+    """获取存储的管线处理 / 拼接结果图片，供独立洪水填充使用"""
+    global _flood_fill_custom_image
+
+    source = data.get("source", "processed")
+    img = None
+
+    if source == "processed":
+        img = _current_processed_image
+    elif source == "stitched":
+        if _stitched_image is not None:
+            img = (_stitched_image * 255).astype(np.uint8)
+
+    if img is None:
+        label = "拼接" if source == "stitched" else "管线处理"
+        send_to_electron(
+            prop="stored-image-result",
+            message={"success": False, "error": f"没有可用的{label}结果图片"},
+            wait_response=False,
+        )
+        return
+
+    _flood_fill_custom_image = img.copy()
+
+    _, buffer = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    send_to_electron(
+        prop="stored-image-result",
+        message={
+            "success": True,
+            "image": base64.b64encode(buffer).decode("utf-8"),
+            "source": source,
+        },
+        wait_response=False,
+    )
+
+
+def 上传洪水填充图片(data):
+    """接收自定义上传的图片，存入独立洪水填充缓存"""
+    global _flood_fill_custom_image
+
+    image_base64 = data.get("image")
+    if not image_base64:
+        return
+
+    try:
+        raw = base64.b64decode(image_base64)
+        nparr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is not None:
+            _flood_fill_custom_image = img
+            print("独立洪水填充: 自定义图片已加载")
+    except Exception as e:
+        print(f"独立洪水填充: 加载自定义图片失败 - {e}")
+
+
+def 独立洪水填充(data):
+    """独立洪水填充：对指定图片执行填充"""
+    source = data.get("source", "custom")
+    x = data.get("x", 0)
+    y = data.get("y", 0)
+
+    if source == "processed":
+        img = _current_processed_image
+    elif source == "stitched":
+        if _stitched_image is not None:
+            img = (_stitched_image * 255).astype(np.uint8)
+        else:
+            img = None
+    else:
+        img = _flood_fill_custom_image
+
+    if img is None:
+        send_to_electron(
+            prop="flood-fill-result",
+            message={"success": False, "error": "无法获取图片，请先加载"},
+            wait_response=False,
+        )
+        return
+
+    img = img.copy()
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+    print(f"独立洪水填充: 起点({x}, {y}), 来源={source}")
+
+    result = 逐步洪水填充算法(img, (x, y), send_progress=False)
+    if result is None:
+        send_to_electron(
+            prop="flood-fill-result",
+            message={"success": False, "error": "洪水填充失败"},
+            wait_response=False,
+        )
+        return
+
+    _, buffer = cv2.imencode(".png", result, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    send_to_electron(
+        prop="flood-fill-result",
+        message={
+            "success": True,
+            "image": base64.b64encode(buffer).decode("utf-8"),
+        },
+        wait_response=True,
+    )
+
+
+def 独立洪水填充动画(data):
+    """独立洪水填充的 cv2 窗口动画"""
+    global _flood_fill_running
+
+    source = data.get("source", "custom")
+    x = data.get("x", 0)
+    y = data.get("y", 0)
+
+    if source == "processed":
+        img = _current_processed_image
+    elif source == "stitched":
+        if _stitched_image is not None:
+            img = (_stitched_image * 255).astype(np.uint8)
+        else:
+            img = None
+    else:
+        img = _flood_fill_custom_image
+
+    if img is None:
+        print("独立洪水填充动画: 无法获取图片")
+        return
+
+    base_img = img.copy()
+    if len(base_img.shape) == 2:
+        base_img = cv2.cvtColor(base_img, cv2.COLOR_GRAY2BGR)
+
+    _flood_fill_stop_event.set()
+    time.sleep(0.1)
+    _flood_fill_stop_event.clear()
+    _flood_fill_running = True
+
+    def run_animation():
+        global _flood_fill_running
+        try:
+            h, w = base_img.shape[:2]
+            if not (0 <= x < w and 0 <= y < h):
+                print("起始点超出图像范围")
+                _flood_fill_running = False
+                return
+
+            result = base_img.copy()
+            seed_color = base_img[y, x].copy()
+            fill_color = np.array([255, 255, 255], dtype=np.uint8)
+
+            if np.array_equal(seed_color, fill_color):
+                print("起始点颜色与填充颜色相同")
+                _flood_fill_running = False
+                return
+
+            queue = deque([(x, y)])
+            visited = np.zeros((h, w), dtype=bool)
+            visited[y, x] = True
+            filled_count = 0
+            batch_size = 100
+            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+            window_name = "洪水填充动画（独立）"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+
+            max_size = 800
+            scale = min(max_size / w, max_size / h, 1.0)
+            win_w, win_h = int(w * scale), int(h * scale)
+            cv2.resizeWindow(window_name, win_w, win_h)
+
+            def is_window_closed():
+                try:
+                    return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
+                except:
+                    return True
+
+            while queue:
+                if _flood_fill_stop_event.is_set() or is_window_closed():
+                    break
+
+                px, py = queue.popleft()
+                if np.array_equal(result[py, px], seed_color):
+                    result[py, px] = fill_color
+                    filled_count += 1
+
+                    for dx, dy in directions:
+                        nx, ny = px + dx, py + dy
+                        if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx]:
+                            if np.array_equal(result[ny, nx], seed_color):
+                                visited[ny, nx] = True
+                                queue.append((nx, ny))
+
+                    if filled_count % batch_size == 0:
+                        cv2.imshow(window_name, result)
+                        key = cv2.waitKey(1)
+                        if key == 27 or key == ord('q') or is_window_closed():
+                            _flood_fill_stop_event.set()
+                            break
+
+            if not _flood_fill_stop_event.is_set() and not is_window_closed():
+                cv2.imshow(window_name, result)
+                print(f"洪水填充动画完成，共填充 {filled_count} 个像素")
+                while True:
+                    key = cv2.waitKey(100)
+                    if key != -1 or is_window_closed():
+                        break
+
+            try:
+                cv2.destroyWindow(window_name)
+            except:
+                pass
+            _flood_fill_running = False
+
+        except Exception as e:
+            traceback.print_exc()
+            try:
+                cv2.destroyWindow(window_name)
+            except:
+                pass
+            _flood_fill_running = False
+
+    animation_thread = threading.Thread(target=run_animation, daemon=True)
+    animation_thread.start()
 
 
 # ==================== 拼接功能 ====================

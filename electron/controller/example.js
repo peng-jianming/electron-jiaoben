@@ -85,6 +85,24 @@ class ExampleController {
         }
         return { success: true, message: '拼接结果已发送' };
       }
+
+      // 存储图片查询结果
+      if (prop === 'stored-image-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('stored-image-result', imageData);
+        }
+        return { success: true, message: '存储图片结果已发送' };
+      }
+
+      // 独立洪水填充结果
+      if (prop === 'flood-fill-result') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('flood-fill-result', imageData);
+        }
+        return { success: true, message: '洪水填充结果已发送' };
+      }
       
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {
