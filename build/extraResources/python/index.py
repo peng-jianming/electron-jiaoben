@@ -1155,6 +1155,10 @@ def 独立洪水填充(data):
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
+    # 独立填充前清除停止标志，避免被之前的管线/动画残留状态误判为“已中断”
+    _flood_fill_stop_event.clear()
+    _steps_stop_event.clear()
+
     print(f"独立洪水填充: 起点({x}, {y}), 来源={source}")
 
     result = 逐步洪水填充算法(img, (x, y), send_progress=False)
