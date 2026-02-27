@@ -108,105 +108,89 @@ function handleImageSelect(file) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary: #6366f1;
+@primary-light: #818cf8;
+@success: #10b981;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@text-muted: #94a3b8;
+@border: #e2e8f0;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+  background: @bg-card;
+  border-radius: 10px;
+  border: 1px solid @border;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: @shadow-sm;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.card-header h2 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  flex: 1;
-}
-
-.card-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-}
-
-.upload-icon {
-  background: linear-gradient(135deg, #3b82f6, #60a5fa);
-  color: white;
+  border-color: #cbd5e1;
 }
 
 .card-body {
-  padding: 12px;
+  padding: 10px 12px;
 }
 
-/* 设备连接区（与 ImageProcessorLeftPanel 风格一致） */
 .device-section {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid @border;
 }
+
 .section-label {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-weight: 700;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: @text-muted;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   margin-bottom: 6px;
 }
+
 .section-icon {
   font-size: 11px;
 }
+
 .device-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
-  background: rgba(51, 65, 85, 0.4);
-  border: 1px solid var(--border-color);
+  padding: 5px 8px;
+  background: #f8fafc;
+  border: 1px solid @border;
   border-radius: 6px;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: @text-secondary;
   margin-bottom: 8px;
   transition: all 0.2s ease;
 }
+
 .device-status.connected {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: var(--primary-light);
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: @success;
 }
+
 .device-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: @text-muted;
   flex-shrink: 0;
-  opacity: 0.7;
 }
+
 .device-status.connected .device-dot {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  background: @success;
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.4);
 }
+
 .device-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -215,16 +199,14 @@ function handleImageSelect(file) {
   min-width: 0;
   font-weight: 500;
 }
+
 .btn-row {
   display: flex;
   gap: 6px;
 }
+
 .btn-row .el-button {
   flex: 1;
-}
-
-.upload-card {
-  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(59, 130, 246, 0.05) 100%);
 }
 
 .upload-dragger {
@@ -232,50 +214,50 @@ function handleImageSelect(file) {
 }
 
 .upload-dragger :deep(.el-upload-dragger) {
-  background: transparent;
-  border: 2px dashed var(--border-color);
-  border-radius: 10px;
-  transition: all 0.3s ease;
-  padding: 16px;
+  background: #fafbfc;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  padding: 14px;
 }
 
 .upload-dragger :deep(.el-upload-dragger:hover) {
-  border-color: var(--primary-color);
-  background: rgba(99, 102, 241, 0.05);
+  border-color: @primary;
+  background: rgba(99, 102, 241, 0.03);
 }
 
 .upload-content {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   justify-content: center;
 }
 
 .upload-big-icon {
-  font-size: 28px;
-  color: var(--primary-light);
+  font-size: 24px;
+  color: @primary-light;
 }
 
 .primary-text {
-  font-size: 14px;
-  color: var(--text-primary);
+  font-size: 13px;
+  color: @text-secondary;
   margin: 0;
 }
 
 .uploaded-state {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .thumb-wrapper {
-  width: 64px;
-  height: 64px;
-  min-width: 64px;
-  border-radius: 8px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 6px;
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  background: #0f172a;
+  border: 1px solid @border;
+  background: #f1f5f9;
 }
 
 .thumb-image {
@@ -289,14 +271,15 @@ function handleImageSelect(file) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .file-name {
-  font-size: 13px;
-  color: var(--text-primary);
+  font-size: 12px;
+  color: @text-primary;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 500;
 }
 </style>

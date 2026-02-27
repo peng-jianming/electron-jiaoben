@@ -117,44 +117,52 @@ defineEmits([
 ]);
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary: #6366f1;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@border: #e2e8f0;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+  background: @bg-card;
+  border-radius: 10px;
+  border: 1px solid @border;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: @shadow-sm;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: #cbd5e1;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.04) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border-bottom: 1px solid @border;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   flex: 1;
+  color: @text-primary;
 }
 
 .card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .filter-icon {
@@ -163,11 +171,11 @@ defineEmits([
 }
 
 .card-body {
-  padding: 20px;
+  padding: 12px 14px;
 }
 
 .filter-group {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .filter-group:last-child {
@@ -178,55 +186,37 @@ defineEmits([
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .group-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: @text-secondary;
 }
 
 .color-inputs {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .color-input-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .color-preview {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 2px solid var(--border-color);
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1.5px solid @border;
   flex-shrink: 0;
 }
 
 .color-input-row :deep(.el-input) {
   flex: 1;
-}
-
-:deep(.el-input__wrapper) {
-  background: rgba(51, 65, 85, 0.5);
-  border: 1px solid var(--border-color);
-  box-shadow: none !important;
-}
-
-:deep(.el-input__wrapper:hover) {
-  border-color: var(--primary-color);
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  border-color: var(--primary-color);
-}
-
-:deep(.el-input__inner) {
-  color: var(--text-primary);
 }
 </style>
 

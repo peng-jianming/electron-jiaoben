@@ -46,44 +46,53 @@ defineProps({
 defineEmits(['add-step', 'update:threshold']);
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary: #6366f1;
+@primary-light: #818cf8;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@border: #e2e8f0;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+  background: @bg-card;
+  border-radius: 10px;
+  border: 1px solid @border;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: @shadow-sm;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: #cbd5e1;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(245, 158, 11, 0.08) 100%);
+  border-bottom: 1px solid @border;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   flex: 1;
+  color: @text-primary;
 }
 
 .card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .binary-icon {
@@ -92,41 +101,41 @@ defineEmits(['add-step', 'update:threshold']);
 }
 
 .card-body {
-  padding: 20px;
+  padding: 12px 14px;
 }
 
 .threshold-control {
-  padding: 0 4px;
+  padding: 0;
 }
 
 .threshold-label {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .threshold-label span {
-  font-size: 14px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: @text-secondary;
 }
 
 .threshold-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
-  color: var(--primary-light) !important;
+  color: @primary !important;
 }
 
 .threshold-control :deep(.el-slider__runway) {
-  background: var(--border-color);
+  background: @border;
 }
 
 .threshold-control :deep(.el-slider__bar) {
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
+  background: linear-gradient(90deg, @primary, @primary-light);
 }
 
 .threshold-control :deep(.el-slider__button) {
-  border-color: var(--primary-color);
+  border-color: @primary;
 }
 </style>
 

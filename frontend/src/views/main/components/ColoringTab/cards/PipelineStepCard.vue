@@ -215,82 +215,101 @@ function updateFilterColor(i, val) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary: #6366f1;
+@primary-light: #818cf8;
+@success: #10b981;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@text-muted: #94a3b8;
+@border: #e2e8f0;
+
 .pipeline-step {
-  background: var(--bg-card);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  transition: all 0.25s ease;
+  background: @bg-card;
+  border-radius: 8px;
+  border: 1px solid @border;
+  transition: all 0.2s ease;
   overflow: hidden;
 }
+
 .pipeline-step:hover {
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-}
-.pipeline-step.dragging {
-  opacity: 0.5;
-  border-color: var(--primary-color);
-}
-.pipeline-step.completed {
-  border-color: var(--success-color);
-  background: linear-gradient(135deg, var(--bg-card), rgba(16, 185, 129, 0.06));
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
-/* ===== Header ===== */
+.pipeline-step.dragging {
+  opacity: 0.5;
+  border-color: @primary;
+}
+
+.pipeline-step.completed {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, @bg-card, rgba(16, 185, 129, 0.03));
+}
+
 .step-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 8px 10px;
   cursor: pointer;
   user-select: none;
 }
+
 .drag-handle {
-  color: var(--text-secondary);
+  color: @text-muted;
   cursor: grab;
-  font-size: 16px;
+  font-size: 14px;
 }
-.drag-handle:active { cursor: grabbing; }
+
+.drag-handle:active {
+  cursor: grabbing;
+}
 
 .step-number {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-color);
+  background: @primary;
   color: #fff;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: 5px;
+  font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
 }
+
 .step-type-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
 }
+
 .step-info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
+
 .step-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: @text-primary;
 }
+
 .step-summary {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: @text-muted;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -299,104 +318,126 @@ function updateFilterColor(i, val) {
 .step-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
+
 .completed-icon {
-  color: var(--success-color);
-  font-size: 18px;
+  color: @success;
+  font-size: 16px;
 }
+
 .expand-arrow {
-  color: var(--text-secondary);
-  font-size: 14px;
-  transition: transform 0.25s ease;
+  color: @text-muted;
+  font-size: 12px;
+  transition: transform 0.2s ease;
 }
-.expand-arrow.expanded { transform: rotate(180deg); }
+
+.expand-arrow.expanded {
+  transform: rotate(180deg);
+}
 
 .delete-btn {
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
 }
-.pipeline-step:hover .delete-btn { opacity: 1; }
 
-/* ===== Body / Params ===== */
+.pipeline-step:hover .delete-btn {
+  opacity: 1;
+}
+
 .step-body {
-  padding: 0 16px 16px;
+  padding: 0 10px 10px;
 }
 
 .param-section {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
-.param-section:last-child { margin-bottom: 0; }
+
+.param-section:last-child {
+  margin-bottom: 0;
+}
 
 .param-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-}
-.param-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  margin-bottom: 8px;
 }
 
-/* 颜色行 */
+.param-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: @text-secondary;
+}
+
 .color-rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
+
 .color-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
+
 .color-swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 2px solid var(--border-color);
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1.5px solid @border;
   flex-shrink: 0;
 }
-.color-row :deep(.el-input) { flex: 1; }
 
-/* 二值化 */
+.color-row :deep(.el-input) {
+  flex: 1;
+}
+
 .threshold-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-.threshold-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--primary-light);
+  margin-bottom: 10px;
 }
 
-/* 洪水填充 */
-.flood-section { padding-top: 4px; }
+.threshold-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: @primary;
+}
+
+.flood-section {
+  padding-top: 2px;
+}
+
 .flood-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
-.flood-row :deep(.el-input-number) { width: 110px; }
+
+.flood-row :deep(.el-input-number) {
+  width: 100px;
+}
+
 .is-selecting {
   animation: pulse 1.2s infinite;
 }
+
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(99, 102, 241, 0); }
 }
 
-/* 展开 / 折叠动画 */
 .expand-enter-active,
 .expand-leave-active {
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   overflow: hidden;
 }
+
 .expand-enter-from,
 .expand-leave-to {
   opacity: 0;
@@ -405,17 +446,15 @@ function updateFilterColor(i, val) {
   padding-bottom: 0;
 }
 
-/* Element Plus 样式覆盖 */
-:deep(.el-input__wrapper) {
-  background: rgba(51, 65, 85, 0.5);
-  border: 1px solid var(--border-color);
-  box-shadow: none !important;
+:deep(.el-slider__runway) {
+  background: @border;
 }
-:deep(.el-input__wrapper:hover) { border-color: var(--primary-color); }
-:deep(.el-input__wrapper.is-focus) { border-color: var(--primary-color); }
-:deep(.el-input__inner) { color: var(--text-primary); }
 
-:deep(.el-slider__runway) { background: var(--border-color); }
-:deep(.el-slider__bar) { background: linear-gradient(90deg, var(--primary-color), var(--primary-light)); }
-:deep(.el-slider__button) { border-color: var(--primary-color); }
+:deep(.el-slider__bar) {
+  background: linear-gradient(90deg, @primary, @primary-light);
+}
+
+:deep(.el-slider__button) {
+  border-color: @primary;
+}
 </style>

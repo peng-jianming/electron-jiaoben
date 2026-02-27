@@ -48,44 +48,52 @@ defineProps({
 defineEmits(['add-step']);
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@success: #10b981;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@border: #e2e8f0;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+  background: @bg-card;
+  border-radius: 10px;
+  border: 1px solid @border;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: @shadow-sm;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: #cbd5e1;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(16, 185, 129, 0.08) 100%);
+  border-bottom: 1px solid @border;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   flex: 1;
+  color: @text-primary;
 }
 
 .card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .flood-icon {
@@ -94,7 +102,7 @@ defineEmits(['add-step']);
 }
 
 .card-body {
-  padding: 20px;
+  padding: 12px 14px;
 }
 
 .flood-info {
@@ -107,17 +115,8 @@ defineEmits(['add-step']);
 }
 
 .point-display :deep(.el-tag) {
-  padding: 8px 16px;
-  font-size: 14px;
-}
-
-:deep(.el-alert) {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-:deep(.el-alert .el-alert__description) {
-  color: var(--text-secondary);
+  padding: 6px 12px;
+  font-size: 12px;
 }
 </style>
 

@@ -142,44 +142,54 @@ function handleDrop(index, event) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="less">
+@primary: #6366f1;
+@success: #10b981;
+@bg-card: #ffffff;
+@text-primary: #1e293b;
+@text-secondary: #64748b;
+@text-muted: #94a3b8;
+@border: #e2e8f0;
+@shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
+  background: @bg-card;
+  border-radius: 10px;
+  border: 1px solid @border;
   overflow: hidden;
-  transition: all 0.3s ease;
+  box-shadow: @shadow-sm;
+  transition: border-color 0.2s ease;
 }
 
 .card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: var(--shadow-lg);
+  border-color: #cbd5e1;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-bottom: 1px solid var(--border-color);
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.04) 0%, rgba(236, 72, 153, 0.08) 100%);
+  border-bottom: 1px solid @border;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   flex: 1;
+  color: @text-primary;
 }
 
 .card-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .steps-icon {
@@ -188,22 +198,22 @@ function handleDrop(index, event) {
 }
 
 .card-body {
-  padding: 20px;
+  padding: 12px 14px;
 }
 
 .card-footer {
-  padding: 16px 20px;
-  background: rgba(51, 65, 85, 0.3);
-  border-top: 1px solid var(--border-color);
+  padding: 10px 14px;
+  background: #fafbfc;
+  border-top: 1px solid @border;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .footer-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
 .steps-card {
@@ -213,17 +223,18 @@ function handleDrop(index, event) {
 }
 
 .step-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: rgba(99, 102, 241, 0.2);
-  padding: 4px 10px;
-  border-radius: 12px;
+  font-size: 11px;
+  color: @primary;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
 }
 
 .steps-body {
   flex: 1;
   overflow-y: auto;
-  min-height: 200px;
+  min-height: 150px;
 }
 
 .empty-steps {
@@ -231,65 +242,67 @@ function handleDrop(index, event) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  color: var(--text-secondary);
+  padding: 24px 16px;
+  color: @text-muted;
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
+  font-size: 36px;
+  margin-bottom: 10px;
+  opacity: 0.3;
 }
 
 .empty-steps p {
   margin: 0;
   text-align: center;
+  font-size: 13px;
 }
 
 .empty-steps .hint {
-  font-size: 12px;
-  margin-top: 8px;
-  opacity: 0.7;
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.6;
 }
 
 .steps-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .step-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: rgba(51, 65, 85, 0.3);
-  border-radius: 10px;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 8px;
   border: 1px solid transparent;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .step-item:hover {
-  background: rgba(51, 65, 85, 0.5);
-  border-color: var(--primary-color);
+  background: #f1f5f9;
+  border-color: @border;
 }
 
 .step-item.dragging {
   opacity: 0.5;
-  border-color: var(--primary-color);
-  background: rgba(99, 102, 241, 0.1);
+  border-color: @primary;
+  background: rgba(99, 102, 241, 0.04);
 }
 
 .step-item.completed {
-  border-color: var(--success-color);
-  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.04);
 }
 
 .step-drag-handle {
-  color: var(--text-secondary);
+  color: @text-muted;
   cursor: grab;
-  padding: 4px;
+  padding: 2px;
+  font-size: 14px;
 }
 
 .step-drag-handle:active {
@@ -297,26 +310,26 @@ function handleDrop(index, event) {
 }
 
 .step-index {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-color);
+  background: @primary;
   color: white;
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: 5px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .step-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .step-icon.color_filter {
@@ -340,15 +353,15 @@ function handleDrop(index, event) {
 }
 
 .step-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 2px;
+  color: @text-primary;
+  margin-bottom: 1px;
 }
 
 .step-params {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: @text-muted;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,39 +374,38 @@ function handleDrop(index, event) {
 }
 
 .check-icon {
-  color: var(--success-color);
-  font-size: 18px;
+  color: @success;
+  font-size: 16px;
 }
 
 .step-animation-btn {
   opacity: 1 !important;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease;
 }
 
 .step-animation-btn:hover {
-  transform: scale(1.1);
+  transform: scale(1.05);
 }
 
 .step-delete {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
 }
 
 .step-item:hover .step-delete {
   opacity: 1;
 }
 
-/* 列表过渡动画 */
 .list-move,
 .list-enter-active,
 .list-leave-active {
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
 }
 
 .list-enter-from,
 .list-leave-to {
   opacity: 0;
-  transform: translateX(30px);
+  transform: translateX(20px);
 }
 
 .list-leave-active {
