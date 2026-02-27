@@ -2,10 +2,11 @@
 界面管理器 - 管理界面配置和按钮/状态
 """
 from .动作管理器 import 动作管理器类
+from .识字管理器 import 识字管理器类
 
 
 class 滑动区域操作类:
-    """支持 界面.滑动查找区域.xxx.正向滑动() / 反向滑动() 执行一次区域拟人滑动"""
+    """支持 界面.滑动区域.xxx.正向滑动() / 反向滑动() 执行一次区域拟人滑动"""
 
     def __init__(self, 控制器, 区域列表):
         """
@@ -43,6 +44,49 @@ class 滑动区域操作类:
         else:
             self.正向滑动()
         上下文[计数键] = 次数 + 1
+
+
+class 识字区域操作类:
+    """支持 界面.识字区域.xxx.识别()，基于固定的 x,y,w,h 区域做 OCR"""
+
+    def __init__(self, 截图上下文, 区域字符串):
+        """
+        区域字符串: "x,y,w,h"
+        """
+        self._截图上下文 = 截图上下文
+        self._区域字符串 = 区域字符串
+        self._x = self._y = self._w = self._h = None
+
+        if isinstance(区域字符串, str):
+            parts = [p.strip() for p in 区域字符串.split(",")]
+            if len(parts) == 4:
+                try:
+                    self._x, self._y, self._w, self._h = map(int, parts)
+                except ValueError:
+                    # 解析失败则退回全图识别
+                    self._x = self._y = self._w = self._h = None
+
+        self._识字管理器 = 识字管理器类(截图上下文)
+
+    def 识别(self, 是否新截图=False):
+        """
+        在预设区域内做 OCR 识别；若区域无效则退回全图识别。
+        :return: 同 识字管理器类.识别 的返回结构
+        """
+        if (
+            self._x is not None
+            and self._y is not None
+            and self._w is not None
+            and self._h is not None
+        ):
+            return self._识字管理器.识别(
+                x=self._x,
+                y=self._y,
+                w=self._w,
+                h=self._h,
+                是否新截图=是否新截图,
+            )
+        return self._识字管理器.识别(是否新截图=是否新截图)
 
 
 class 界面管理器类:
@@ -91,20 +135,32 @@ class 界面管理器类:
         else:
             self.状态 = type('状态集合', (), {})()
 
-        if '滑动查找区域' in 配置字典:
-            self.滑动查找区域 = type('滑动查找区域集合', (), {})()
-            for 名称, 配置 in 配置字典['滑动查找区域'].items():
-                # 支持 界面.滑动查找区域.活动面板.正向滑动() / 反向滑动()
+        if '滑动区域' in 配置字典:
+            self.滑动区域 = type('滑动区域集合', (), {})()
+            for 名称, 配置 in 配置字典['滑动区域'].items():
+                # 支持 界面.滑动区域.活动面板.正向滑动() / 反向滑动()
                 if isinstance(配置, (list, tuple)) and len(配置) >= 2 and 配置[0] and 配置[1]:
                     setattr(
-                        self.滑动查找区域,
+                        self.滑动区域,
                         名称,
                         滑动区域操作类(控制器, [配置[0], 配置[1]]),
                     )
                 else:
-                    setattr(self.滑动查找区域, 名称, None)
+                    setattr(self.滑动区域, 名称, None)
         else:
-            self.滑动查找区域 = type('滑动查找区域集合', (), {})()
+            self.滑动区域 = type('滑动区域集合', (), {})()
+
+        # 动态创建识字区域属性，支持 界面.识字区域.等级.识别()
+        if '识字区域' in 配置字典:
+            self.识字区域 = type('识字区域集合', (), {})()
+            for 名称, 配置 in 配置字典['识字区域'].items():
+                if isinstance(配置, str) and 配置.count(",") == 3:
+                    字段 = 识字区域操作类(截图上下文, 配置)
+                else:
+                    字段 = None
+                setattr(self.识字区域, 名称, 字段)
+        else:
+            self.识字区域 = type('识字区域集合', (), {})()
 
 
     def 获取(self, 名称, 默认值=None):
@@ -113,4 +169,8 @@ class 界面管理器类:
             return self.按钮
         if 名称 == "状态":
             return self.状态
+        if 名称 == "滑动区域":
+            return self.滑动区域
+        if 名称 == "识字区域":
+            return self.识字区域
         return self._配置.get(名称, 默认值)
