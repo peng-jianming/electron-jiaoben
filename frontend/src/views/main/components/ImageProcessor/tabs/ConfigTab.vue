@@ -1,7 +1,7 @@
 <template>
   <div class="config-tab-container">
     <!-- 配置 JSON 文件选择 -->
-    <div >
+    <div>
       <el-input
         v-model="configForm.configPath"
         placeholder="请选择配置 JSON 文件"
@@ -12,42 +12,92 @@
           <el-button @click="handleSelectConfigFile">选择文件</el-button>
         </template>
         <template #append>
-          <el-button
-            @click="handleOpenConfigFile"
-            :disabled="!configForm.configPath"
-          >
+          <el-button @click="handleOpenConfigFile" :disabled="!configForm.configPath">
             打开文件
           </el-button>
         </template>
       </el-input>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <el-cascader :key="cascaderOptionsKey" :props="cascaderProps" style="width: 300px;" size="small" placeholder="请选择配置类型" v-model="selectedCascader" />
+    <div style="display: flex; align-items: center; gap: 10px">
+      <el-cascader
+        :key="cascaderOptionsKey"
+        :props="cascaderProps"
+        style="width: 300px"
+        size="small"
+        placeholder="请选择配置类型"
+        v-model="selectedCascader"
+      />
       <el-input v-model="selectedName" size="small" placeholder="名称输入框" />
-      <el-button type="primary" size="small" @click="handleAdd" :disabled="!selectedCascader.length || !selectedName">添加</el-button>
-
+      <el-button
+        type="primary"
+        size="small"
+        @click="handleAdd"
+        :disabled="!selectedCascader.length || !selectedName"
+        >添加</el-button
+      >
     </div>
-    <div style="flex: 1; overflow: auto;">
-      <vue-json-pretty v-if="data" deep="1" :data="data">
+    <div style="flex: 1; overflow: auto">
+      <vue-json-pretty v-if="data" deep="1" :data="data" showIcon :collapsedOnClickBrackets="false">
         <template #renderNodeValue="{ node, defaultValue }">
-          <span v-if="node.key === '点阵'">{{ node.content ? '"已有点阵"' : '"没有点阵"' }}</span>
-          <span v-else><el-input style="display: inline-block; width: 90%;" v-model="node.content" size="small"
-              @blur="handleBlur(node)" /></span>
+          <span v-if="node.key === '点阵'">{{
+            node.content ? '"已有点阵"' : '"没有点阵"'
+          }}</span>
+          <span v-else
+            ><el-input
+              style="display: inline-block; width: 90%"
+              v-model="node.content"
+              size="small"
+              @blur="handleBlur(node)"
+          /></span>
         </template>
         <template #renderNodeActions="{ node, defaultActions }">
+          <template
+            v-if="
+              node.type != 'content' &&
+              node.type != 'arrayStart' &&
+              node.level != 0 &&
+              node.key != '可滑动区域' &&
+              node.key != '按钮' &&
+              node.key != '状态'
+            "
+          >
+            <el-button type="primary" size="small" @click="handleTest(node)"
+              >测试</el-button
+            >
+            <el-button type="primary" size="small" @click="handleAddConfig(node)"
+              >制作点阵</el-button
+            >
+          </template>
+
           <el-button
-            v-if="node.type == 'objectStart' && node.level != 0 && node.key != '可滑动区域' && node.key != '按钮' && node.key != '状态'"
-            type="primary" size="small"
-            @click="handleTest(node)">测试</el-button>
+            v-if="
+              (node.type == 'objectStart' || node.level == 3 || node.level == 1) &&
+              node.level != 0 &&
+              node.key != '可滑动区域' &&
+              node.key != '按钮' &&
+              node.key != '状态'
+            "
+            type="danger"
+            size="small"
+            @click="handleDelete(node)"
+            >删除</el-button
+          >
+
           <el-button
-            v-if="node.type == 'objectStart' && node.level != 0 && node.key != '可滑动区域' && node.key != '按钮' && node.key != '状态'"
-            type="danger" size="small" @click="handleDelete(node)">删除</el-button>
+            v-if="node.key == '可滑动区域'"
+            type="primary"
+            size="small"
+            @click="handleAddSliderArea(node)"
+            >添加可滑动区域</el-button
+          >
 
-          <el-button v-if="node.key == '可滑动区域'" type="primary" size="small"
-            @click="handleAddSliderArea(node)">添加可滑动区域</el-button>
-
-          <el-button v-if="node.key == '点阵'" type="primary" size="small" @click="handleAddConfig(node)">制作点阵</el-button>
-
+          <el-button
+            v-if="node.key == '状态' || node.key == '按钮' || node.path == 'root'"
+            type="primary"
+            size="small"
+            @click="handleAddItem(node)"
+            >添加</el-button
+          >
         </template>
       </vue-json-pretty>
     </div>
@@ -81,7 +131,9 @@
               <div class="config-drawer-title-main">
                 <span class="config-drawer-title">添加字库配置</span>
               </div>
-              <div class="config-drawer-subtitle">基于当前图片与圈选区域生成字库点阵配置</div>
+              <div class="config-drawer-subtitle">
+                基于当前图片与圈选区域生成字库点阵配置
+              </div>
             </div>
             <el-button link type="primary" size="small" @click="drawer = false">
               关闭
@@ -90,23 +142,31 @@
           <div class="config-drawer-body">
             <!-- 颜色表格 -->
             <div class="color-table-wrap">
-              <el-table :data="selectedColors" height="150" size="small" empty-text="请在图片上点击选取颜色" :header-cell-style="{
-                background: '#f8fafc',
-                color: '#64748b',
-                fontSize: '11px',
-                fontWeight: 600,
-                borderBottom: '1px solid #e2e8f0',
-              }" :cell-style="{ fontSize: '12px', padding: '4px 0' }" :row-style="{ transition: 'background 0.15s' }">
+              <el-table
+                :data="selectedColors"
+                height="150"
+                size="small"
+                empty-text="请在图片上点击选取颜色"
+                :header-cell-style="{
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  borderBottom: '1px solid #e2e8f0',
+                }"
+                :cell-style="{ fontSize: '12px', padding: '4px 0' }"
+                :row-style="{ transition: 'background 0.15s' }"
+              >
                 <el-table-column label="HEX" width="84">
                   <template #default="scope">
-                    <div class="hex-cell" :style="{
-                      backgroundColor:
-                        '#' +
-                        String(scope.row.hex || '').replace(/^#/, ''),
-                      color: isLightColor(scope.row.hex)
-                        ? '#1e293b'
-                        : '#f8fafc',
-                    }">
+                    <div
+                      class="hex-cell"
+                      :style="{
+                        backgroundColor:
+                          '#' + String(scope.row.hex || '').replace(/^#/, ''),
+                        color: isLightColor(scope.row.hex) ? '#1e293b' : '#f8fafc',
+                      }"
+                    >
                       {{ scope.row.hex }}
                     </div>
                   </template>
@@ -114,10 +174,13 @@
                 <el-table-column label="偏色" min-width="120">
                   <template #default="scope">
                     <div class="slider-cell">
-                      <el-slider :model-value="getRowDeviation(scope.$index)" :min="0" :max="100" :show-tooltip="true"
-                        @update:model-value="
-                          (v) => setRowDeviation(scope.$index, v)
-                        " />
+                      <el-slider
+                        :model-value="getRowDeviation(scope.$index)"
+                        :min="0"
+                        :max="100"
+                        :show-tooltip="true"
+                        @update:model-value="(v) => setRowDeviation(scope.$index, v)"
+                      />
                       <span class="slider-value">{{
                         getRowDeviation(scope.$index)
                       }}</span>
@@ -126,8 +189,13 @@
                 </el-table-column>
                 <el-table-column label="" width="40" fixed="right">
                   <template #default="scope">
-                    <el-button type="danger" link size="small" @click="handleRemoveColor(scope.$index)"
-                      class="delete-btn">
+                    <el-button
+                      type="danger"
+                      link
+                      size="small"
+                      @click="handleRemoveColor(scope.$index)"
+                      class="delete-btn"
+                    >
                       <el-icon>
                         <Close />
                       </el-icon>
@@ -137,15 +205,27 @@
               </el-table>
               <div class="table-footer">
                 <span class="table-count">{{ selectedColors.length }} 个颜色</span>
-                <el-button type="danger" size="small" text @click="handleClearAllColors"
-                  :disabled="!selectedColors.length">清空</el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                  @click="handleClearAllColors"
+                  :disabled="!selectedColors.length"
+                  >清空</el-button
+                >
               </div>
             </div>
 
             <!-- 二值化预览 -->
             <div class="result-section">
-              <el-image v-if="processedImageUrl" :src="processedImageUrl" :preview-src-list="[processedImageUrl]"
-                fit="contain" preview-teleported style="height: 100%; width: 100%" />
+              <el-image
+                v-if="processedImageUrl"
+                :src="processedImageUrl"
+                :preview-src-list="[processedImageUrl]"
+                fit="contain"
+                preview-teleported
+                style="height: 100%; width: 100%"
+              />
               <div v-else class="result-placeholder">
                 <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px">
                   <Picture />
@@ -160,12 +240,27 @@
                 <div class="font-field">
                   <el-checkbox v-model="enableAutoCrop" size="small" />
                 </div>
-
+              </div>
+              <div class="font-row">
+                <span class="font-label">偏移点击区域</span>
+                <div class="font-field">
+                  <el-input
+                    v-model="fontClickOffsetAreaInput"
+                    placeholder="偏移点击区域 x,y,w,h（可选）"
+                    size="small"
+                    clearable
+                  />
+                </div>
               </div>
             </div>
           </div>
           <div class="config-drawer-footer">
-            <el-button type="primary" size="small" @click="handleConfirmAddConfig" :disabled="!processedImageUrl">
+            <el-button
+              type="primary"
+              size="small"
+              @click="handleConfirmAddConfig"
+              :disabled="!processedImageUrl"
+            >
               确认添加
             </el-button>
           </div>
@@ -178,13 +273,12 @@
 <script setup>
 import VueJsonPretty from "vue-json-pretty";
 import "vue-json-pretty/lib/styles.css";
-import { ref, watch, onMounted, computed } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ref, watch, onMounted, computed, h } from "vue";
+import { ElMessage, ElMessageBox, ElInput, ElCheckbox } from "element-plus";
 import { Close, Picture } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
-
 const props = defineProps({
   currentImage: {
     type: Object,
@@ -209,10 +303,10 @@ const testFontLibraryName = ref("");
 const testSimilarity = ref(undefined);
 const testRegion = ref("");
 
-
 const emit = defineEmits([
   "start-code-generator-selection",
   "stop-code-generator-selection",
+  "add-font-library",
 ]);
 
 const data = ref(undefined);
@@ -259,7 +353,12 @@ const handleSelectConfigFile = async () => {
       ],
     });
 
-    if (!dialogResult || !dialogResult.success || dialogResult.canceled || !dialogResult.filePath) {
+    if (
+      !dialogResult ||
+      !dialogResult.success ||
+      dialogResult.canceled ||
+      !dialogResult.filePath
+    ) {
       return;
     }
 
@@ -313,7 +412,6 @@ const handleOpenConfigFile = async () => {
     ElMessage.error("打开配置文件失败: " + (error.message || "未知错误"));
   }
 };
-
 
 // 保存配置文件路径到数据库（复用全局的 configPath 字段）
 const saveConfigPathToDB = async () => {
@@ -410,7 +508,7 @@ const rowDeviations = ref([]); // 每行偏色值 0–100
 
 const processedImageUrl = ref(null);
 const enableAutoCrop = ref(true);
-
+const fontClickOffsetAreaInput = ref("");
 
 const handleBlur = (node) => {
   const keys = getPathKeys(node.path);
@@ -438,10 +536,7 @@ const handleBlur = (node) => {
   // ===== 按字段校验 =====
   // 1. 含“区域”的字段：允许空，或 x,y,w,h 四个整数
   if (node.key && String(node.key).includes("区域")) {
-    if (
-      trimmed !== "" &&
-      !/^-?\d+,-?\d+,-?\d+,-?\d+$/.test(trimmed)
-    ) {
+    if (trimmed !== "" && !/^-?\d+,-?\d+,-?\d+,-?\d+$/.test(trimmed)) {
       ElMessage.error("区域格式错误，应为空或 x,y,w,h");
       node.content = oldStr;
       return;
@@ -450,12 +545,9 @@ const handleBlur = (node) => {
 
   // 2. 偏色：D61E24-373737|D61E24-373731 形式，即 6位HEX-6位HEX，用 | 分割
   if (node.key === "偏色") {
-    const pattern =
-      /^([0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})(\|[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})*$/;
+    const pattern = /^([0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})(\|[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})*$/;
     if (trimmed !== "" && !pattern.test(trimmed)) {
-      ElMessage.error(
-        "偏色格式错误，应为 6位HEX-6位HEX，多个用“|”分隔"
-      );
+      ElMessage.error("偏色格式错误，应为 6位HEX-6位HEX，多个用“|”分隔");
       node.content = oldStr;
       return;
     }
@@ -487,7 +579,7 @@ const handleBlur = (node) => {
   // 通过校验，保存并提示
   target[lastKey] = valueToSave;
   ElMessage.success("保存成功");
-}
+};
 
 // 供外部（图片点击）调用的添加颜色方法
 const addColor = (colorInfo) => {
@@ -525,25 +617,130 @@ const handleClearAllColors = () => {
 
 const handleAddSliderArea = (node) => {
   currentNode.value = getCurrentNode(node);
-  ElMessageBox.prompt('', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    inputPlaceholder: '请输入滑动区域名称',
+  ElMessageBox.prompt("", "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    inputPlaceholder: "请输入滑动区域名称",
     inputValidator: (value) => {
       if (!value || !value.trim()) {
-        return '滑动区域名称不能为空';
+        return "滑动区域名称不能为空";
       }
       return true;
     },
+  }).then(({ value }) => {
+    currentNode.value["可滑动区域"][value] = {
+      起始区域: "",
+      结束区域: "",
+    };
+  });
+};
+const handleAddItem = (node) => {
+  let itemNode = {};
+  if (node.path == "root") {
+    itemNode = data.value;
+  } else {
+    currentNode.value = getCurrentNode(node);
+    itemNode = currentNode.value[node.key];
+  }
+  // 是否是点阵类型（仅按钮需要）
+  const isMatrix = ref(true);
+  // 名字
+  const name = ref("");
+
+  const content = () =>
+    h(
+      "div",
+      {
+        style: "display:flex;flex-direction:column;gap:12px;",
+      },
+      [
+        node.key === "按钮"
+          ? h(
+              "div",
+              {
+                style: "display:flex;align-items:center;gap:8px;",
+              },
+              [
+                h(
+                  "span",
+                  {
+                    style: "width:80px;text-align:right;",
+                  },
+                  "是否点阵："
+                ),
+                h(ElCheckbox, {
+                  modelValue: isMatrix.value,
+                  "onUpdate:modelValue": (val) => {
+                    isMatrix.value = val;
+                  },
+                }),
+              ]
+            )
+          : null,
+        h(
+          "div",
+          {
+            style: "display:flex;align-items:center;gap:8px;",
+          },
+          [
+            h(
+              "span",
+              {
+                style: "width:80px;text-align:right;flex-shrink:0;",
+              },
+              "配置名称："
+            ),
+            h(ElInput, {
+              modelValue: name.value,
+              "onUpdate:modelValue": (val) => {
+                name.value = val;
+              },
+              placeholder: "请输入名称",
+            }),
+          ]
+        ),
+      ]
+    );
+
+  ElMessageBox({
+    title: "添加配置项",
+    message: content,
+    showCancelButton: true,
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
   })
-    .then(({ value }) => {
-      currentNode.value['可滑动区域'][value] = {
-        "起始区域": "",
-        "结束区域": "",
+    .then(() => {
+      const key = name.value.trim();
+      if (!key) {
+        ElMessage.error("名称不能为空");
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(itemNode, key)) {
+        ElMessage.error("名称已存在");
+        return;
+      }
+
+      if (node.key === "按钮" && !isMatrix.value) {
+        itemNode[key] = "";
+      } else {
+        if (node.path == "root") {
+          itemNode[key] = {
+            查找区域: "",
+            相似度: 0.9,
+            状态: {},
+            按钮: {},
+            可滑动区域: {},
+          };
+        } else {
+          itemNode[key] = {
+            查找区域: "",
+            相似度: 0.9,
+          };
+        }
       }
     })
-
-}
+    .catch(() => {});
+};
 
 // 获取当前节点
 const getCurrentNode = (node) => {
@@ -556,17 +753,16 @@ const getCurrentNode = (node) => {
   if (node.level == 4 && keys.length >= 3) {
     return data.value[keys[0]][keys[1]][keys[2]];
   }
-}
-
+};
+const currentName = ref("");
 // ========== 节点操作 ==========
 const handleAddConfig = (node) => {
   currentNode.value = getCurrentNode(node);
+  const keys = getPathKeys(node.path);
+  currentName.value = keys.join("_");
+  fontClickOffsetAreaInput.value = "";
   // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
   enableAutoCrop.value = true;
-  // 如果已有颜色且有图片，立即生成二值化
-  if (selectedColors.value.length > 0 && props.currentImage?.url) {
-    runBinarizationFromTable();
-  }
   drawer.value = true;
 };
 
@@ -620,8 +816,7 @@ const buildDeviationListFromTable = () => {
   for (let i = 0; i < selectedColors.value.length; i++) {
     const d = rowDeviations.value[i] ?? 0;
     const baseRgb = hexToRgb(selectedColors.value[i].hex);
-    const baseHex =
-      numToHex(baseRgb.r) + numToHex(baseRgb.g) + numToHex(baseRgb.b);
+    const baseHex = numToHex(baseRgb.r) + numToHex(baseRgb.g) + numToHex(baseRgb.b);
     const deviationHex = numToHex(d) + numToHex(d) + numToHex(d);
     list.push(`${baseHex}-${deviationHex}`);
   }
@@ -630,12 +825,7 @@ const buildDeviationListFromTable = () => {
 
 const parseDeviation = (deviationStr) => {
   const [baseHex, deviationHex] = deviationStr.split("-");
-  if (
-    !baseHex ||
-    !deviationHex ||
-    baseHex.length !== 6 ||
-    deviationHex.length !== 6
-  )
+  if (!baseHex || !deviationHex || baseHex.length !== 6 || deviationHex.length !== 6)
     return null;
   return {
     base: {
@@ -682,30 +872,14 @@ const runBinarizationFromTable = () => {
         width = img.width,
         height = img.height;
       if (props.selectionRect?.w > 0 && props.selectionRect?.h > 0) {
-        startX = Math.max(
-          0,
-          Math.min(props.selectionRect.x, img.width - 1)
-        );
-        startY = Math.max(
-          0,
-          Math.min(props.selectionRect.y, img.height - 1)
-        );
+        startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
+        startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
         width = Math.min(props.selectionRect.w, img.width - startX);
         height = Math.min(props.selectionRect.h, img.height - startY);
       }
       canvas.width = width;
       canvas.height = height;
-      ctx.drawImage(
-        img,
-        startX,
-        startY,
-        width,
-        height,
-        0,
-        0,
-        width,
-        height
-      );
+      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
       const imageData = ctx.getImageData(0, 0, width, height);
       const pixelData = imageData.data;
 
@@ -720,9 +894,7 @@ const runBinarizationFromTable = () => {
             break;
           }
         }
-        pixelData[i] = pixelData[i + 1] = pixelData[i + 2] = inRange
-          ? 255
-          : 0;
+        pixelData[i] = pixelData[i + 1] = pixelData[i + 2] = inRange ? 255 : 0;
         pixelData[i + 3] = 255;
       }
       ctx.putImageData(imageData, 0, 0);
@@ -752,7 +924,7 @@ const handleConfirmAddConfig = async () => {
     img.crossOrigin = "anonymous";
 
     await new Promise((resolve, reject) => {
-      img.onload = () => {
+      img.onload = async () => {
         try {
           const canvas = document.createElement("canvas");
           const ctx = canvas.getContext("2d");
@@ -828,19 +1000,68 @@ const handleConfirmAddConfig = async () => {
           for (let i = 0; i < binaryData.length; i += 4) {
             const bits = binaryData.slice(i, i + 4).join("");
             const paddedBits = bits.padEnd(4, "0");
-            matrixHex += parseInt(paddedBits, 2)
-              .toString(16)
-              .toUpperCase();
+            matrixHex += parseInt(paddedBits, 2).toString(16).toUpperCase();
           }
 
           // 偏色列表以 "|" 组合
           const deviationStr = deviationList.join("|");
           // 点阵 = hex&width,height,count
           const matrixStr = `${matrixHex}&${width},${height},${whitePixelCount}`;
-          currentNode.value['偏色'] = deviationStr;
-          currentNode.value['点阵'] = matrixStr;
+          if (currentNode.value) {
+            currentNode.value["偏色"] = deviationStr;
+            currentNode.value["点阵"] = matrixStr;
+          }
 
-          ElMessage.success(`配置 添加成功`);
+          // 处理偏移点击区域，格式为 x,y,w,h，若未填写则默认 0,0,0,0
+          let clickOffsetArea = "0,0,0,0";
+          if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
+            const raw = fontClickOffsetAreaInput.value.trim();
+            const parts = raw.split(",").map((s) => s.trim());
+            if (
+              parts.length !== 4 ||
+              parts.some((p) => p === "" || Number.isNaN(parseInt(p, 10)))
+            ) {
+              ElMessage.warning("偏移点击区域格式不正确，应为：x,y,w,h");
+              reject(new Error("偏移点击区域格式不正确"));
+              return;
+            }
+            const [x, y, w, h] = parts.map((p) => parseInt(p, 10));
+            if (w < 0 || h < 0) {
+              ElMessage.warning("偏移点击区域宽高必须为非负整数");
+              reject(new Error("偏移点击区域宽高必须为非负整数"));
+              return;
+            }
+            clickOffsetArea = `${x},${y},${w},${h}`;
+          }
+
+          // 使用 currentName 作为字库名称
+          const name = (currentName.value || "").trim();
+
+          if (name) {
+            const fontItem = {
+              id: Date.now(),
+              matrix: matrixHex,
+              width,
+              height,
+              totalCount: whitePixelCount,
+              sizeInfo: `${width}×${height} (${whitePixelCount})`,
+              deviation: deviationStr,
+              name,
+              clickOffsetArea,
+              editing: false,
+              binaryData,
+            };
+
+            const addPromise = new Promise((resolveAdd) => {
+              emit("add-font-library", fontItem, resolveAdd);
+            });
+
+            await addPromise;
+          } else {
+            ElMessage.warning("点阵名称为空，未加入字库，仅更新配置");
+          }
+
+          // ElMessage.success(`配置 添加成功`);
           drawer.value = false;
           resolve();
         } catch (error) {
@@ -856,8 +1077,6 @@ const handleConfirmAddConfig = async () => {
     ElMessage.error("添加配置失败: " + (error.message || "未知错误"));
   }
 };
-
-
 
 /** 从 node.path 解析出键路径，如 "主界面"."按钮"."某名称" -> ['主界面','按钮','某名称'] */
 const getPathKeys = (path) => {
@@ -875,9 +1094,13 @@ const handleTest = (node) => {
     configItem = configItem?.[key];
   }
 
-  testFontLibraryName.value = path.join('_');
-  testSimilarity.value = configItem?.相似度 != null ? Number(configItem.相似度) : undefined;
-  testRegion.value = configItem?.查找区域 != null && configItem.查找区域 !== "" ? String(configItem.查找区域).trim() : "";
+  testFontLibraryName.value = path.join("_");
+  testSimilarity.value =
+    configItem?.相似度 != null ? Number(configItem.相似度) : undefined;
+  testRegion.value =
+    configItem?.查找区域 != null && configItem.查找区域 !== ""
+      ? String(configItem.查找区域).trim()
+      : "";
   testDialogVisible.value = true;
 };
 
@@ -890,7 +1113,7 @@ const onTestDialogClosed = () => {
 
 /** 删除节点对应的配置项 */
 const handleDelete = (node) => {
-  const keys = node.path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, ""))
+  const keys = node.path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, ""));
 
   if (!keys.length) {
     ElMessage.warning("无法解析节点路径");
@@ -914,7 +1137,7 @@ const handleDelete = (node) => {
       delete parent[keyToDelete];
       ElMessage.success("已删除");
     })
-    .catch(() => { });
+    .catch(() => {});
 };
 
 const handleAdd = () => {
@@ -924,19 +1147,19 @@ const handleAdd = () => {
       相似度: 0.9,
       状态: {},
       按钮: {},
-      可滑动区域: {}
+      可滑动区域: {},
     };
   } else if (selectedCascader.value[0] === "按钮(固定区域)") {
-    data.value[selectedCascader.value[1]]['按钮'][selectedName.value] = '';
+    data.value[selectedCascader.value[1]]["按钮"][selectedName.value] = "";
   } else if (selectedCascader.value[0] === "按钮(点阵识别)") {
-    data.value[selectedCascader.value[1]]['按钮'][selectedName.value] = {
-        查找区域: "",
-        相似度: 0.9
+    data.value[selectedCascader.value[1]]["按钮"][selectedName.value] = {
+      查找区域: "",
+      相似度: 0.9,
     };
   } else {
-    data.value[selectedCascader.value[1]]['状态'][selectedName.value] = {
-        查找区域: "",
-        相似度: 0.9
+    data.value[selectedCascader.value[1]]["状态"][selectedName.value] = {
+      查找区域: "",
+      相似度: 0.9,
     };
   }
 };
@@ -949,7 +1172,6 @@ onMounted(() => {
 defineExpose({
   addColor,
 });
-
 </script>
 
 <style scoped>
@@ -968,6 +1190,9 @@ defineExpose({
   /* background-color: #ffffff; */
   /* border-radius: 8px; */
   border: 1px solid #e2e8f0;
+  gap: 6px !important;
+  display: flex;
+  flex-direction: column;
   /* padding: 8px 10px; */
   /* font-size: 12px; */
   /* color: #1e293b; */

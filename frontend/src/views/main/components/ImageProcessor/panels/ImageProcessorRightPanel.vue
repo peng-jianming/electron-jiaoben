@@ -23,6 +23,7 @@
           :font-library-list="fontLibraryList"
           :current-device-id="currentDeviceId"
           ref="configTabRef"
+          @add-font-library="handleAddFontLibrary"
           @start-code-generator-selection="
             (type) => $emit('start-code-generator-selection', type)
           "
