@@ -249,7 +249,18 @@
                     placeholder="偏移点击区域 x,y,w,h（可选）"
                     size="small"
                     clearable
-                  />
+                  >
+                    <template #append>
+                      <el-button
+                        :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
+                        :disabled="!hasSelectionRect"
+                        size="small"
+                        @click="toggleFontClickOffsetAreaSelection"
+                      >
+                        {{ fontClickOffsetAreaSelectionEnabled ? "取消" : "圈选" }}
+                      </el-button>
+                    </template>
+                  </el-input>
                 </div>
               </div>
             </div>
@@ -510,6 +521,14 @@ const processedImageUrl = ref(null);
 const enableAutoCrop = ref(true);
 const fontClickOffsetAreaInput = ref("");
 
+// 偏移点击区域圈选状态
+const fontClickOffsetAreaSelectionEnabled = ref(false);
+
+// 是否存在左侧圈选范围（用于偏移点击区域的基准）
+const hasSelectionRect = computed(() => {
+  return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
+});
+
 const handleBlur = (node) => {
   const keys = getPathKeys(node.path);
   if (!keys.length) return;
@@ -764,6 +783,25 @@ const handleAddConfig = (node) => {
   // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
   enableAutoCrop.value = true;
   drawer.value = true;
+};
+
+// 切换偏移点击区域圈选模式
+const toggleFontClickOffsetAreaSelection = () => {
+  if (!hasSelectionRect.value) {
+    ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
+    return;
+  }
+
+  if (fontClickOffsetAreaSelectionEnabled.value) {
+    fontClickOffsetAreaSelectionEnabled.value = false;
+    emit("stop-code-generator-selection");
+    ElMessage.info("已取消圈选模式");
+  } else {
+    fontClickOffsetAreaSelectionEnabled.value = true;
+    // 使用单独的类型标识，区分与颜色 Tab 的偏移点击区域
+    emit("start-code-generator-selection", "configFontClickOffsetArea");
+    ElMessage.info("请在图片上圈选偏移点击区域");
+  }
 };
 
 // ========== 偏色管理 ==========
@@ -1078,6 +1116,31 @@ const handleConfirmAddConfig = async () => {
   }
 };
 
+// 通过圈选结果设置偏移点击区域（由父组件调用）
+const setFontClickOffsetAreaFromSelection = (rect) => {
+  if (!rect || !rect.w || !rect.h) {
+    return;
+  }
+
+  // 偏移点击区域需要基于左侧圈选范围计算偏移值
+  if (!props.selectionRect || !props.selectionRect.w || !props.selectionRect.h) {
+    ElMessage.warning("请先在左侧进行圈选，然后再圈选偏移点击区域");
+    // 不取消圈选模式，让用户可以继续操作
+    return;
+  }
+
+  // 计算偏移值：偏移点击区域的坐标 - 左侧圈选范围的坐标
+  const offsetX = rect.x - props.selectionRect.x;
+  const offsetY = rect.y - props.selectionRect.y;
+  const areaStr = `${offsetX},${offsetY},${rect.w},${rect.h}`;
+  fontClickOffsetAreaInput.value = areaStr;
+  ElMessage.success("已获取偏移点击区域范围（已计算偏移值）");
+
+  // 自动取消圈选模式
+  fontClickOffsetAreaSelectionEnabled.value = false;
+  emit("stop-code-generator-selection");
+};
+
 /** 从 node.path 解析出键路径，如 "主界面"."按钮"."某名称" -> ['主界面','按钮','某名称'] */
 const getPathKeys = (path) => {
   if (!path || typeof path !== "string") return [];
@@ -1171,6 +1234,7 @@ onMounted(() => {
 // 暴露给父组件的方法
 defineExpose({
   addColor,
+  setFontClickOffsetAreaFromSelection,
 });
 </script>
 
