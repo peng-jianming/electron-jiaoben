@@ -18,7 +18,7 @@
         </template>
       </el-input>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px">
+    <!-- <div style="display: flex; align-items: center; gap: 10px">
       <el-cascader
         :key="cascaderOptionsKey"
         :props="cascaderProps"
@@ -35,7 +35,7 @@
         :disabled="!selectedCascader.length || !selectedName"
         >添加</el-button
       >
-    </div>
+    </div> -->
     <div style="flex: 1; overflow: auto">
       <vue-json-pretty v-if="data" deep="1" :data="data" showIcon :collapsedOnClickBrackets="false">
         <template #renderNodeValue="{ node, defaultValue }">
@@ -56,7 +56,8 @@
               node.type != 'content' &&
               node.type != 'arrayStart' &&
               node.level != 0 &&
-              node.key != '可滑动区域' &&
+              node.key != '滑动区域' &&
+              node.key != '识字区域' &&
               node.key != '按钮' &&
               node.key != '状态'
             "
@@ -73,7 +74,8 @@
             v-if="
               (node.type == 'objectStart' || node.level == 3 || node.level == 1) &&
               node.level != 0 &&
-              node.key != '可滑动区域' &&
+              node.key != '滑动区域' &&
+              node.key != '识字区域' &&
               node.key != '按钮' &&
               node.key != '状态'
             "
@@ -84,13 +86,19 @@
           >
 
           <el-button
-            v-if="node.key == '可滑动区域'"
+            v-if="node.key == '滑动区域'"
             type="primary"
             size="small"
             @click="handleAddSliderArea(node)"
-            >添加可滑动区域</el-button
+            >添加</el-button
           >
-
+          <el-button
+            v-if="node.key == '识字区域'"
+            type="primary"
+            size="small"
+            @click="handleAddSzArea(node)"
+            >添加</el-button
+          >
           <el-button
             v-if="node.key == '状态' || node.key == '按钮' || node.path == 'root'"
             type="primary"
@@ -554,7 +562,7 @@ const handleBlur = (node) => {
 
   // ===== 按字段校验 =====
   // 1. 含“区域”的字段：允许空，或 x,y,w,h 四个整数
-  if (node.key && String(node.key).includes("区域")) {
+  if ((node.key && String(node.key).includes("区域")) || keys.join("").includes("区域")) {
     if (trimmed !== "" && !/^-?\d+,-?\d+,-?\d+,-?\d+$/.test(trimmed)) {
       ElMessage.error("区域格式错误，应为空或 x,y,w,h");
       node.content = oldStr;
@@ -640,17 +648,39 @@ const handleAddSliderArea = (node) => {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
     inputPlaceholder: "请输入滑动区域名称",
-    inputValidator: (value) => {
-      if (!value || !value.trim()) {
-        return "滑动区域名称不能为空";
-      }
-      return true;
-    },
   }).then(({ value }) => {
-    currentNode.value["可滑动区域"][value] = {
+    if (!value || !value.trim()) {
+      ElMessage.error("滑动区域名称不能为空");
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(currentNode.value["滑动区域"], value.trim())) {
+      ElMessage.error("名称已存在");
+      return;
+    }
+    currentNode.value["滑动区域"][value.trim()] = {
       起始区域: "",
       结束区域: "",
     };
+  });
+};
+
+// 添加识字区域
+const handleAddSzArea = (node) => {
+  currentNode.value = getCurrentNode(node);
+  ElMessageBox.prompt("", "提示", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    inputPlaceholder: "请输入识字区域名称",
+  }).then(({ value }) => {
+    if (!value || !value.trim()) {
+      ElMessage.error("识字区域名称不能为空");
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(currentNode.value["识字区域"], value.trim())) {
+      ElMessage.error("名称已存在");
+      return;
+    }
+    currentNode.value["识字区域"][value.trim()] = ''
   });
 };
 const handleAddItem = (node) => {
@@ -748,7 +778,8 @@ const handleAddItem = (node) => {
             相似度: 0.9,
             状态: {},
             按钮: {},
-            可滑动区域: {},
+            滑动区域: {},
+            识字区域: {}
           };
         } else {
           itemNode[key] = {
@@ -1210,7 +1241,8 @@ const handleAdd = () => {
       相似度: 0.9,
       状态: {},
       按钮: {},
-      可滑动区域: {},
+      滑动区域: {},
+      识字区域: {}
     };
   } else if (selectedCascader.value[0] === "按钮(固定区域)") {
     data.value[selectedCascader.value[1]]["按钮"][selectedName.value] = "";
