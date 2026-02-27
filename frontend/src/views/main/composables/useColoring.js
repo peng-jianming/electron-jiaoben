@@ -710,6 +710,64 @@ export function useColoring() {
     }
   }
 
+  async function handleSaveProcessedImage() {
+    if (!processedImage.value) {
+      ElMessage.warning('没有管线处理结果可保存');
+      return;
+    }
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const result = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+        defaultName: `processed_${timestamp}.png`,
+      });
+      if (!result.success || result.canceled) return;
+
+      const base64Data = processedImage.value.replace(/^data:image\/\w+;base64,/, '');
+      const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+        filePath: result.filePath,
+        imageData: base64Data,
+      });
+
+      if (saveResult.success) {
+        ElMessage.success(`处理结果已保存: ${result.filePath}`);
+      } else {
+        ElMessage.error(`保存失败: ${saveResult.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("保存处理结果失败:", error);
+      ElMessage.error(`保存失败: ${error.message || '未知错误'}`);
+    }
+  }
+
+  async function handleSaveFloodFillImage() {
+    if (!floodFillResult.value) {
+      ElMessage.warning('没有洪水填充结果可保存');
+      return;
+    }
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const result = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+        defaultName: `flood_fill_${timestamp}.png`,
+      });
+      if (!result.success || result.canceled) return;
+
+      const base64Data = floodFillResult.value.replace(/^data:image\/\w+;base64,/, '');
+      const saveResult = await ipc.invoke(ipcApiRoute.saveBase64Image, {
+        filePath: result.filePath,
+        imageData: base64Data,
+      });
+
+      if (saveResult.success) {
+        ElMessage.success(`填充结果已保存: ${result.filePath}`);
+      } else {
+        ElMessage.error(`保存失败: ${saveResult.error || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error("保存填充结果失败:", error);
+      ElMessage.error(`保存失败: ${error.message || '未知错误'}`);
+    }
+  }
+
   function initIpcListeners() {
     // no-op: image clicks are now handled directly in the same window
   }
@@ -796,6 +854,8 @@ export function useColoring() {
     stopAutoStitch,
     clearStitch,
     handleSaveStitchedImage,
+    handleSaveProcessedImage,
+    handleSaveFloodFillImage,
 
     initSocket,
     initIpcListeners,

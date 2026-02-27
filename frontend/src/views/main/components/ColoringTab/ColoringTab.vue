@@ -317,18 +317,21 @@
             ✓
           </el-tag>
         </div>
-        <div v-if="isAutoStitching" class="auto-stitch-indicator">
-          <span class="auto-stitch-dot"></span>
-          连续拼接中...
+        <div class="preview-bar-right">
+          <div v-if="isAutoStitching" class="auto-stitch-indicator">
+            <span class="auto-stitch-dot"></span>
+            连续拼接中...
+          </div>
+          <el-button
+            v-if="displayImage"
+            type="primary"
+            size="small"
+            :icon="Download"
+            @click="handleSaveCurrentPreview"
+          >
+            保存图片
+          </el-button>
         </div>
-        <el-button
-          type="success"
-          :icon="Download"
-          @click="handleSaveImage"
-          :disabled="processing"
-        >
-          保存图片
-        </el-button>
       </div>
       <div class="image-preview-panel"
            ref="previewContainerRef"
@@ -466,6 +469,8 @@ const {
   stopAutoStitch,
   clearStitch,
   handleSaveStitchedImage,
+  handleSaveProcessedImage,
+  handleSaveFloodFillImage,
 
   initSocket,
   initIpcListeners,
@@ -481,6 +486,16 @@ const displayImage = computed(() => {
   }
   return processedImage.value;
 });
+
+function handleSaveCurrentPreview() {
+  if (previewMode.value === 'stitched') {
+    handleSaveStitchedImage();
+  } else if (previewMode.value === 'flood-fill') {
+    handleSaveFloodFillImage();
+  } else {
+    handleSaveProcessedImage();
+  }
+}
 
 function handleCaptureScreenshot() {
   if (deviceTab.value === "capture-window") {
@@ -977,8 +992,15 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.auto-stitch-indicator {
+.preview-bar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.auto-stitch-indicator {
   display: flex;
   align-items: center;
   gap: 6px;
