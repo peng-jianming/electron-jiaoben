@@ -63,6 +63,12 @@
                 <el-dropdown-item command="binary">
                   <el-icon><MagicStick /></el-icon> 二值化
                 </el-dropdown-item>
+                <el-dropdown-item command="dilate">
+                  <el-icon><FullScreen /></el-icon> 膨胀
+                </el-dropdown-item>
+                <el-dropdown-item command="erode">
+                  <el-icon><SemiSelect /></el-icon> 腐蚀
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -99,17 +105,20 @@
       </div>
 
       <!-- 拼接控制区域 -->
-      <div class="stitch-section">
-        <div class="stitch-toolbar">
+      <div class="stitch-section" :class="{ collapsed: stitchCollapsed }">
+        <div class="stitch-toolbar" @click="stitchCollapsed = !stitchCollapsed">
           <div class="toolbar-left">
-            <el-icon class="pipeline-icon"><Connection /></el-icon>
+            <el-icon class="pipeline-icon stitch-icon"><Connection /></el-icon>
             <span class="pipeline-title">拼接控制</span>
             <el-tag v-if="stitchCount > 0" size="small" type="success" effect="dark">
               {{ stitchCount }} 张
             </el-tag>
           </div>
+          <el-icon class="collapse-arrow" :class="{ collapsed: stitchCollapsed }">
+            <ArrowDown />
+          </el-icon>
         </div>
-        <div class="stitch-body">
+        <div class="stitch-body" v-show="!stitchCollapsed">
           <!-- 批量图片上传区（用于"拼接一次"） -->
           <div class="batch-upload-area">
             <div class="batch-upload-header">
@@ -230,14 +239,17 @@
       </div>
 
       <!-- 洪水填充区域 -->
-      <div class="flood-fill-section">
-        <div class="flood-fill-toolbar">
+      <div class="flood-fill-section" :class="{ collapsed: floodFillCollapsed }">
+        <div class="flood-fill-toolbar" @click="floodFillCollapsed = !floodFillCollapsed">
           <div class="toolbar-left">
             <el-icon class="pipeline-icon flood-fill-icon"><Aim /></el-icon>
             <span class="pipeline-title">洪水填充</span>
           </div>
+          <el-icon class="collapse-arrow" :class="{ collapsed: floodFillCollapsed }">
+            <ArrowDown />
+          </el-icon>
         </div>
-        <div class="flood-fill-body">
+        <div class="flood-fill-body" v-show="!floodFillCollapsed">
           <!-- 图片来源选择 -->
           <div class="param-row">
             <span class="param-label">填充来源</span>
@@ -386,7 +398,8 @@ import {
   List, Plus, Delete, Download, DocumentAdd,
   Brush, MagicStick, Aim, Picture,
   Connection, VideoPause, VideoPlay, RefreshLeft,
-  Upload, CircleClose, Film,
+  Upload, CircleClose, Film, ArrowDown,
+  FullScreen, SemiSelect,
 } from '@element-plus/icons-vue';
 import { useColoring } from '../../composables/useColoring';
 import ImageUploadCard from './cards/ImageUploadCard.vue';
@@ -395,6 +408,8 @@ import ImageProcessorDeviceDialog from '../ImageProcessor/dialogs/ImageProcessor
 
 const previewContainerRef = ref(null);
 const previewImageRef = ref(null);
+const stitchCollapsed = ref(true);
+const floodFillCollapsed = ref(true);
 
 const {
   imageFileName,
@@ -684,8 +699,7 @@ onUnmounted(() => {
   max-width: 380px;
   height: 100%;
   padding: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -705,8 +719,9 @@ onUnmounted(() => {
 
 .pipeline-section {
   flex: 1;
-  min-height: 180px;
+  min-height: 120px;
   flex-shrink: 1;
+  overflow: hidden;
 }
 
 .pipeline-toolbar,
@@ -727,10 +742,19 @@ onUnmounted(() => {
 
 .stitch-toolbar {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(16, 185, 129, 0.08) 100%);
+  cursor: pointer;
+  user-select: none;
 }
 
 .flood-fill-toolbar {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(245, 158, 11, 0.08) 100%);
+  cursor: pointer;
+  user-select: none;
+}
+
+.stitch-section.collapsed .stitch-toolbar,
+.flood-fill-section.collapsed .flood-fill-toolbar {
+  border-bottom: none;
 }
 
 .toolbar-left {
@@ -754,13 +778,43 @@ onUnmounted(() => {
   color: @text-primary;
 }
 
+.collapse-arrow {
+  font-size: 12px;
+  color: @text-muted;
+  transition: transform 0.25s ease;
+  cursor: pointer;
+}
+
+.collapse-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.stitch-icon {
+  color: @success !important;
+}
+
 .pipeline-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+
+  &::-webkit-scrollbar {
+    width: 5px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 }
 
 .empty-pipeline {

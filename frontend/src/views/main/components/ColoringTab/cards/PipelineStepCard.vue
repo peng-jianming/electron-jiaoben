@@ -19,6 +19,8 @@
           <Brush v-if="step.type === 'color_filter'" />
           <MagicStick v-else-if="step.type === 'binary'" />
           <Aim v-else-if="step.type === 'flood_fill'" />
+          <FullScreen v-else-if="step.type === 'dilate'" />
+          <SemiSelect v-else-if="step.type === 'erode'" />
         </el-icon>
       </div>
       <div class="step-info">
@@ -92,17 +94,27 @@
 
         <!-- ===== 二值化参数 ===== -->
         <template v-if="step.type === 'binary'">
-          <div class="param-section">
+          <div class="param-section binary-section">
             <div class="threshold-header">
               <span class="param-label">阈值</span>
-              <span class="threshold-value">{{ params.threshold }}</span>
+              <el-input-number
+                :model-value="params.threshold"
+                :min="0" :max="255" :step="1"
+                size="small"
+                controls-position="right"
+                @update:model-value="emitParams({ threshold: $event })"
+              />
             </div>
-            <el-slider
-              :model-value="params.threshold"
-              :min="0" :max="255" :step="1"
-              :marks="{ 0: '0', 127: '127', 255: '255' }"
-              @update:model-value="emitParams({ threshold: $event })"
-            />
+            <div class="threshold-slider">
+              <span class="slider-mark">0</span>
+              <el-slider
+                :model-value="params.threshold"
+                :min="0" :max="255" :step="1"
+                :show-tooltip="true"
+                @update:model-value="emitParams({ threshold: $event })"
+              />
+              <span class="slider-mark">255</span>
+            </div>
           </div>
         </template>
 
@@ -132,6 +144,44 @@
           </div>
         </template>
 
+        <!-- ===== 膨胀/腐蚀参数 ===== -->
+        <template v-if="step.type === 'dilate' || step.type === 'erode'">
+          <div class="param-section morph-section">
+            <div class="morph-row">
+              <span class="param-label">核大小</span>
+              <el-input-number
+                :model-value="params.kernelSize"
+                :min="1" :max="51" :step="2"
+                size="small"
+                controls-position="right"
+                @update:model-value="emitParams({ kernelSize: $event % 2 === 0 ? $event + 1 : $event })"
+              />
+            </div>
+            <div class="morph-row">
+              <span class="param-label">迭代次数</span>
+              <el-input-number
+                :model-value="params.iterations"
+                :min="1" :max="50" :step="1"
+                size="small"
+                controls-position="right"
+                @update:model-value="emitParams({ iterations: $event })"
+              />
+            </div>
+            <div class="morph-row">
+              <span class="param-label">核形状</span>
+              <el-select
+                :model-value="params.kernelShape"
+                size="small"
+                @update:model-value="emitParams({ kernelShape: $event })"
+              >
+                <el-option label="矩形" value="rect" />
+                <el-option label="十字形" value="cross" />
+                <el-option label="椭圆形" value="ellipse" />
+              </el-select>
+            </div>
+          </div>
+        </template>
+
       </div>
     </Transition>
   </div>
@@ -141,7 +191,7 @@
 import { computed } from 'vue';
 import {
   Rank, Check, Delete, Plus, ArrowDown, VideoPlay,
-  Brush, MagicStick, Aim,
+  Brush, MagicStick, Aim, FullScreen, SemiSelect,
 } from '@element-plus/icons-vue';
 import { STEP_TYPES } from '../../../composables/useColoring';
 
@@ -163,6 +213,8 @@ const params = computed(() => props.step.params);
 const typeLabel = computed(() => STEP_TYPES[props.step.type]?.label ?? props.step.type);
 const typeGradient = computed(() => STEP_TYPES[props.step.type]?.gradient ?? '#666');
 
+const KERNEL_SHAPE_LABELS = { rect: '矩形', cross: '十字形', ellipse: '椭圆形' };
+
 const summary = computed(() => {
   const p = params.value;
   switch (props.step.type) {
@@ -175,6 +227,9 @@ const summary = computed(() => {
       return `阈值 ${p.threshold}`;
     case 'flood_fill':
       return `起点 (${p.x}, ${p.y})`;
+    case 'dilate':
+    case 'erode':
+      return `核 ${p.kernelSize}×${p.kernelSize} · ${KERNEL_SHAPE_LABELS[p.kernelShape] || p.kernelShape} · ${p.iterations} 次`;
     default:
       return '';
   }
@@ -395,21 +450,63 @@ function updateFilterColor(i, val) {
   flex: 1;
 }
 
+.binary-section {
+  padding: 0 4px;
+}
+
 .threshold-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-.threshold-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: @primary;
+.threshold-header :deep(.el-input-number) {
+  width: 110px;
+}
+
+.threshold-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.threshold-slider :deep(.el-slider) {
+  flex: 1;
+}
+
+.slider-mark {
+  font-size: 10px;
+  color: @text-muted;
+  flex-shrink: 0;
+  min-width: 20px;
+  text-align: center;
 }
 
 .flood-section {
   padding-top: 2px;
+}
+
+.morph-section {
+  padding: 2px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.morph-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.morph-row :deep(.el-input-number) {
+  width: 120px;
+}
+
+.morph-row :deep(.el-select) {
+  width: 120px;
 }
 
 .flood-row {

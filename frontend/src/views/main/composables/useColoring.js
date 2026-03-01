@@ -7,12 +7,16 @@ import { ElMessage } from 'element-plus';
 export const STEP_TYPES = {
   color_filter: { label: '颜色过滤', gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)' },
   binary: { label: '二值化', gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)' },
+  dilate: { label: '膨胀', gradient: 'linear-gradient(135deg, #10b981, #34d399)' },
+  erode: { label: '腐蚀', gradient: 'linear-gradient(135deg, #ef4444, #f87171)' },
 };
 
 function getDefaultParams(type) {
   switch (type) {
     case 'color_filter': return { keepColors: [], filterColors: [] };
     case 'binary': return { threshold: 127 };
+    case 'dilate': return { kernelSize: 3, iterations: 1, kernelShape: 'rect' };
+    case 'erode': return { kernelSize: 3, iterations: 1, kernelShape: 'rect' };
     default: return {};
   }
 }

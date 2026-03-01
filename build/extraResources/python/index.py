@@ -175,6 +175,33 @@ def 对图像应用二值化(img, threshold_value):
     return binary
 
 
+def _get_morph_kernel(kernel_size, kernel_shape):
+    """根据参数获取形态学核"""
+    shape_map = {
+        'rect': cv2.MORPH_RECT,
+        'cross': cv2.MORPH_CROSS,
+        'ellipse': cv2.MORPH_ELLIPSE,
+    }
+    cv_shape = shape_map.get(kernel_shape, cv2.MORPH_RECT)
+    return cv2.getStructuringElement(cv_shape, (kernel_size, kernel_size))
+
+
+def 对图像应用膨胀(img, kernel_size=3, iterations=1, kernel_shape='rect'):
+    """对图像应用膨胀操作"""
+    if img is None:
+        return None
+    kernel = _get_morph_kernel(kernel_size, kernel_shape)
+    return cv2.dilate(img, kernel, iterations=iterations)
+
+
+def 对图像应用腐蚀(img, kernel_size=3, iterations=1, kernel_shape='rect'):
+    """对图像应用腐蚀操作"""
+    if img is None:
+        return None
+    kernel = _get_morph_kernel(kernel_size, kernel_shape)
+    return cv2.erode(img, kernel, iterations=iterations)
+
+
 def 逐步洪水填充算法(img, seed_point, fill_color=(255, 255, 255), batch_size=100, 
                       step_index=None, send_progress=True):
     """逐步洪水填充算法，支持动画效果"""
@@ -300,6 +327,34 @@ def 处理步骤列表(data):
                         return
                     current_img = result
                     print(f"二值化处理完成，阈值: {threshold_value}")
+
+                elif step_type == "dilate":
+                    # 膨胀
+                    kernel_size = params.get("kernelSize", 3)
+                    iterations = params.get("iterations", 1)
+                    kernel_shape = params.get("kernelShape", "rect")
+                    result = 对图像应用膨胀(current_img, kernel_size, iterations, kernel_shape)
+                    if result is None:
+                        send_image_result(error=f"步骤 {index + 1} 膨胀失败",
+                                        step_index=index)
+                        _steps_processing = False
+                        return
+                    current_img = result
+                    print(f"膨胀处理完成，核大小: {kernel_size}, 迭代: {iterations}, 核形状: {kernel_shape}")
+
+                elif step_type == "erode":
+                    # 腐蚀
+                    kernel_size = params.get("kernelSize", 3)
+                    iterations = params.get("iterations", 1)
+                    kernel_shape = params.get("kernelShape", "rect")
+                    result = 对图像应用腐蚀(current_img, kernel_size, iterations, kernel_shape)
+                    if result is None:
+                        send_image_result(error=f"步骤 {index + 1} 腐蚀失败",
+                                        step_index=index)
+                        _steps_processing = False
+                        return
+                    current_img = result
+                    print(f"腐蚀处理完成，核大小: {kernel_size}, 迭代: {iterations}, 核形状: {kernel_shape}")
 
                 elif step_type == "flood_fill":
                     # 洪水填充（无动画，直接完成）
@@ -1419,6 +1474,20 @@ def 批量拼接图片(data):
                     )
                 elif step_type == "binary":
                     result = 对图像应用二值化(current_img, params.get("threshold", 127))
+                elif step_type == "dilate":
+                    result = 对图像应用膨胀(
+                        current_img,
+                        params.get("kernelSize", 3),
+                        params.get("iterations", 1),
+                        params.get("kernelShape", "rect"),
+                    )
+                elif step_type == "erode":
+                    result = 对图像应用腐蚀(
+                        current_img,
+                        params.get("kernelSize", 3),
+                        params.get("iterations", 1),
+                        params.get("kernelShape", "rect"),
+                    )
                 elif step_type == "flood_fill":
                     if len(current_img.shape) == 2:
                         current_img = cv2.cvtColor(current_img, cv2.COLOR_GRAY2BGR)
