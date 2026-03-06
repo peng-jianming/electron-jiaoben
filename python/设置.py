@@ -3,6 +3,8 @@
 """
 import os
 
+最大线程数 = 30
+
 # 项目根目录（与 main.py 同目录）
 项目根目录 = os.path.dirname(os.path.abspath(__file__))
 

@@ -23,7 +23,7 @@ module.exports = {
     python: {
       directory: './python',
       cmd: 'C:/ProgramData/anaconda3/python.exe',
-      args: ['./main.py', '--ids=1,2,3'],
+      args: ['./index.py', '--ids=1,2,3'],
       stdio: "inherit", // ignore
     },
   },

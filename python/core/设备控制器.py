@@ -133,22 +133,6 @@ class 设备控制器类:
             self.写入日志("发送数据错误")
             return None
 
-    def 更新设备状态(self, **kwargs):
-        """
-        更新设备状态到前端
-        
-        参数:
-            **kwargs: 可选参数，支持以下字段：
-                - 当前任务: 当前正在执行的任务名称
-                - 下一任务: 下一个待执行的任务名称
-                - 金币: 当前金币数量
-                - 等级: 当前等级
-                - 其他自定义字段
-        """
-        状态数据 = {"设备ID": self.设备ID}
-        状态数据.update(kwargs)
-        self.发送到Electron("device-status-update", 状态数据)
-
     def 写入日志(self, 日志):
         # print(日志)
         状态数据 = {"设备ID": self.设备ID, "日志": 日志}

@@ -1,8 +1,8 @@
-from core import 任务执行器类
+from core import 任务管理器类
 import random
 
 def 创建任务(设备ID):
-    任务执行器 = 任务执行器类(设备ID)
+    任务执行器 = 任务管理器类(设备ID)
 
     @任务执行器.注册界面("活动界面")
     def _(上下文, 界面):

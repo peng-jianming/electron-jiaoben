@@ -186,20 +186,20 @@ function updateDeviceStatus(statusData) {
 
 
   const index = deviceList.value.findIndex((item) => item.设备ID === deviceId);
-  if (index !== -1) {
+  // if (index !== -1) {
 
-    if (statusData.日志) {
-      if (!Array.isArray(deviceList.value[index].日志)) {
-        deviceList.value[index].日志 = [];
-      }
-      // 添加新日志
-      deviceList.value[index].日志.push(`[${new Date().toLocaleString()}]： ${statusData.日志}`);
-      // 如果超过50条，移除最早的
-      if (deviceList.value[index].日志.length > 50) {
-        deviceList.value[index].日志.splice(0, deviceList.value[index].日志.length - 50);
-      }
-      return
-    }
+  //   if (statusData.日志) {
+  //     if (!Array.isArray(deviceList.value[index].日志)) {
+  //       deviceList.value[index].日志 = [];
+  //     }
+  //     // 添加新日志
+  //     deviceList.value[index].日志.push(`[${new Date().toLocaleString()}]： ${statusData.日志}`);
+  //     // 如果超过50条，移除最早的
+  //     if (deviceList.value[index].日志.length > 50) {
+  //       deviceList.value[index].日志.splice(0, deviceList.value[index].日志.length - 50);
+  //     }
+  //     return
+  //   }
 
     // 如果当前任务是更新信息, 则更新账号对应信息
   // if (statusData.当前任务 === "更新信息") {
@@ -212,7 +212,6 @@ function updateDeviceStatus(statusData) {
       ...statusData,
     };
   }
-}
 
 function initMatchSocket() {
   return new Promise((resolve, reject) => {
