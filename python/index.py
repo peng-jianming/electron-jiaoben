@@ -117,9 +117,10 @@ class 主程序:
                     "获取设备列表": lambda 线程key=None, 任务函数参数集合=None: self.获取设备列表(),
                     "获取任务列表": lambda 线程key=None, 任务函数参数集合=None: self.获取任务列表(),
                 }
-                数据.update({"更新数据": self.更新数据})
+                设备ID = 数据.get("设备ID")
+                数据.update({"更新数据": lambda 字段=None, 数据=None: self.更新数据(设备ID, 字段, 数据) })
                 if 类型 in 任务函数映射:
-                    任务函数映射[类型](线程key=数据.get("设备ID"), 任务函数参数集合=数据)
+                    任务函数映射[类型](线程key=设备ID, 任务函数参数集合=数据)
                 else:
                     print(f"未知消息类型: {类型}")
             except Exception as e:
