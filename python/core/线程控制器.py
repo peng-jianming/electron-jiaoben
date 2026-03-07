@@ -1,4 +1,5 @@
 import threading
+import time
 # import time
 from .自定义线程 import PyThread
 
@@ -39,8 +40,8 @@ class 线程控制器类:
 
     def _执行线程(self, func, 线程key, 任务函数参数集合):
         func(任务函数参数集合)
+        self.线程集合.pop(线程key, None)
         self.线程结束后回调函数(线程key)
-        self.线程集合.pop(线程key)
 
     def 获取线程(self, 线程key):
         """获取线程对象"""
@@ -85,12 +86,12 @@ class 线程控制器类:
             if 线程对象.is_alive():
                 self.打印回调函数(线程key, "日志", f"线程停止失败")
                 return 0
-            self.线程结束后回调函数(线程key)  # 回调清理函数
-            self.线程集合.pop(线程key)  # 移除线程
+            self.线程集合.pop(线程key, None)
+            self.线程结束后回调函数(线程key)
             return 1
         else:
             self.打印回调函数(线程key, "日志", "线程不存在")
-            self.线程集合.pop(线程key)  # 移除线程
+            self.线程集合.pop(线程key, None)
             return 0
 
     def 暂停线程(self, 线程key):
@@ -113,83 +114,83 @@ class 线程控制器类:
             self.打印回调函数(线程key, "日志", f"无法恢复线程，当前线程不存在")
             return 0
 
-    # def _批量启动(self, 线程编号列表, 间隔秒数):
-    #     """
-    #     0:
-    #     1:
-    #     2:
-    #     :param 线程编号列表:
-    #     :param 间隔秒数:
-    #     :return:
-    #     """
-    #     已等待秒数 = 0
+    def _批量启动(self, 线程编号列表, 间隔秒数):
+        """
+        0:
+        1:
+        2:
+        :param 线程编号列表:
+        :param 间隔秒数:
+        :return:
+        """
+        已等待秒数 = 0
 
-    #     def 延迟并更新状态(起始索引, 已等待秒数):
-    #         for _ in range(间隔秒数):
-    #             time.sleep(1)
-    #             已等待秒数 += 1
-    #             # 更新剩余线程待启动状态
-    #             for 线程编号 in 线程编号列表[起始索引:]:
-    #                 self.打印回调函数(线程编号, f"待%d启动" % (线程编号 * 间隔秒数 - 已等待秒数,))
-    #         return 已等待秒数
-    #     # 先更新线程待启动状态
+        def 延迟并更新状态(起始索引, 已等待秒数):
+            for _ in range(间隔秒数):
+                time.sleep(1)
+                已等待秒数 += 1
+                # 更新剩余线程待启动状态
+                for 线程编号 in 线程编号列表[起始索引:]:
+                    self.打印回调函数(线程编号, f"待%d启动" % (线程编号 * 间隔秒数 - 已等待秒数,))
+            return 已等待秒数
+        # 先更新线程待启动状态
 
-    #     for 线程编号 in 线程编号列表:
-    #         self.打印回调函数(线程编号, f"待%d启动" % (线程编号 * 间隔秒数,))
-    #     for 索引, 线程编号 in enumerate(线程编号列表):
-    #         res = self.启动线程(线程编号)
-    #         if res == 0:  # 无法启动线程，当前线程已达到最大数量,直接阻塞并等待
-    #             self.打印回调函数(线程编号, f"当前线程已达到最大数量:{self.最大线程数},线程等待中...")
-    #             while True:
-    #                 time.sleep(1)
-    #                 if len(self.线程集合) < self.最大线程数:
-    #                     break
-    #             self.启动线程(线程编号)
-    #             已等待秒数 = 延迟并更新状态(索引, 已等待秒数)
-    #         elif res == 1:  # 线程运行中,直接忽略
-    #             continue
-    #         elif res == 2:  # 线程启动成功
-    #             if 索引 + 1 >= len(线程编号列表):
-    #                 break
-    #             已等待秒数 = 延迟并更新状态(索引 + 1, 已等待秒数)
-    #             continue
-    #         else:
-    #             raise f"_start_all 未知错误res"
-    #     # 等线程全部执行完成，在回调函数
-    #     while True:
-    #         time.sleep(0.1)
-    #         if not len(self.线程集合):
-    #             break
-    #     # 回调函数
-    #     self.所有线程结束后回调函数()
+        for 线程编号 in 线程编号列表:
+            self.打印回调函数(线程编号, f"待%d启动" % (线程编号 * 间隔秒数,))
+        for 索引, 线程编号 in enumerate(线程编号列表):
+            res = self.启动线程(线程编号)
+            if res == 0:  # 无法启动线程，当前线程已达到最大数量,直接阻塞并等待
+                self.打印回调函数(线程编号, f"当前线程已达到最大数量:{self.最大线程数},线程等待中...")
+                while True:
+                    time.sleep(1)
+                    if len(self.线程集合) < self.最大线程数:
+                        break
+                self.启动线程(线程编号)
+                已等待秒数 = 延迟并更新状态(索引, 已等待秒数)
+            elif res == 1:  # 线程运行中,直接忽略
+                continue
+            elif res == 2:  # 线程启动成功
+                if 索引 + 1 >= len(线程编号列表):
+                    break
+                已等待秒数 = 延迟并更新状态(索引 + 1, 已等待秒数)
+                continue
+            else:
+                raise f"_start_all 未知错误res"
+        # 等线程全部执行完成，在回调函数
+        while True:
+            time.sleep(0.1)
+            if not len(self.线程集合):
+                break
+        # 回调函数
+        self.所有线程结束后回调函数()
 
-    # def 批量启动线程(self, 线程编号列表, 间隔秒数):
-    #     if self._批量启动线程对象 and self._批量启动线程对象.is_alive():
-    #         self.打印回调函数(线程编号列表[0], "正在批量启动线程，请勿重复操作")
-    #         return 0
-    #     else:
-    #         self._批量启动线程对象 = PyThread(target=self._批量启动, args=(线程编号列表, 间隔秒数))
-    #         self._批量启动线程对象.start()
-    #         self.打印回调函数(线程编号列表[0], "批量启动线程启动")
-    #         return 1
+    def 批量启动线程(self, 线程编号列表, 间隔秒数):
+        if self._批量启动线程对象 and self._批量启动线程对象.is_alive():
+            self.打印回调函数(线程编号列表[0], "正在批量启动线程，请勿重复操作")
+            return 0
+        else:
+            self._批量启动线程对象 = PyThread(target=self._批量启动, args=(线程编号列表, 间隔秒数))
+            self._批量启动线程对象.start()
+            self.打印回调函数(线程编号列表[0], "批量启动线程启动")
+            return 1
 
-    # def 停止全部线程(self):
-    #     if self._批量启动线程对象 and self._批量启动线程对象.is_alive():
-    #         self._批量启动线程对象.stop()
-    #         self._批量启动线程对象 = None
-    #         print("停止滚号线程")
-    #     # 停止线程
-    #     while True:
-    #         if len(self.线程集合) == 0:
-    #             break
-    #         第一个编号 = list(self.线程集合.keys())[0]
-    #         self.停止线程(第一个编号)
-    #     return 1
+    def 停止全部线程(self):
+        if self._批量启动线程对象 and self._批量启动线程对象.is_alive():
+            self._批量启动线程对象.stop()
+            self._批量启动线程对象 = None
+            print("停止滚号线程")
+        # 停止线程
+        while True:
+            if len(self.线程集合) == 0:
+                break
+            第一个编号 = list(self.线程集合.keys())[0]
+            self.停止线程(第一个编号)
+        return 1
 
-    # def 暂停全部线程(self):
-    #     for 编号, 线程对象 in self.线程集合.items():
-    #         self.暂停线程(编号)
+    def 暂停全部线程(self):
+        for 编号, 线程对象 in self.线程集合.items():
+            self.暂停线程(编号)
 
-    # def 恢复全部线程(self):
-    #     for 编号, 线程对象 in self.线程集合.items():
-    #         self.恢复线程(编号)
+    def 恢复全部线程(self):
+        for 编号, 线程对象 in self.线程集合.items():
+            self.恢复线程(编号)
