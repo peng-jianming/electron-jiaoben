@@ -155,7 +155,7 @@ class 主程序:
 
     def 更新数据(self, 设备ID, 字段, 数据):
         if 字段 == '日志':
-            print(f"设备 {设备ID} 写入日志: {数据}")
+            print(f"设备 {设备ID}: {数据}")
         self.发送到Electron("device-status-update", {
             "设备ID": 设备ID,
             字段: 数据,

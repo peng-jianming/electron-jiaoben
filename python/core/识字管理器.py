@@ -81,7 +81,3 @@ class 识字管理器类:
                     "h": int(y2 - y1),
                 })
         return out
-
-
-if __name__ == "__main__":
-    ocr = 识字管理器类()

@@ -12,7 +12,7 @@ from PIL import Image
 class 动作管理器类:
     """动作管理器，处理图像识别和点击操作"""
 
-    def __init__(self, 配置, 控制器, 截图上下文=None):
+    def __init__(self, 配置, 控制器, 截图上下文, 更新数据):
         """
         初始化动作管理器
 
@@ -22,6 +22,7 @@ class 动作管理器类:
             截图上下文: 截图上下文管理器
         """
         self.控制器 = 控制器
+        self.更新数据 = 更新数据
         self._截图上下文 = 截图上下文
         self.当前界面 = 配置.get("当前界面")
         self.方式 = 配置.get("方式")
@@ -75,17 +76,19 @@ class 动作管理器类:
                     self.h = 结果["目标高"]
         return self
 
-    def 点击(self):
-        """点击操作"""
+    def 点击(self, 日志=None, 延时=(1, 3)):
         if self.是否找到():
-            if self.偏移点击区域:
+            if self.固定点击区域:
+                self.控制器.随机点击(self.固定点击区域)
+            elif self.偏移点击区域:
                 self.偏移点击(self.偏移点击区域)
             elif self.点击区域:
-                self.控制器.随机ADB点击(self.点击区域)
+                self.控制器.随机点击(self.点击区域)
             else:
-                self.控制器.随机ADB点击(f"{self.x},{self.y},{self.w},{self.h}")
-        elif self.固定点击区域:
-            self.控制器.随机ADB点击(self.固定点击区域)
+                self.控制器.随机点击(f"{self.x},{self.y},{self.w},{self.h}")
+            if 日志:
+                self.更新数据("日志", f"{self.当前界面}: {日志}")
+            time.sleep(random.uniform(*延时))
         return self
 
     def 偏移点击(self, 区域):
@@ -94,17 +97,9 @@ class 动作管理器类:
             部分 = [int(v) for v in 区域.split(",")]
             ox, oy = 部分[0], 部分[1]
             if len(部分) == 4 and 部分[2] and 部分[3]:
-                self.控制器.随机ADB点击(f"{self.x + ox},{self.y + oy},{部分[2]},{部分[3]}")
+                self.控制器.随机点击(f"{self.x + ox},{self.y + oy},{部分[2]},{部分[3]}")
             else:
-                self.控制器.ADB点击(self.x + ox, self.y + oy)
-        return self
-
-    def 随机延时(self, 开始, 结束):
-        """随机延时"""
-        if self.是否找到() or self.固定点击区域:
-            if 开始 > 结束:
-                开始, 结束 = 结束, 开始
-            time.sleep(random.uniform(开始, 结束))
+                self.控制器.精确点击(self.x + ox, self.y + oy)
         return self
 
     def 设置查找区域(self, 查找区域):
@@ -118,9 +113,6 @@ class 动作管理器类:
         return self
 
     def 设置字库(self, 字库集合):
-        """设置字库"""
-        if self.查找字符串 and self.查找字符串 not in 字库集合:
-            self.控制器.写入日志(f"{self.查找字符串},不在字库里")
         self.字库集合 = 字库集合
         return self
 
@@ -130,64 +122,26 @@ class 动作管理器类:
         return self
 
     def 是否找到(self):
-        """判断是否找到"""
-        return bool(self.x and self.y)
-
-    def _获取目标标识(self):
-        """获取当前动作对应的目标标识，用于 8 秒内同目标不重复操作。"""
-        if self.查找字符串:
-            return self.查找字符串
-        if self.分类名:
-            return self.分类名
-        if self.固定点击区域:
-            return "固定点击_" + self.固定点击区域
-        return None
+        if self.固定点击区域: 
+            return True
+        else:  
+            return bool(self.x and self.y)
 
     def 找到则点击(self, 延时=(1, 3), 日志=None) -> bool:
-        """
-        简化API：查找目标，如果找到则点击并延时。
-        8 秒内对同一目标不重复点击（由设备控制器统一判断，同一时间只记录一个目标）。
-        """
-        if self.查找().是否找到():
-            目标标识 = self._获取目标标识()
-            if not self.控制器.是否允许操作(目标标识):
-                return True
-            self.点击()
-            self.控制器.记录操作(目标标识)
-            if 日志:
-                self.控制器.写入日志(f"{self.当前界面}: {日志}")
-            if 延时:
-                time.sleep(random.uniform(*延时))
-            return True
-        return False
+        return self.查找().点击(日志, 延时).是否找到()
 
     def 直接点击(self, 延时=(1, 3), 日志=None) -> bool:
-        """
-        简化API：固定位置点击（不需要查找）或查找后点击。
-        8 秒内对同一目标不重复点击。
-        """
-        if self.固定点击区域:
-            目标标识 = self._获取目标标识()
-            if not self.控制器.是否允许操作(目标标识):
-                return False
-            self.控制器.随机ADB点击(self.固定点击区域)
-            self.控制器.记录操作(目标标识)
-            if 日志:
-                self.控制器.写入日志(f"{self.当前界面}: {日志}")
-            if 延时:
-                time.sleep(random.uniform(*延时))
-            return True
-        return self.找到则点击(延时, 日志)
+        return self.点击(日志, 延时).是否找到()
 
     def _字库找图(self, 大图, 字库名, 相似度=0.9, 区域=""):
         """根据字库名字进行颜色偏色找图，区域格式: "x,y,w,h" """
         if 字库名 not in self.字库集合:
-            self.控制器.写入日志(f"未找到字库: {字库名}")
+            self.更新数据("日志", f"未找到字库: {字库名}")
             return None
 
         字库数据列表 = self.字库集合[字库名]
         if not 字库数据列表:
-            self.控制器.写入日志(f"字库 {字库名} 的条目列表为空")
+            self.更新数据("日志", f"字库 {字库名} 的条目列表为空")
             return None
 
         # 读取大图
@@ -276,9 +230,7 @@ class 动作管理器类:
             分数 = 2 * 精确度 * 召回率 / (精确度 + 召回率 + 1e-5)
             最小值, 最大值, 最小位置, 最大位置 = cv2.minMaxLoc(分数)
 
-            # self.控制器.写入日志(
-            #     f"字库找图 - 字库名: {字库名}, 条目索引: {索引}/{len(字库数据列表) - 1}, 相似度: {最大值:.4f}, 位置: {最大位置}"
-            # )
+            # self.更新数据("日志", f"字库找图 - 字库名: {字库名}, 条目索引: {索引}/{len(字库数据列表) - 1}, 相似度: {最大值:.4f}, 位置: {最大位置}")
 
             if 最大值 >= 相似度:
                 return {
@@ -298,7 +250,7 @@ class 动作管理器类:
     def _yolo检测(self, 图像, 置信度阈值=0.6):
         """使用YOLOv8模型检测图片中的目标"""
         if self.模型 is None:
-            self.控制器.写入日志("未加载模型")
+            self.更新数据("日志", "未加载模型")
             return []
 
         结果列表 = self.模型(图像, conf=置信度阈值, verbose=False)
