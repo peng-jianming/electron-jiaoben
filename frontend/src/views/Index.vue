@@ -97,6 +97,8 @@
             <Device
               v-show="currentTab === 'device'"
               :list="deviceList"
+              @enableDevice="handleEnableDevice"
+              @disableDevice="handleDisableDevice"
             />
             <Task
               v-show="currentTab === 'task'"
@@ -180,17 +182,6 @@ function updateAccountStatus(statusData) {
 
   const index = accountList.value.findIndex((item) => item.账号 === 账号key);
   if (index === -1) return;
-
-  // if (statusData.日志) {
-  //   if (!Array.isArray(accountList.value[index].日志)) {
-  //     accountList.value[index].日志 = [];
-  //   }
-  //   accountList.value[index].日志.push(`[${new Date().toLocaleTimeString()}] ${statusData.日志}`);
-  //   if (accountList.value[index].日志.length > 50) {
-  //     accountList.value[index].日志.splice(0, accountList.value[index].日志.length - 50);
-  //   }
-  //   return;
-  // }
 
   accountList.value[index] = {
     ...accountList.value[index],
@@ -296,6 +287,14 @@ const handleResumeAccountTask = (row) => {
 
 const handleOpenLog = (row) => {
   sendToBackend("打开日志", { 账号: row.账号 });
+};
+
+const handleEnableDevice = (row) => {
+  sendToBackend("启用设备", { 设备ID: row.设备ID });
+};
+
+const handleDisableDevice = (row) => {
+  sendToBackend("禁用设备", { 设备ID: row.设备ID });
 };
 
 // ─── 批量操作 ────────────────────────────────

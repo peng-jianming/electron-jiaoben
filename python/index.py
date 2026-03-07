@@ -70,6 +70,8 @@ class 主程序:
                     "获取设备列表": lambda d: self.获取设备列表(),
                     "获取任务列表": lambda d: self.获取任务列表(),
                     "获取账号列表": lambda d: self.发送账号列表(),
+                    "禁用设备": self.禁用设备,
+                    "启用设备": self.启用设备,
                     "账号开始任务": self.账号开始任务,
                     "账号结束任务": self.账号结束任务,
                     "账号暂停任务": self.账号暂停任务,
@@ -107,13 +109,42 @@ class 主程序:
         新设备IDs = adb.获取设备列表()
         已有映射 = {d["设备ID"]: d for d in self.设备列表}
         self.设备列表 = [
-            已有映射.get(id, {"设备ID": id, "状态": "空闲", "占用账号": ""})
+            已有映射.get(id, {"设备ID": id, "状态": "空闲", "占用账号": "", "是否禁用": False})
             for id in 新设备IDs
         ]
         self.发送设备状态()
 
+    def 禁用设备(self, 数据):
+        设备ID = 数据.get("设备ID") if isinstance(数据, dict) else None
+        if not 设备ID:
+            return
+        for 设备 in self.设备列表:
+            if 设备["设备ID"] == 设备ID:
+                if 设备["状态"] != "空闲":
+                    return  # 占用中不允许禁用，只有空闲可以
+                设备["是否禁用"] = True
+                设备["状态"] = "禁用"
+                self.发送设备状态()
+                return
+
+    def 启用设备(self, 数据):
+        设备ID = 数据.get("设备ID") if isinstance(数据, dict) else None
+        if not 设备ID:
+            return
+        for 设备 in self.设备列表:
+            if 设备["设备ID"] == 设备ID:
+                设备["是否禁用"] = False
+                # 若禁用时正被占用，启用后恢复为占用；否则为空闲
+                设备["状态"] = "占用" if 设备.get("占用账号") else "空闲"
+                self.发送设备状态()
+                # 启用后若有设备变空闲，让等待队列中的账号使用
+                self._处理等待队列()
+                return
+
     def 获取空闲设备(self):
         for 设备 in self.设备列表:
+            if 设备.get("是否禁用"):
+                continue
             if 设备["状态"] == "空闲":
                 return 设备["设备ID"]
         return None

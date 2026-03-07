@@ -19,8 +19,9 @@
         </el-table-column>
         <el-table-column label="操作" width="310" fixed="right" align="center">
           <template #default="scope">
-            <el-button v-if="scope.row.是否禁用"  type="success" size="small">启用</el-button>
-            <el-button v-else type="danger" size="small">禁用</el-button>
+            <el-button v-if="scope.row.是否禁用" @click="emits('enableDevice', scope.row)" type="success" size="small">启用</el-button>
+            <el-button v-else-if="scope.row.状态 === '空闲'" @click="emits('disableDevice', scope.row)" type="danger" size="small">禁用</el-button>
+            <span v-else class="no-disable-hint">占用中不可禁用</span>
           </template>
         </el-table-column>
       </el-table>
@@ -51,12 +52,15 @@
 </template>
 
 <script setup>
+
 defineProps({
   list: {
     type: Array,
     default: () => [],
   },
 });
+const emits = defineEmits(["enableDevice", "disableDevice"]);
+
 </script>
 
 <style scoped lang="less">
@@ -116,6 +120,11 @@ defineProps({
 }
 
 .no-account {
+  color: @text-muted;
+}
+
+.no-disable-hint {
+  font-size: 12px;
   color: @text-muted;
 }
 
