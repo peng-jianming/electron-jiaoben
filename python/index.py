@@ -9,24 +9,21 @@ import os
 import socketio
 import threading
 from queue import Queue
-from 设置 import 服务器地址, 最大线程数, 资源目录
+from 设置 import 服务器地址, 最大线程数, 资源目录, 账号文件路径, 日志目录
 from core.线程控制器 import 线程控制器类
 from core.ADB控制器 import ADB控制器类
 from core.任务管理器 import 任务管理器类, 发现所有任务模块
-
+from core.日志管理器 import 日志管理器类
 
 class 主程序:
     def __init__(self):
         self._客户端 = None
         self.消息队列 = Queue()
-
-        self.设备列表 = []
-        self.设备占用映射 = {}       # {设备ID: 账号key}
-        self.账号设备映射 = {}       # {账号key: 设备ID}
+        self.日志管理器 = 日志管理器类(日志目录)
+        self.设备列表 = []           # [{"设备ID": str, "状态": "空闲"|"占用", "占用账号": str}]
         self.等待队列 = []           # [(账号key, 数据dict)]
         self._池锁 = threading.Lock()
 
-        self.账号文件路径 = os.path.join(资源目录, "账号.json")
         self.初始化客户端()
 
     # ─── Socket 初始化 ─────────────────────────
@@ -69,6 +66,7 @@ class 主程序:
             try:
                 类型, 数据 = self.消息队列.get()
                 处理器 = {
+                    "打开日志": lambda d: self.日志管理器.打开日志(d.get("账号")),
                     "获取设备列表": lambda d: self.获取设备列表(),
                     "获取任务列表": lambda d: self.获取任务列表(),
                     "获取账号列表": lambda d: self.发送账号列表(),
@@ -106,25 +104,42 @@ class 主程序:
 
     def 获取设备列表(self):
         adb = ADB控制器类()
-        self.设备列表 = adb.获取设备列表()
+        新设备IDs = adb.获取设备列表()
+        已有映射 = {d["设备ID"]: d for d in self.设备列表}
+        self.设备列表 = [
+            已有映射.get(id, {"设备ID": id, "状态": "空闲", "占用账号": ""})
+            for id in 新设备IDs
+        ]
         self.发送设备状态()
 
     def 获取空闲设备(self):
-        for 设备ID in self.设备列表:
-            if 设备ID not in self.设备占用映射:
-                return 设备ID
+        for 设备 in self.设备列表:
+            if 设备["状态"] == "空闲":
+                return 设备["设备ID"]
         return None
 
+    def 查找账号设备(self, 账号key):
+        for 设备 in self.设备列表:
+            if 设备["占用账号"] == 账号key:
+                return 设备["设备ID"]
+        return None
+
+    def 分配设备(self, 设备ID, 账号key):
+        for 设备 in self.设备列表:
+            if 设备["设备ID"] == 设备ID:
+                设备["状态"] = "占用"
+                设备["占用账号"] = 账号key
+                return
+
+    def 释放设备(self, 设备ID):
+        for 设备 in self.设备列表:
+            if 设备["设备ID"] == 设备ID:
+                设备["状态"] = "空闲"
+                设备["占用账号"] = ""
+                return
+
     def 发送设备状态(self):
-        状态列表 = []
-        for 设备ID in self.设备列表:
-            占用账号 = self.设备占用映射.get(设备ID)
-            状态列表.append({
-                "设备ID": 设备ID,
-                "状态": "占用" if 占用账号 else "空闲",
-                "占用账号": 占用账号 or "",
-            })
-        self.发送到Electron("device-list", 状态列表)
+        self.发送到Electron("device-list", self.设备列表)
 
     # ─── 任务列表 ──────────────────────────────
 
@@ -136,7 +151,7 @@ class 主程序:
 
     def 读取账号列表(self):
         try:
-            with open(self.账号文件路径, "r", encoding="utf-8") as f:
+            with open(账号文件路径, "r", encoding="utf-8") as f:
                 列表 = json.load(f)
             return 列表 if isinstance(列表, list) else []
         except Exception:
@@ -153,7 +168,7 @@ class 主程序:
             return
 
         with self._池锁:
-            if 账号key in self.账号设备映射:
+            if self.查找账号设备(账号key):
                 self.更新账号数据(账号key, "日志", "任务已在运行中")
                 return
             if any(k == 账号key for k, _ in self.等待队列):
@@ -170,8 +185,7 @@ class 主程序:
 
     def _启动账号任务(self, 账号key, 设备ID, 数据):
         """将设备分配给账号并启动线程（调用前需持有 _池锁）"""
-        self.设备占用映射[设备ID] = 账号key
-        self.账号设备映射[账号key] = 设备ID
+        self.分配设备(设备ID, 账号key)
         数据["设备ID"] = 设备ID
         数据["更新数据"] = lambda 字段=None, 数据=None: self.更新账号数据(账号key, 字段, 数据)
         self.线程控制器.启动线程(线程key=账号key, 任务函数参数集合=数据)
@@ -185,7 +199,7 @@ class 主程序:
             return
         with self._池锁:
             self.等待队列 = [(k, d) for k, d in self.等待队列 if k != 账号key]
-        if 账号key in self.账号设备映射:
+        if self.查找账号设备(账号key):
             self.线程控制器.停止线程(账号key)
         else:
             self.更新账号数据(账号key, "状态", "空闲")
@@ -193,25 +207,25 @@ class 主程序:
 
     def 账号暂停任务(self, 数据):
         账号key = 数据.get("账号")
-        if 账号key and 账号key in self.账号设备映射:
+        if 账号key and self.查找账号设备(账号key):
             self.线程控制器.暂停线程(账号key)
             self.更新账号数据(账号key, "状态", "已暂停")
 
     def 账号恢复任务(self, 数据):
         账号key = 数据.get("账号")
-        if 账号key and 账号key in self.账号设备映射:
+        if 账号key and self.查找账号设备(账号key):
             self.线程控制器.恢复线程(账号key)
             self.更新账号数据(账号key, "状态", "运行中")
 
     def 全部开始(self, 数据):
         账号列表 = self.读取账号列表()
         任务队列 = 数据.get("任务队列", [])
-        任务配置 = 数据.get("任务配置", {})
+        任务配置 = 数据.get("任务配置", [])
         for 账号 in 账号列表:
             self.账号开始任务({
                 "账号": 账号.get("账号"),
                 "任务队列": list(任务队列),
-                "任务配置": dict(任务配置),
+                "任务配置": list(任务配置),
             })
 
     def 全部结束(self):
@@ -225,21 +239,23 @@ class 主程序:
 
     def 全部暂停(self):
         self.线程控制器.暂停全部线程()
-        for 账号key in list(self.账号设备映射.keys()):
-            self.更新账号数据(账号key, "状态", "已暂停")
+        for 设备 in self.设备列表:
+            if 设备["状态"] == "占用":
+                self.更新账号数据(设备["占用账号"], "状态", "已暂停")
 
     def 全部恢复(self):
         self.线程控制器.恢复全部线程()
-        for 账号key in list(self.账号设备映射.keys()):
-            self.更新账号数据(账号key, "状态", "运行中")
+        for 设备 in self.设备列表:
+            if 设备["状态"] == "占用":
+                self.更新账号数据(设备["占用账号"], "状态", "运行中")
 
     # ─── 回调 ──────────────────────────────────
 
     def 线程结束回调(self, 账号key):
         with self._池锁:
-            设备ID = self.账号设备映射.pop(账号key, None)
+            设备ID = self.查找账号设备(账号key)
             if 设备ID:
-                self.设备占用映射.pop(设备ID, None)
+                self.释放设备(设备ID)
         self.更新账号数据(账号key, "状态", "空闲")
         self.更新账号数据(账号key, "设备ID", "")
         self.更新账号数据(账号key, "当前任务", "")
@@ -257,7 +273,7 @@ class 主程序:
 
     def 更新账号数据(self, 账号key, 字段, 数据):
         if 字段 == "日志":
-            print(f"账号 {账号key}: {数据}")
+            self.日志管理器.写入日志(账号key, 数据)
         self.发送到Electron("account-status-update", {
             "账号": 账号key,
             字段: 数据,

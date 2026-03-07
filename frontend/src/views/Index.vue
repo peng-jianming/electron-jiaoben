@@ -92,6 +92,7 @@
               @batchPause="handleBatchPause"
               @batchResume="handleBatchResume"
               @batchEnd="handleBatchEnd"
+              @openLog="handleOpenLog"
             />
             <Device
               v-show="currentTab === 'device'"
@@ -180,16 +181,16 @@ function updateAccountStatus(statusData) {
   const index = accountList.value.findIndex((item) => item.账号 === 账号key);
   if (index === -1) return;
 
-  if (statusData.日志) {
-    if (!Array.isArray(accountList.value[index].日志)) {
-      accountList.value[index].日志 = [];
-    }
-    accountList.value[index].日志.push(`[${new Date().toLocaleTimeString()}] ${statusData.日志}`);
-    if (accountList.value[index].日志.length > 50) {
-      accountList.value[index].日志.splice(0, accountList.value[index].日志.length - 50);
-    }
-    return;
-  }
+  // if (statusData.日志) {
+  //   if (!Array.isArray(accountList.value[index].日志)) {
+  //     accountList.value[index].日志 = [];
+  //   }
+  //   accountList.value[index].日志.push(`[${new Date().toLocaleTimeString()}] ${statusData.日志}`);
+  //   if (accountList.value[index].日志.length > 50) {
+  //     accountList.value[index].日志.splice(0, accountList.value[index].日志.length - 50);
+  //   }
+  //   return;
+  // }
 
   accountList.value[index] = {
     ...accountList.value[index],
@@ -244,7 +245,7 @@ function initMatchSocket() {
           设备ID: "",
           状态: "空闲",
           当前任务: "",
-          日志: [],
+          日志: "",
         }));
       }
     });
@@ -291,6 +292,10 @@ const handlePauseAccountTask = (row) => {
 
 const handleResumeAccountTask = (row) => {
   sendToBackend("账号恢复任务", { 账号: row.账号 });
+};
+
+const handleOpenLog = (row) => {
+  sendToBackend("打开日志", { 账号: row.账号 });
 };
 
 // ─── 批量操作 ────────────────────────────────

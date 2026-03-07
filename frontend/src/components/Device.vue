@@ -1,31 +1,26 @@
 <template>
   <div class="device-container">
     <div class="table-container">
-      <el-table
-        :data="list"
-        row-key="设备ID"
-        border
-        size="small"
-        empty-text="没有发现设备~"
-        height="100%"
-        stripe
-        highlight-current-row
-      >
+      <el-table :data="list" row-key="设备ID" border size="small" empty-text="没有发现设备~" height="100%" stripe
+        highlight-current-row>
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column label="设备ID" prop="设备ID" show-overflow-tooltip min-width="200" />
         <el-table-column label="状态" width="120" align="center">
           <template #default="scope">
-            <el-tag
-              :type="scope.row.状态 === '空闲' ? 'success' : 'warning'"
-              size="small"
-              effect="light"
-            >{{ scope.row.状态 || '空闲' }}</el-tag>
+            <el-tag :type="scope.row.状态 === '空闲' ? 'success' : 'warning'" size="small" effect="light">{{ scope.row.状态 ||
+              '空闲' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="占用账号" prop="占用账号" min-width="150" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.占用账号" class="occupied-account">{{ scope.row.占用账号 }}</span>
             <span v-else class="no-account">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="310" fixed="right" align="center">
+          <template #default="scope">
+            <el-button v-if="scope.row.是否禁用"  type="success" size="small">启用</el-button>
+            <el-button v-else type="danger" size="small">禁用</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -42,13 +37,13 @@
       <div class="statistics-info-item statistics-info-item--idle">
         <div class="statistics-info-item-main">
           <span class="statistics-info-item-label">空闲设备</span>
-          <span class="statistics-info-item-value">{{ list.filter(d => d.状态 === '空闲').length }}</span>
+          <span class="statistics-info-item-value">{{list.filter(d => d.状态 === '空闲').length}}</span>
         </div>
       </div>
       <div class="statistics-info-item statistics-info-item--occupied">
         <div class="statistics-info-item-main">
           <span class="statistics-info-item-label">占用设备</span>
-          <span class="statistics-info-item-value">{{ list.filter(d => d.状态 === '占用').length }}</span>
+          <span class="statistics-info-item-value">{{list.filter(d => d.状态 === '占用').length}}</span>
         </div>
       </div>
     </div>
@@ -100,7 +95,10 @@ defineProps({
 
     .el-table__row {
       transition: background-color 0.2s ease;
-      &:hover > td { background-color: #f5f7fa !important; }
+
+      &:hover>td {
+        background-color: #f5f7fa !important;
+      }
     }
 
     .el-tag {
@@ -145,7 +143,10 @@ defineProps({
   overflow: hidden;
   transition: all 0.15s ease;
 
-  &:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08); }
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08);
+  }
 }
 
 .statistics-info-item-main {
@@ -169,18 +170,27 @@ defineProps({
 .statistics-info-item--total {
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
   border-color: rgba(91, 106, 240, 0.3);
-  .statistics-info-item-value { color: @primary-color; }
+
+  .statistics-info-item-value {
+    color: @primary-color;
+  }
 }
 
 .statistics-info-item--idle {
   background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
   border-color: rgba(34, 197, 94, 0.3);
-  .statistics-info-item-value { color: @success-color; }
+
+  .statistics-info-item-value {
+    color: @success-color;
+  }
 }
 
 .statistics-info-item--occupied {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
   border-color: rgba(245, 158, 11, 0.3);
-  .statistics-info-item-value { color: @warning-color; }
+
+  .statistics-info-item-value {
+    color: @warning-color;
+  }
 }
 </style>

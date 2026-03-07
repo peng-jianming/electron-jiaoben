@@ -35,39 +35,16 @@
         stripe
         highlight-current-row
       >
-        <el-table-column type="expand" label="日志">
-          <template #default="props">
-            <div class="log-container">
-              <div class="log-content" v-if="props.row.日志?.length">
-                <div
-                  v-for="(log, index) in props.row.日志.slice().reverse()"
-                  :key="index"
-                  class="log-item"
-                  :class="getLogClass(log)"
-                >
-                  <span class="log-index">#{{ props.row.日志.length - index }}</span>
-                  <span class="log-text">{{ log }}</span>
-                </div>
-              </div>
-              <div class="log-empty" v-else>
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-                  <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2v2h-2v-2zm0-6h2v4h-2V8z"/>
-                </svg>
-                <span>暂无日志信息</span>
-              </div>
-            </div>
-          </template>
-        </el-table-column>
 
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="账号" label="账号" min-width="120" show-overflow-tooltip />
-        <el-table-column label="名字" min-width="100" show-overflow-tooltip>
+        <el-table-column type="index" label="序号" width="50" align="center" />
+        <el-table-column prop="账号" label="账号" min-width="30" show-overflow-tooltip />
+        <el-table-column label="名字" min-width="30" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.名字 || scope.row.角色名 || '-' }}
           </template>
         </el-table-column>
 
-        <el-table-column label="设备ID" min-width="150" show-overflow-tooltip>
+        <el-table-column label="设备ID" width="110" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.状态 === '等待设备'" class="waiting-device">
               <el-icon class="waiting-icon"><Loading /></el-icon>
@@ -78,7 +55,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="状态" width="110" align="center">
+        <el-table-column label="状态" width="90" align="center">
           <template #default="scope">
             <el-tag
               :type="getStatusType(scope.row.状态)"
@@ -88,9 +65,10 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="当前任务" label="当前任务" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="当前任务" label="当前任务" min-width="30" show-overflow-tooltip />
+        <el-table-column prop="日志" label="日志" min-width="140" show-overflow-tooltip />
 
-        <el-table-column label="操作" width="250" fixed="right" align="center">
+        <el-table-column label="操作" width="310" fixed="right" align="center">
           <template #default="scope">
             <el-button
               type="primary"
@@ -116,6 +94,11 @@
               :disabled="!isActive(scope.row)"
               @click="emit('endTask', scope.row)"
             >结束</el-button>
+            <el-button
+              type="info"
+              size="small"
+              @click="emit('openLog', scope.row)"
+            >日志</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -182,6 +165,7 @@ const emit = defineEmits([
   "batchPause",
   "batchResume",
   "batchEnd",
+  "openLog",
 ]);
 
 const expandedRowKeys = ref([]);
@@ -247,6 +231,7 @@ function getLogClass(log) {
   if (log.includes("成功") || log.includes("完成") || log.includes("success")) return "log-success";
   return "";
 }
+
 </script>
 
 <style scoped lang="less">
