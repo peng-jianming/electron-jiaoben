@@ -12,7 +12,6 @@ from core.线程控制器 import 线程控制器类
 from core.ADB控制器 import ADB控制器类
 from core.任务管理器 import 任务管理器类, 发现所有任务模块
 
-
 class 主程序:
     def __init__(self):
         self._客户端 = None

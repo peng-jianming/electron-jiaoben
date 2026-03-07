@@ -36,7 +36,7 @@
         stripe
         highlight-current-row
       >
-        <el-table-column type="expand">
+        <el-table-column type="expand" label="日志">
           <template #default="props">
             <div class="log-container">
               <div class="log-content" v-if="props.row.日志?.length">
@@ -63,20 +63,11 @@
         </el-table-column>
         <el-table-column label="设备ID" prop="设备ID" show-overflow-tooltip width="150">
         </el-table-column>
-        <el-table-column label="状态" prop="已暂停" align="center" width="100">
-          <template #default="scope">
-            <el-tag type="warning" v-if="scope.row.已暂停" size="small">已暂停</el-tag>
-            <el-tag type="success" v-else-if="scope.row.当前任务" size="small"
-              >运行中</el-tag
-            >
-            <el-tag type="info" v-else size="small">空闲</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="当前任务" prop="当前任务" show-overflow-tooltip>
+        <el-table-column label="当前任务" prop="当前任务" show-overflow-tooltip width="150">
         </el-table-column>
         <el-table-column label="日志" prop="日志" show-overflow-tooltip>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="250" fixed="right" align="center">
           <template #default="scope">
             <el-button
               type="primary"
@@ -86,14 +77,12 @@
               >开始</el-button
             >
             <el-button
-              v-if="!scope.row.已暂停"
               type="warning"
               size="small"
               @click="emit('pauseTask', scope.row)"
               >暂停</el-button
             >
             <el-button
-              v-else
               type="success"
               size="small"
               @click="emit('resumeTask', scope.row)"
