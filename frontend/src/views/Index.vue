@@ -38,8 +38,8 @@
         <!-- 底部状态指示 -->
         <div class="sidebar-footer">
           <div class="status-indicator">
-            <span class="status-dot" :class="{ online: isConnected }"></span>
-            <span class="status-text">{{ isConnected ? '已连接' : '未连接' }}</span>
+            <span class="status-dot" :class="{ online: isBackendReady, waiting: isConnected && !isBackendReady }"></span>
+            <span class="status-text">{{ isBackendReady ? '已连接' : isConnected ? '等待后端' : '未连接' }}</span>
           </div>
         </div>
       </aside>
@@ -115,6 +115,7 @@ import { io } from "socket.io-client";
 
 const currentTab = ref("device");
 const isConnected = ref(false);
+const isBackendReady = ref(false);
 const deviceList = ref([]);
 const taskList = ref([]);
 
@@ -225,13 +226,19 @@ function initMatchSocket() {
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
       isConnected.value = true;
-      handleGetDeviceList();
-      handleGetTaskList();
     });
 
     matchSocket.on("disconnect", () => {
       console.log("匹配 Socket 断开连接");
       isConnected.value = false;
+      isBackendReady.value = false;
+    });
+
+    matchSocket.on("backend-ready", () => {
+      console.log("后端已准备就绪");
+      isBackendReady.value = true;
+      handleGetDeviceList();
+      handleGetTaskList();
     });
 
 
@@ -268,6 +275,10 @@ function initMatchSocket() {
 }
 
 const handleGetDeviceList = () => {
+  if (!isBackendReady.value) {
+    ElMessage.warning("后端还未连接，请稍候...");
+    return;
+  }
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "获取设备列表",
   });
@@ -371,6 +382,10 @@ async function updateAccountInfo(statusData) {
 }
 
 const handleGetTaskList = () => {
+  if (!isBackendReady.value) {
+    ElMessage.warning("后端还未连接，请稍候...");
+    return;
+  }
   ipc.invoke(ipcApiRoute.发送到后端, {
     类型: "获取任务列表",
   });
@@ -510,6 +525,12 @@ body,
     background-color: @success-color;
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
     animation: pulse 2s infinite;
+  }
+  
+  &.waiting {
+    background-color: @warning-color;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    animation: pulse 1s infinite;
   }
 }
 

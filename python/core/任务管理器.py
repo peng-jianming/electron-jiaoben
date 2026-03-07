@@ -71,6 +71,7 @@ def 发现所有任务模块():
 
     return 结果
 
+
 class 任务管理器类:
     def __init__(self, 参数集合):
         self.设备ID = 参数集合.get("设备ID")
@@ -267,7 +268,6 @@ class 任务管理器类:
                 self.更新数据
             )
         return 配置
-
 
 
 class 任务界面状态机类:

@@ -10,65 +10,7 @@ from queue import Queue
 from 设置 import 服务器地址, 最大线程数
 from core.线程控制器 import 线程控制器类
 from core.ADB控制器 import ADB控制器类
-from core.任务管理器 import 任务管理器类
-
-
-def 发现所有任务模块():
-    import pkgutil
-    import importlib
-
-    """
-    扫描同级的 `任务` 包下所有模块，以文件名作为任务名，收集文件下的 `创建任务` 函数。
-    兼容两种包结构：
-        - 顶层: core / 任务
-        - 上层包: python.core / python.任务
-    """
-    模块名片段 = __name__.split(".")
-    if len(模块名片段) >= 2:
-        # 去掉最后两个片段（如 core.任务管理器），在同一父包下寻找兄弟包 任务
-        父包片段 = 模块名片段[:-2]
-    else:
-        父包片段 = []
-
-    if 父包片段:
-        任务包名 = ".".join(父包片段 + ["任务"])
-    else:
-        任务包名 = "任务"
-
-    try:
-        任务包模块 = importlib.import_module(任务包名)
-    except Exception as e:
-        print(f"[任务发现] 导入任务包 {任务包名} 失败: {e}")
-        return {}
-
-    结果 = {}
-    忽略模块名 = {"__init__", "任务管理器"}
-
-    for 查找器, 模块全名, 是否包 in pkgutil.iter_modules(
-        任务包模块.__path__, 任务包名 + "."
-    ):
-        # 文件名（不含 .py）即任务名
-        任务名 = 模块全名.split(".")[-1]
-        if 任务名 in 忽略模块名:
-            continue
-        try:
-            模块 = importlib.import_module(模块全名)
-        except Exception as e:
-            print(f"[任务发现] 导入模块 {模块全名} 失败: {e}")
-            continue
-
-        创建任务 = getattr(模块, "创建任务", None)
-        if 创建任务 is None:
-            print(f"[任务发现] 跳过 {任务名}: 缺少 创建任务")
-            continue
-        if not callable(创建任务):
-            print(f"[任务发现] 跳过 {任务名}: 创建任务 不可调用")
-            continue
-
-        结果[任务名] = 创建任务
-        print(f"[任务发现] 已注册任务: {任务名}")
-
-    return 结果
+from core.任务管理器 import 任务管理器类, 发现所有任务模块
 
 
 class 主程序:
@@ -90,6 +32,11 @@ class 主程序:
                     self.消息队列.put((数据.get("类型"), 数据))
                 else:
                     print("忽略无效消息: 需为 dict 且包含 类型")
+
+            @self._客户端.on("connect")
+            def 连接成功():
+                """Socket 连接/重连后，若 worker 已就绪则立即通知前端。"""
+                self.发送到Electron("backend-ready", True)
 
         # 启动 worker 线程，串行处理队列中的 开始/结束/暂停 等
         if not any(t.name == "socket-worker" for t in threading.enumerate()):
