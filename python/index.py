@@ -4,7 +4,6 @@
 以账号为主体，动态从设备池中分配空闲设备运行任务。
 """
 
-import json
 import os
 import socketio
 import threading
@@ -14,12 +13,14 @@ from core.线程控制器 import 线程控制器类
 from core.ADB控制器 import ADB控制器类
 from core.任务管理器 import 任务管理器类, 发现所有任务模块
 from core.日志管理器 import 日志管理器类
+from core.账号管理器 import 账号管理器类
 
 class 主程序:
     def __init__(self):
         self._客户端 = None
         self.消息队列 = Queue()
         self.日志管理器 = 日志管理器类(日志目录)
+        self.账号管理器 = 账号管理器类(账号文件路径)
         self.设备列表 = []           # [{"设备ID": str, "状态": "空闲"|"占用", "占用账号": str}]
         self.等待队列 = []           # [(账号key, 数据dict)]
         self._池锁 = threading.Lock()
@@ -180,16 +181,8 @@ class 主程序:
 
     # ─── 账号管理 ──────────────────────────────
 
-    def 读取账号列表(self):
-        try:
-            with open(账号文件路径, "r", encoding="utf-8") as f:
-                列表 = json.load(f)
-            return 列表 if isinstance(列表, list) else []
-        except Exception:
-            return []
-
     def 发送账号列表(self):
-        self.发送到Electron("account-list", self.读取账号列表())
+        self.发送到Electron("account-list", self.账号管理器.读取账号列表())
 
     # ─── 账号任务操作 ──────────────────────────
 
@@ -249,7 +242,7 @@ class 主程序:
             self.更新账号数据(账号key, "状态", "运行中")
 
     def 全部开始(self, 数据):
-        账号列表 = self.读取账号列表()
+        账号列表 = self.账号管理器.读取账号列表()
         任务队列 = 数据.get("任务队列", [])
         任务配置 = 数据.get("任务配置", [])
         for 账号 in 账号列表:
@@ -305,6 +298,7 @@ class 主程序:
     def 更新账号数据(self, 账号key, 字段, 数据):
         if 字段 == "日志":
             self.日志管理器.写入日志(账号key, 数据)
+        self.账号管理器.写入账号列表(账号key, 字段, 数据)
         self.发送到Electron("account-status-update", {
             "账号": 账号key,
             字段: 数据,

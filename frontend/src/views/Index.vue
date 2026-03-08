@@ -268,6 +268,7 @@ const handleStartAccountTask = (row) => {
   const { selectedTasks, taskConfig } = taskSelectValue.value;
   sendToBackend("账号开始任务", {
     账号: row.账号,
+    任务配置列表: row.任务配置列表.length > 0 ? JSON.parse(JSON.stringify(row.任务配置列表)) : taskConfig,
     任务队列: JSON.parse(JSON.stringify([...selectedTasks])),
     任务配置: JSON.parse(JSON.stringify(taskConfig)),
   });
