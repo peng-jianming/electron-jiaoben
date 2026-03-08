@@ -134,21 +134,14 @@ const deviceList = ref([]);
 const taskList = ref([]);
 const accountList = ref([]);
 
-const taskSelectValue = ref({
-  selectedTasks: [],
-  taskConfig: {},
-});
+const taskSelectValue = ref([]);
 
-// 加载任务配置
 async function loadTaskConfig() {
   if (!ipc) return;
   try {
     const res = await ipc.invoke(ipcApiRoute.获取任务配置);
-    if (!res || typeof res !== "object") return;
-    taskSelectValue.value = {
-      selectedTasks: Array.isArray(res.selectedTasks) ? res.selectedTasks : [],
-      taskConfig: res.taskConfig != null ? res.taskConfig : [],
-    };
+    if (!Array.isArray(res)) return;
+    taskSelectValue.value = res;
   } catch (e) {}
 }
 
@@ -156,10 +149,7 @@ async function saveTaskConfig() {
   if (!ipc) return;
   try {
     await ipc.invoke(ipcApiRoute.保存任务配置, {
-      taskSelectValue: {
-        selectedTasks: JSON.parse(JSON.stringify([...taskSelectValue.value.selectedTasks])),
-        taskConfig: JSON.parse(JSON.stringify(taskSelectValue.value.taskConfig)),
-      },
+      taskSelectValue: JSON.parse(JSON.stringify(taskSelectValue.value)),
     });
   } catch (e) {}
 }
@@ -265,12 +255,13 @@ const handleGetAccountList = () => sendToBackend("获取账号列表");
 // ─── 账号操作 ────────────────────────────────
 
 const handleStartAccountTask = (row) => {
-  const { selectedTasks, taskConfig } = taskSelectValue.value;
+  const 账号自带配置 = Array.isArray(row.任务配置列表) && row.任务配置列表.length > 0;
+  const 任务配置列表 = 账号自带配置
+    ? JSON.parse(JSON.stringify(row.任务配置列表))
+    : JSON.parse(JSON.stringify(taskSelectValue.value));
   sendToBackend("账号开始任务", {
     账号: row.账号,
-    任务配置列表: row.任务配置列表.length > 0 ? JSON.parse(JSON.stringify(row.任务配置列表)) : taskConfig,
-    任务队列: JSON.parse(JSON.stringify([...selectedTasks])),
-    任务配置: JSON.parse(JSON.stringify(taskConfig)),
+    任务配置列表,
   });
 };
 
@@ -301,10 +292,8 @@ const handleDisableDevice = (row) => {
 // ─── 批量操作 ────────────────────────────────
 
 const handleBatchStart = () => {
-  const { selectedTasks, taskConfig } = taskSelectValue.value;
   sendToBackend("全部开始", {
-    任务队列: JSON.parse(JSON.stringify([...selectedTasks])),
-    任务配置: JSON.parse(JSON.stringify(taskConfig)),
+    任务配置列表: JSON.parse(JSON.stringify(taskSelectValue.value)),
   });
 };
 

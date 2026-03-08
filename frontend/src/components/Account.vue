@@ -4,8 +4,8 @@
     <div class="toolbar-section">
       <div class="task-info">
         <span class="task-info-label">已选任务：</span>
-        <span v-if="taskSelectValue.selectedTasks.length" class="task-info-value">
-          {{ taskSelectValue.selectedTasks.join(" → ") }}
+        <span v-if="taskSelectValue.length" class="task-info-value">
+          {{ taskSelectValue.map(t => t.名称).join(" → ") }}
         </span>
         <span v-else class="task-info-empty">未选择任务，请到"任务"页面配置</span>
       </div>
@@ -13,7 +13,7 @@
         <el-button
           type="primary"
           @click="handleBatchStart"
-          :disabled="!taskSelectValue.selectedTasks.length"
+          :disabled="!taskSelectValue.length"
         >全部开始</el-button>
         <el-button type="warning" @click="emit('batchPause')">全部暂停</el-button>
         <el-button type="success" @click="emit('batchResume')">全部恢复</el-button>
@@ -73,7 +73,7 @@
             <el-button
               type="primary"
               size="small"
-              :disabled="!props.taskSelectValue.selectedTasks.length || isRunning(scope.row)"
+              :disabled="(!props.taskSelectValue.length && !scope.row.任务配置列表.length) || isRunning(scope.row)"
               @click="handleStart(scope.row)"
             >开始</el-button>
             <el-button
@@ -151,8 +151,8 @@ const props = defineProps({
     default: () => [],
   },
   taskSelectValue: {
-    type: Object,
-    default: () => ({ selectedTasks: [], taskConfig: {} }),
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -197,18 +197,16 @@ const tableRowClassName = ({ row }) => {
 };
 
 function handleStart(row) {
-  const { selectedTasks } = props.taskSelectValue;
-  if (!selectedTasks.length) {
-    ElMessage.warning("请先到「任务」页面选择任务");
+  if (!props.taskSelectValue.length && !row.任务配置列表.length) {
+    ElMessage.warning("请先到「任务」页面选择任务或账号自带任务配置");
     return;
   }
   emit("startTask", row);
 }
 
 function handleBatchStart() {
-  const { selectedTasks } = props.taskSelectValue;
-  if (!selectedTasks.length) {
-    ElMessage.warning("请先到「任务」页面选择任务");
+  if (!props.taskSelectValue.length && !props.list.some(r => r.任务配置列表.length)) {
+    ElMessage.warning("请先到「任务」页面选择任务或账号自带任务配置");
     return;
   }
   emit("batchStart");

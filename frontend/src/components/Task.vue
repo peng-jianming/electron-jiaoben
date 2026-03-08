@@ -164,8 +164,8 @@ const props = defineProps({
     default: () => [],
   },
   modelValue: {
-    type: Object,
-    default: () => ({ selectedTasks: [], taskConfig: {} }),
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -211,30 +211,15 @@ function genId() {
   return "task-" + Date.now() + "-" + Math.random().toString(36).slice(2, 9);
 }
 
-/** 从 modelValue 构建 selectedList + taskConfigById（兼容旧格式：taskConfig 按任务名 或 按顺序数组） */
+/** 从 modelValue（任务配置列表数组）构建 selectedList + taskConfigById */
 function buildFromModelValue(modelValue) {
-  const mv = modelValue ?? props.modelValue ?? {};
-  const tasks = mv.selectedTasks || [];
-  const config = mv.taskConfig;
-  const list = tasks.map((name) => ({ id: genId(), name }));
+  const arr = modelValue ?? props.modelValue ?? [];
+  if (!Array.isArray(arr) || !arr.length) return { list: [], byId: {} };
+  const list = arr.map((item) => ({ id: genId(), name: item.名称 }));
   const byId = {};
-  if (Array.isArray(config)) {
-    list.forEach((item, i) => {
-      byId[item.id] = config[i] != null ? { ...config[i] } : getDefaultConfig(item.name);
-    });
-  } else {
-    const used = {};
-    list.forEach((item) => {
-      const fromName = config?.[item.name];
-      const key = item.name;
-      if (fromName && !used[key]) {
-        used[key] = true;
-        byId[item.id] = { ...fromName };
-      } else {
-        byId[item.id] = getDefaultConfig(item.name);
-      }
-    });
-  }
+  list.forEach((item, i) => {
+    byId[item.id] = arr[i].参数配置 != null ? { ...arr[i].参数配置 } : getDefaultConfig(item.name);
+  });
   return { list, byId };
 }
 
@@ -265,14 +250,10 @@ watch(
   { deep: true }
 );
 
-// 当父组件（通过 v-model）传入的任务选择/配置发生变化，且当前内部还没有任务时，
-// 用父组件的数据初始化内部状态（用于从持久化配置中恢复）
 watch(
   () => props.modelValue,
   (val) => {
-    const incomingTasks = Array.isArray(val?.selectedTasks) ? val.selectedTasks : [];
-    if (!incomingTasks.length) return;
-    // 仅在内部尚未有任务时初始化，避免覆盖用户在当前会话中的操作
+    if (!Array.isArray(val) || !val.length) return;
     if (selectedList.value.length === 0) {
       const { list, byId } = buildFromModelValue(val);
       selectedList.value = [...list];
@@ -282,16 +263,13 @@ watch(
   { deep: true }
 );
 
-// 同步到父组件：selectedTasks 为名称顺序数组，taskConfig 为同顺序的配置数组（便于后端按顺序使用）
 function syncToParent() {
-  const names = selectedList.value.map((i) => i.name);
-  const configArray = selectedList.value.map(
-    (i) => taskConfig.value[i.id] ?? getDefaultConfig(i.name)
-  );
-  emit("update:modelValue", {
-    selectedTasks: names,
-    taskConfig: configArray,
-  });
+  const 任务配置列表 = selectedList.value.map((i) => ({
+    名称: i.name,
+    是否完成: false,
+    参数配置: taskConfig.value[i.id] ?? getDefaultConfig(i.name),
+  }));
+  emit("update:modelValue", 任务配置列表);
 }
 
 watch(selectedList, () => syncToParent(), { deep: true });
