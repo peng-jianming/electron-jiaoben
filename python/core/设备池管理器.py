@@ -52,13 +52,13 @@ class 设备池管理器类:
     def 启用设备(self, 设备ID):
         """启用设备：根据是否有占用账号恢复为 占用 或 空闲 状态。"""
         if not 设备ID:
-            return
+            return False
         for 设备 in self._设备列表:
             if 设备["设备ID"] == 设备ID:
                 设备["是否禁用"] = False
                 设备["状态"] = "占用" if 设备.get("占用账号") else "空闲"
                 self._推送设备状态()
-                return
+                return True
 
     def 获取空闲设备(self):
         """返回一个未禁用且状态为空闲的设备ID，找不到则返回 None。"""
