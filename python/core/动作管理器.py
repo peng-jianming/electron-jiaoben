@@ -34,12 +34,15 @@ class 动作管理器类:
         self.偏移点击区域 = 配置.get("偏移点击区域", "")
         self.点击区域 = 配置.get("点击区域", "")
         self.固定点击区域 = 配置.get("固定点击区域", "")
+        self.误触区域 = 配置.get("误触区域", "")
         self.字库集合 = {}
         self.模型 = None
         self.x = 0
         self.y = 0
         self.w = 0
         self.h = 0
+        self.上次点击时间 = 0
+        self.点击间隔 = None
 
     def 查找(self):
         """执行查找"""
@@ -78,6 +81,9 @@ class 动作管理器类:
 
     def 点击(self, 日志=None, 延时=(1, 3)):
         if self.是否找到():
+            # 点击间隔内不能重复点击
+            if self.点击间隔 and time.time() - self.上次点击时间 < self.点击间隔:
+                return self
             if self.固定点击区域:
                 self.控制器.随机点击(self.固定点击区域)
             elif self.偏移点击区域:
@@ -89,6 +95,7 @@ class 动作管理器类:
             if 日志:
                 self.更新数据("日志", f"{self.当前界面}: {日志}")
             time.sleep(random.uniform(*延时))
+            self.上次点击时间 = time.time()
         return self
 
     def 偏移点击(self, 区域):
@@ -110,6 +117,11 @@ class 动作管理器类:
     def 设置大图路径(self, 路径):
         """设置大图路径"""
         self.大图路径 = 路径
+        return self
+
+    def 设置点击频率(self, 间隔):
+        """设置点击频率, 单位: 秒"""
+        self.点击间隔 = 间隔
         return self
 
     def 设置字库(self, 字库集合):

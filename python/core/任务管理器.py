@@ -271,22 +271,23 @@ class 任务界面状态机类:
             self.注册界面集合[界面名称] = 函数
         return 装饰器
 
-    def _尝试执行误触(self):
-        
+    def _尝试执行误触(self, 区域 = None):
+        if not 区域:
+            return False
         # 根据概率决定是否触发误触
-        if random.random() > 0.03:
+        if random.random() > 0.05:
             return False
         
         # 随机选择误触类型
         误触类型 = random.choices(
             ['点击', '滑动', '等待'],
-            weights=[0.5, 0.2, 0.3],  # 点击50%, 滑动20%, 等待30%
+            weights=[0.7, 0, 0.3],  # 点击50%, 滑动20%, 等待30%
             k=1
         )[0]
         self.更新数据("日志", f"[误触模拟] 误触 - 类型: {误触类型}")
         
         if 误触类型 == '点击':
-            self.控制器.随机点击("0,0,1280,720")
+            self.控制器.随机点击(区域)
         elif 误触类型 == '滑动':
             pass
         else:  # 等待
@@ -352,10 +353,6 @@ class 任务界面状态机类:
 
         while self.任务未完成:
 
-            # 在当前不处于未知界面时，尝试执行随机误触, 避免干扰未知界面的操作
-            if self._未知开始时间 is None:
-                self._尝试执行误触()
-            
             # 每轮开始时重置截图上下文
             self._截图上下文.新轮次()
             截图 = self._截图上下文.获取截图()
@@ -371,7 +368,9 @@ class 任务界面状态机类:
             for 界面名称 in 优先列表 + [k for k in self.注册界面集合.keys() if k not in 优先列表]:
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     已找到 = True
-                    self.更新上下文(上一状态=self.当前界面名)
+                    if self._尝试执行误触(self.界面识别缓存[界面名称].误触区域):
+                        continue
+                    self.更新上下文(上次识别界面名=self.当前界面名)
                     self.更新上下文(参数配置=参数配置)
                     self.当前界面名 = 界面名称
                     if self._未知开始时间 is not None:
