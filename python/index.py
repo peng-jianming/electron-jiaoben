@@ -42,8 +42,9 @@ class 主程序:
         处理器 = {
             "打开日志": lambda d: self.日志管理器.打开日志(d.get("账号")),
             "获取设备列表": lambda d: self.设备池管理器.获取设备列表(),
-            "获取任务列表": lambda d: self.通信管理器.发送到Electron("task-list", 任务管理器类.获取所有任务列表().keys()),
+            "获取任务列表": lambda d: self.通信管理器.发送到Electron("task-list",list(任务管理器类.获取所有任务列表().keys())),
             "获取账号列表": lambda d: self.通信管理器.发送到Electron("account-list", self.账号管理器.获取账号列表()),
+            "设置账号任务配置列表": lambda d: self.账号管理器.设置任务配置列表(d.get("账号"), d.get("任务配置列表")),
             "禁用设备": lambda d: self.设备池管理器.禁用设备(d.get("设备ID")),
             "启用设备": lambda d: self.设备池管理器.启用设备(d.get("设备ID")) and self.处理账号等待队列(),
             "账号开始任务": self.账号开始任务,

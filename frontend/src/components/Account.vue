@@ -13,11 +13,12 @@
         <el-button
           type="primary"
           @click="handleBatchStart"
-          :disabled="!taskSelectValue.length"
+          :disabled="!taskSelectValue.length && !list.some(r => r.任务配置列表.length)"
         >全部开始</el-button>
         <el-button type="warning" @click="emit('batchPause')">全部暂停</el-button>
         <el-button type="success" @click="emit('batchResume')">全部恢复</el-button>
         <el-button type="danger" @click="emit('batchEnd')">全部结束</el-button>
+        <el-button type="info" :disabled="list.some(r => isRunning(r))" @click="handleRefreshAllTaskConfig">刷新全部任务配置</el-button>
       </div>
     </div>
 
@@ -68,7 +69,7 @@
         <el-table-column prop="当前任务" label="当前任务" min-width="30" show-overflow-tooltip />
         <el-table-column prop="日志" label="日志" min-width="140" show-overflow-tooltip />
 
-        <el-table-column label="操作" width="310" fixed="right" align="center">
+        <el-table-column label="操作" width="420" fixed="right" align="center">
           <template #default="scope">
             <el-button
               type="primary"
@@ -99,6 +100,12 @@
               size="small"
               @click="emit('openLog', scope.row)"
             >日志</el-button>
+            <el-button
+              type="info"
+              size="small"
+              :disabled="isRunning(scope.row)"
+              @click="emit('refreshTaskConfig', scope.row)"
+            >刷新任务配置</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -166,6 +173,7 @@ const emit = defineEmits([
   "batchResume",
   "batchEnd",
   "openLog",
+  "refreshTaskConfig",
 ]);
 
 const expandedRowKeys = ref([]);
@@ -228,6 +236,12 @@ function getLogClass(log) {
   if (log.includes("警告") || log.includes("warn")) return "log-warn";
   if (log.includes("成功") || log.includes("完成") || log.includes("success")) return "log-success";
   return "";
+}
+
+function handleRefreshAllTaskConfig() {
+  props.list.forEach(r => {
+    emit("refreshTaskConfig", r);
+  });
 }
 
 </script>

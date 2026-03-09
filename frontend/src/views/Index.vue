@@ -93,6 +93,7 @@
               @batchResume="handleBatchResume"
               @batchEnd="handleBatchEnd"
               @openLog="handleOpenLog"
+              @refreshTaskConfig="handleRefreshTaskConfig"
             />
             <Device
               v-show="currentTab === 'device'"
@@ -287,6 +288,10 @@ const handleEnableDevice = (row) => {
 
 const handleDisableDevice = (row) => {
   sendToBackend("禁用设备", { 设备ID: row.设备ID });
+};
+
+const handleRefreshTaskConfig = (row) => {
+  sendToBackend("设置账号任务配置列表", { 账号: row.账号, 任务配置列表: JSON.parse(JSON.stringify(taskSelectValue.value)) });
 };
 
 // ─── 批量操作 ────────────────────────────────
