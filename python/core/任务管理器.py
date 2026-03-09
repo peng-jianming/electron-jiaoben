@@ -1,8 +1,10 @@
 import os
+import sys
 import json
 import time
 import random
 import threading
+import importlib
 import numpy as np
 from PIL import Image
 
@@ -12,74 +14,20 @@ from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 设置 import (
     字库文件路径, 模型文件路径, 音乐文件路径,
-    未知截图目录, 界面配置文件路径
+    未知截图目录, 界面配置文件路径, 任务目录
 )
 
 
-
-def 发现所有任务模块():
-    import pkgutil
-    import importlib
-    """
-    扫描同级的 `任务` 包下所有模块，以文件名作为任务名，收集文件下的 `创建任务` 函数。
-    兼容两种包结构：
-        - 顶层: core / 任务
-        - 上层包: python.core / python.任务
-    """
-    模块名片段 = __name__.split(".")
-    if len(模块名片段) >= 2:
-        # 去掉最后两个片段（如 core.任务管理器），在同一父包下寻找兄弟包 任务
-        父包片段 = 模块名片段[:-2]
-    else:
-        父包片段 = []
-
-    if 父包片段:
-        任务包名 = ".".join(父包片段 + ["任务"])
-    else:
-        任务包名 = "任务"
-
-    try:
-        任务包模块 = importlib.import_module(任务包名)
-    except Exception as e:
-        print(f"[任务发现] 导入任务包 {任务包名} 失败: {e}")
-        return {}
-
-    结果 = {}
-    忽略模块名 = {'__init__', '任务管理器'}
-
-    for 查找器, 模块全名, 是否包 in pkgutil.iter_modules(任务包模块.__path__, 任务包名 + '.'):
-        # 文件名（不含 .py）即任务名
-        任务名 = 模块全名.split('.')[-1]
-        if 任务名 in 忽略模块名:
-            continue
-        try:
-            模块 = importlib.import_module(模块全名)
-        except Exception as e:
-            print(f"[任务发现] 导入模块 {模块全名} 失败: {e}")
-            continue
-
-        创建任务 = getattr(模块, '创建任务', None)
-        if 创建任务 is None:
-            print(f"[任务发现] 跳过 {任务名}: 缺少 创建任务")
-            continue
-        if not callable(创建任务):
-            print(f"[任务发现] 跳过 {任务名}: 创建任务 不可调用")
-            continue
-
-        结果[任务名] = 创建任务
-        print(f"[任务发现] 已注册任务: {任务名}")
-
-    return 结果
-
-
 class 任务管理器类:
+    # 任务管理器, 负责任务的运行工作, 包括任务的加载、运行、保存进度等。
+    # 结束,暂停,恢复,由线程控制器强制控制线程运行状态.
     def __init__(self, 参数集合):
         self.设备ID = 参数集合.get("设备ID")
         self.任务配置列表 = 参数集合.get("任务配置列表")
         self.更新数据 = 参数集合.get("更新数据")
         self.参数集合 = 参数集合
-        
-        self._任务类型映射 = 发现所有任务模块()
+
+        self._任务类型映射 = self.获取所有任务列表()
 
         # 设备控制器实例
         self.控制器 = 设备控制器类(self.设备ID)
@@ -95,22 +43,65 @@ class 任务管理器类:
         self.界面识别缓存 = {}
         self.界面集合 = self._加载界面配置(界面配置文件路径)
 
-        self.开始()
+        self.运行()
 
-    def 开始(self):
+    @staticmethod
+    def 获取所有任务列表():
+        """
+        扫描 任务目录 下所有 .py 模块，以文件名作为任务名，收集模块下的 `创建任务` 函数。
+        """
+        结果 = {}
+        忽略模块名 = {'__init__', '任务管理器'}
+        父目录 = os.path.dirname(任务目录)
+        包名 = os.path.basename(任务目录)
+
+        if 父目录 and 父目录 not in sys.path:
+            sys.path.insert(0, 父目录)
+
+        if not os.path.isdir(任务目录):
+            print(f"[任务发现] 任务目录不存在: {任务目录}")
+            return {}
+
+        for 文件名 in os.listdir(任务目录):
+            if not 文件名.endswith(".py"):
+                continue
+            任务名 = 文件名[:-3]
+            if 任务名 in 忽略模块名:
+                continue
+            模块全名 = f"{包名}.{任务名}"
+            try:
+                模块 = importlib.import_module(模块全名)
+            except Exception as e:
+                print(f"[任务发现] 导入模块 {模块全名} 失败: {e}")
+                continue
+
+            创建任务 = getattr(模块, "创建任务", None)
+            if 创建任务 is None:
+                print(f"[任务发现] 跳过 {任务名}: 缺少 创建任务")
+                continue
+            if not callable(创建任务):
+                print(f"[任务发现] 跳过 {任务名}: 创建任务 不可调用")
+                continue
+
+            结果[任务名] = 创建任务
+            print(f"[任务发现] 已注册任务: {任务名}")
+
+        return 结果
+
+    def 运行(self):
         self.更新数据("任务配置列表", self.任务配置列表)
         for 任务配置 in self.任务配置列表:
             if 任务配置.get("是否完成"):
                 continue
             # 保存进度
-            self.更新数据("当前任务", f"{任务配置.get("名称")}")
-            self.更新数据("日志", f"{任务配置.get("名称")} 开始")
+            self.更新数据("当前任务", 任务配置.get("名称"))
+            self.更新数据("日志", f"{任务配置.get('名称')} 开始")
             任务状态机实例 = self._任务类型映射[任务配置.get("名称")]()
             任务状态机实例.开始(self.控制器, self.界面集合, self._截图上下文, self.界面识别缓存, self.更新数据, 任务配置.get("参数配置", {}))
             # 保存进度
             任务配置["是否完成"] = True
             self.更新数据("任务配置列表", self.任务配置列表)
-            self.更新数据("日志", f"{任务配置.get("名称")} 完成")
+            self.更新数据("日志", f"{任务配置.get('名称')} 完成")
 
         self.更新数据("日志", "所有任务完成")
 

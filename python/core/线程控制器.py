@@ -9,7 +9,7 @@ class 线程控制器类:
     """
     lock = threading.Lock()
 
-    def __init__(self, 最大线程数量, 回调函数, 线程结束后回调函数=None, 打印回调函数=None, 所有线程结束后回调函数=None):
+    def __init__(self, 回调函数, 最大线程数量=999, 线程结束后回调函数=None, 打印回调函数=None, 所有线程结束后回调函数=None):
         """
         :param thread_max_num:最大线程数量
         :param 回调函数:回调函数，回调自动填写参数num

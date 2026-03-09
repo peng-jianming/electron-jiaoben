@@ -3,8 +3,6 @@
 """
 import os
 
-最大线程数 = 30
-
 # 项目根目录（与 main.py 同目录）
 项目根目录 = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,6 +14,8 @@ import os
 
 # 未知界面截图目录
 未知截图目录 = os.path.join(资源目录, "未知界面截图目录")
+
+任务目录 = os.path.join(项目根目录, "任务")
 
 # 日志目录
 日志目录 = os.path.join(资源目录, "日志")
