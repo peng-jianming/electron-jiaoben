@@ -28,6 +28,7 @@
         row-key="账号"
         :expand-row-keys="expandedRowKeys"
         @expand-change="onExpandChange"
+        @row-contextmenu="onRowContextmenu"
         :row-class-name="tableRowClassName"
         border
         size="small"
@@ -68,47 +69,61 @@
 
         <el-table-column prop="当前任务" label="当前任务" min-width="30" show-overflow-tooltip />
         <el-table-column prop="日志" label="日志" min-width="140" show-overflow-tooltip />
-
-        <el-table-column label="操作" width="420" fixed="right" align="center">
-          <template #default="scope">
-            <el-button
-              type="primary"
-              size="small"
-              :disabled="(!props.taskSelectValue.length && !scope.row.任务配置列表.length) || isRunning(scope.row)"
-              @click="handleStart(scope.row)"
-            >开始</el-button>
-            <el-button
-              type="warning"
-              size="small"
-              :disabled="scope.row.状态 !== '运行中'"
-              @click="emit('pauseTask', scope.row)"
-            >暂停</el-button>
-            <el-button
-              type="success"
-              size="small"
-              :disabled="scope.row.状态 !== '已暂停'"
-              @click="emit('resumeTask', scope.row)"
-            >恢复</el-button>
-            <el-button
-              type="danger"
-              size="small"
-              :disabled="!isActive(scope.row)"
-              @click="emit('endTask', scope.row)"
-            >结束</el-button>
-            <el-button
-              type="info"
-              size="small"
-              @click="emit('openLog', scope.row)"
-            >日志</el-button>
-            <el-button
-              type="info"
-              size="small"
-              :disabled="isRunning(scope.row)"
-              @click="emit('refreshTaskConfig', scope.row)"
-            >刷新任务配置</el-button>
-          </template>
-        </el-table-column>
       </el-table>
+
+      <!-- 右键菜单 -->
+      <div
+        v-show="contextMenu.visible"
+        class="context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @contextmenu.prevent
+      >
+        <div
+          class="context-menu-item"
+          :class="{ disabled: (!props.taskSelectValue.length && !contextMenu.row?.任务配置列表?.length) || isRunning(contextMenu.row) }"
+          @click="handleContextMenuStart"
+        >
+          <span class="item-icon primary">▶</span>
+          开始
+        </div>
+        <div
+          class="context-menu-item"
+          :class="{ disabled: contextMenu.row?.状态 !== '运行中' }"
+          @click="handleContextMenuPause"
+        >
+          <span class="item-icon warning">⏸</span>
+          暂停
+        </div>
+        <div
+          class="context-menu-item"
+          :class="{ disabled: contextMenu.row?.状态 !== '已暂停' }"
+          @click="handleContextMenuResume"
+        >
+          <span class="item-icon success">▶</span>
+          恢复
+        </div>
+        <div
+          class="context-menu-item"
+          :class="{ disabled: !isActive(contextMenu.row) }"
+          @click="handleContextMenuEnd"
+        >
+          <span class="item-icon danger">⏹</span>
+          结束
+        </div>
+        <div class="context-menu-divider" />
+        <div class="context-menu-item" @click="handleContextMenuLog">
+          <span class="item-icon info">📋</span>
+          日志
+        </div>
+        <div
+          class="context-menu-item"
+          :class="{ disabled: isRunning(contextMenu.row) }"
+          @click="handleContextMenuRefresh"
+        >
+          <span class="item-icon info">🔄</span>
+          刷新任务配置
+        </div>
+      </div>
     </div>
 
     <!-- 统计信息 -->
@@ -148,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { Loading } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 
@@ -176,6 +191,78 @@ const emit = defineEmits([
   "refreshTaskConfig",
 ]);
 
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  row: null,
+});
+
+function onRowContextmenu(row, column, event) {
+  event.preventDefault();
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    row,
+  };
+}
+
+function closeContextMenu() {
+  contextMenu.value.visible = false;
+  contextMenu.value.row = null;
+}
+
+function handleContextMenuStart() {
+  if (contextMenu.value.row && !(!props.taskSelectValue.length && !contextMenu.value.row.任务配置列表?.length) && !isRunning(contextMenu.value.row)) {
+    handleStart(contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+function handleContextMenuPause() {
+  if (contextMenu.value.row?.状态 === "运行中") {
+    emit("pauseTask", contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+function handleContextMenuResume() {
+  if (contextMenu.value.row?.状态 === "已暂停") {
+    emit("resumeTask", contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+function handleContextMenuEnd() {
+  if (contextMenu.value.row && isActive(contextMenu.value.row)) {
+    emit("endTask", contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+function handleContextMenuLog() {
+  if (contextMenu.value.row) {
+    emit("openLog", contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+function handleContextMenuRefresh() {
+  if (contextMenu.value.row && !isRunning(contextMenu.value.row)) {
+    emit("refreshTaskConfig", contextMenu.value.row);
+  }
+  closeContextMenu();
+}
+
+onMounted(() => {
+  document.addEventListener("click", closeContextMenu);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", closeContextMenu);
+});
+
 const expandedRowKeys = ref([]);
 watch(
   () => props.list,
@@ -192,10 +279,12 @@ function onExpandChange(_row, expandedRows) {
 }
 
 function isRunning(row) {
+  if (!row) return false;
   return row.状态 === '运行中' || row.状态 === '已暂停' || row.状态 === '等待设备';
 }
 
 function isActive(row) {
+  if (!row) return false;
   return row.状态 === '运行中' || row.状态 === '已暂停' || row.状态 === '等待设备';
 }
 
@@ -346,8 +435,60 @@ function handleRefreshAllTaskConfig() {
   }
 }
 
+// ─── 右键菜单 ──────────────────────────────
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 140px;
+  padding: 6px 0;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.15), 0 0 1px rgba(15, 23, 42, 0.1);
+  border: 1px solid @border-color;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: @text-primary;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover:not(.disabled) {
+    background: @bg-light;
+  }
+
+  &.disabled {
+    color: @text-muted;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: @border-color;
+}
+
+.item-icon {
+  font-size: 12px;
+  width: 18px;
+  text-align: center;
+
+  &.primary { color: @primary-color; }
+  &.success { color: @success-color; }
+  &.warning { color: @warning-color; }
+  &.danger { color: @danger-color; }
+  &.info { color: @text-secondary; }
+}
+
 // ─── 表格 ──────────────────────────────────
 .table-container {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
