@@ -139,10 +139,10 @@ class 动作管理器类:
         else:  
             return bool(self.x and self.y)
 
-    def 找到则点击(self, 延时=(1, 3), 日志=None) -> bool:
+    def 找到则点击(self, 延时=(0.5, 1), 日志=None) -> bool:
         return self.查找().点击(日志, 延时).是否找到()
 
-    def 直接点击(self, 延时=(1, 3), 日志=None) -> bool:
+    def 直接点击(self, 延时=(0.5, 1), 日志=None) -> bool:
         return self.点击(日志, 延时).是否找到()
 
     def _字库找图(self, 大图, 字库名, 相似度=0.9, 区域=""):
