@@ -4,7 +4,7 @@ ADB 控制器 - 封装 ADB 命令实现截图和点击功能
 import subprocess
 import time
 import random
-from 设置 import ADB路径
+from 设置 import ADB路径, 调试耗时
 
 
 class ADB控制器类:
@@ -107,12 +107,17 @@ class ADB控制器类:
             PNG 图像的字节数据，失败返回 None
         """
         try:
+            if 调试耗时:
+                开始 = time.perf_counter()
             结果 = subprocess.run(
                 f"{self._命令前缀} exec-out screencap -p",
                 shell=True,
                 capture_output=True,
                 timeout=10
             )
+            if 调试耗时:
+                耗时 = (time.perf_counter() - 开始) * 1000
+                print(f"[耗时] ADB截图: {耗时:.0f}ms")
             if 结果.returncode == 0:
                 return 结果.stdout
             return None
@@ -141,6 +146,9 @@ class ADB控制器类:
         if not x or not y:
             return False
 
+        if 调试耗时:
+            点击开始 = time.perf_counter()
+
         # 按下
         成功1, 输出1 = self._执行命令(
             f"{self._命令前缀} shell input motionevent DOWN {x} {y}"
@@ -163,6 +171,9 @@ class ADB控制器类:
             print(f"模拟点击抬起失败: {输出2}")
             return False
 
+        if 调试耗时:
+            耗时 = (time.perf_counter() - 点击开始) * 1000
+            print(f"[耗时] ADB模拟点击: {耗时:.0f}ms")
         return True
 
     def 长按(self, x, y, 时长毫秒=1000):
@@ -470,4 +481,10 @@ class ADB控制器类:
             end_y = max(ey, min(ey + eh, raw_end_y))
 
         # print(f"拟人滑动_区域: start=({start_x},{start_y}) end=({end_x},{end_y}) 竖直为主={竖直为主}")
-        return self.拟人滑动(start_x, start_y, end_x, end_y)
+        if 调试耗时:
+            滑动开始 = time.perf_counter()
+        结果 = self.拟人滑动(start_x, start_y, end_x, end_y)
+        if 调试耗时:
+            耗时 = (time.perf_counter() - 滑动开始) * 1000
+            print(f"[耗时] ADB拟人滑动: {耗时:.0f}ms")
+        return 结果

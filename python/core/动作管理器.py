@@ -7,6 +7,7 @@ import math
 import cv2
 import numpy as np
 from PIL import Image
+from 设置 import 调试耗时
 
 
 class 动作管理器类:
@@ -49,6 +50,8 @@ class 动作管理器类:
         if not self.查找字符串:
             return self
 
+        if 调试耗时:
+            查找开始 = time.perf_counter()
         截图 =  self.大图路径 if self.大图路径 else self._截图上下文.获取截图()
         self.x = 0
         self.y = 0
@@ -77,6 +80,10 @@ class 动作管理器类:
                     self.y = 结果["目标y"]
                     self.w = 结果["目标宽"]
                     self.h = 结果["目标高"]
+        if 调试耗时:
+            耗时 = (time.perf_counter() - 查找开始) * 1000
+            方式名 = "yolo" if self.方式 == "yolo" else "字库"
+            print(f"[耗时] 查找({方式名}/{self.查找字符串}): {耗时:.0f}ms, 找到={self.是否找到()}")
         return self
 
     def 点击(self, 日志=None, 延时=(1, 3)):
@@ -84,6 +91,8 @@ class 动作管理器类:
             # 点击间隔内不能重复点击
             if self.点击间隔 and time.time() - self.上次点击时间 < self.点击间隔:
                 return self
+            if 调试耗时:
+                点击开始 = time.perf_counter()
             if self.固定点击区域:
                 self.控制器.随机点击(self.固定点击区域)
             elif self.偏移点击区域:
@@ -94,7 +103,11 @@ class 动作管理器类:
                 self.控制器.随机点击(f"{self.x},{self.y},{self.w},{self.h}")
             if 日志:
                 self.更新数据("日志", f"{self.当前界面}: {日志}")
-            time.sleep(random.uniform(*延时))
+            延时秒数 = random.uniform(*延时)
+            if 调试耗时:
+                点击耗时 = (time.perf_counter() - 点击开始) * 1000
+                print(f"[耗时] 点击执行: {点击耗时:.0f}ms, 即将延时: {延时秒数:.2f}s (范围{延时})")
+            time.sleep(延时秒数)
             self.上次点击时间 = time.time()
         return self
 
@@ -195,6 +208,8 @@ class 动作管理器类:
             偏移x, 偏移y = 裁剪x, 裁剪y
 
         # 遍历所有同名字库条目
+        if 调试耗时:
+            字库开始 = time.perf_counter()
         for 索引, 字库数据 in enumerate(字库数据列表):
             模板掩码 = 字库数据["模板掩码"]
             白点数量 = 字库数据["总数量"]
@@ -245,6 +260,9 @@ class 动作管理器类:
             # self.更新数据("日志", f"字库找图 - 字库名: {字库名}, 条目索引: {索引}/{len(字库数据列表) - 1}, 相似度: {最大值:.4f}, 位置: {最大位置}")
 
             if 最大值 >= 相似度:
+                if 调试耗时:
+                    匹配耗时 = (time.perf_counter() - 字库开始) * 1000
+                    print(f"[耗时] 字库找图匹配(试了{索引+1}/{len(字库数据列表)}条): {匹配耗时:.0f}ms")
                 return {
                     "原始x": 最大位置[0] + 偏移x,
                     "原始y": 最大位置[1] + 偏移y,
@@ -257,6 +275,9 @@ class 动作管理器类:
                     "相似度": float(最大值),
                 }
 
+        if 调试耗时 and 字库数据列表:
+            字库总耗时 = (time.perf_counter() - 字库开始) * 1000
+            print(f"[耗时] 字库找图未匹配(遍历{len(字库数据列表)}条): {字库总耗时:.0f}ms")
         return None
 
     def _yolo检测(self, 图像, 置信度阈值=0.6):

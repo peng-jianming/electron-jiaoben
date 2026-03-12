@@ -1,6 +1,8 @@
 """
 截图管理器 - 同一轮次复用截图
 """
+import time
+from 设置 import 调试耗时
 
 
 class 截图管理器类:
@@ -23,5 +25,10 @@ class 截图管理器类:
     def 获取截图(self):
         """懒加载截图，同轮次内复用"""
         if self._当前截图 is None:
+            if 调试耗时:
+                开始 = time.perf_counter()
             self._当前截图 = self._控制器.截图到内存()
+            if 调试耗时:
+                耗时 = (time.perf_counter() - 开始) * 1000
+                print(f"[耗时] 截图: {耗时:.0f}ms")
         return self._当前截图

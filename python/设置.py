@@ -56,6 +56,9 @@ else:
 # Socket.IO 服务器地址
 服务器地址 = "http://127.0.0.1:7072"
 
+# 调试耗时：为 True 时在控制台打印各步骤耗时，便于分析性能瓶颈
+调试耗时 = True
+
 
 # 确保目录存在
 os.makedirs(缓存目录, exist_ok=True)

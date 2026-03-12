@@ -14,7 +14,7 @@ from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 设置 import (
     字库文件路径, 模型文件路径, 音乐文件路径,
-    未知截图目录, 界面配置文件路径, 任务目录
+    未知截图目录, 界面配置文件路径, 任务目录, 调试耗时
 )
 
 
@@ -22,6 +22,8 @@ class 任务管理器类:
     # 任务管理器, 负责任务的运行工作, 包括任务的加载、运行、保存进度等。
     # 结束,暂停,恢复,由线程控制器强制控制线程运行状态.
     def __init__(self, 参数集合):
+        if 调试耗时:
+            初始化开始 = time.perf_counter()
         self.设备ID = 参数集合.get("设备ID")
         self.任务配置列表 = 参数集合.get("任务配置列表")
         self.更新数据 = 参数集合.get("更新数据")
@@ -43,6 +45,8 @@ class 任务管理器类:
         self.界面识别缓存 = {}
         self.界面集合 = self._加载界面配置(界面配置文件路径)
 
+        if 调试耗时:
+            print(f"[耗时] 任务管理器初始化: {(time.perf_counter() - 初始化开始) * 1000:.0f}ms")
         self.运行()
 
     @staticmethod
@@ -353,6 +357,9 @@ class 任务界面状态机类:
 
         while self.任务未完成:
 
+            if 调试耗时:
+                轮次开始 = time.perf_counter()
+
             # 每轮开始时重置截图上下文
             self._截图上下文.新轮次()
             截图 = self._截图上下文.获取截图()
@@ -365,9 +372,13 @@ class 任务界面状态机类:
             if self.上一界面名 and self.上一界面名 != self.当前界面名:
                 优先列表.append(self.上一界面名)
 
-            for 界面名称 in 优先列表 + [k for k in self.注册界面集合.keys() if k not in 优先列表]:
+            界面列表 = 优先列表 + [k for k in self.注册界面集合.keys() if k not in 优先列表]
+            for 界面名称 in 界面列表:
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     已找到 = True
+                    if 调试耗时:
+                        识别耗时 = (time.perf_counter() - 轮次开始) * 1000
+                        print(f"[耗时] 界面识别到「{界面名称}」: 本轮识别共 {识别耗时:.0f}ms")
                     if self._尝试执行误触(self.界面识别缓存[界面名称].误触区域):
                         continue
                     self.更新上下文(上次识别界面名=self.当前界面名)
@@ -376,7 +387,12 @@ class 任务界面状态机类:
                     if self._未知开始时间 is not None:
                         self.更新数据("故障", False)
                     self._未知开始时间 = None
+                    if 调试耗时:
+                        动作开始 = time.perf_counter()
                     self.注册界面集合[界面名称](self.上下文, self.界面集合[界面名称])
+                    if 调试耗时:
+                        动作耗时 = (time.perf_counter() - 动作开始) * 1000
+                        print(f"[耗时] 执行界面动作「{界面名称}」: {动作耗时:.0f}ms")
 
             if not 已找到:
                 是否处于未知界面 = True
@@ -403,6 +419,9 @@ class 任务界面状态机类:
                     else:
                         self.更新数据("日志", f"目前位于未知界面, {60 - 经过时间:.0f} 秒后报警")
 
+            if 调试耗时:
+                轮次总耗时 = (time.perf_counter() - 轮次开始) * 1000
+                print(f"[耗时] 本轮总耗时: {轮次总耗时:.0f}ms, 即将sleep(0.2s)")
             time.sleep(0.2)
 
     def 结束(self):
