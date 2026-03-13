@@ -280,12 +280,22 @@ class 任务界面状态机类:
         self.注册界面集合 = {}
         self.任务未完成 = True
         self.上下文 = {}
+        self._任务超时时间 = None
 
     def 注册界面(self, 界面名称):
         """装饰器：注册界面处理函数"""
         def 装饰器(函数):
             self.注册界面集合[界面名称] = 函数
         return 装饰器
+
+    def 设置超时时间(self, 秒):
+        """由具体任务脚本调用，设置任务级别超时时间（秒）"""
+        try:
+            self._任务超时时间 = float(秒)
+        except Exception:
+            # 解析失败则忽略，保持原值
+            pass
+        return self
 
     def _尝试执行误触(self, 区域 = None):
         if not 区域:
@@ -362,10 +372,11 @@ class 任务界面状态机类:
         self.界面集合 = 环境.界面集合
         self.更新数据 = 环境.更新数据
 
-        self.当前界面名 = None
-        self.上一界面名 = None
-        self._未知开始时间 = None
-        self._未知超时时间 = 60
+        当前界面名 = None
+        上一界面名 = None
+        未知开始时间 = None
+        未知超时时间 = 60
+        任务开始时间 = time.time()
         self.更新上下文(环境=环境)
 
         while self.任务未完成:
@@ -377,21 +388,21 @@ class 任务界面状态机类:
 
             # 优先检测当前/上一个界面
             优先列表 = []
-            if self.当前界面名:
-                优先列表.append(self.当前界面名)
-            if self.上一界面名 and self.上一界面名 != self.当前界面名:
-                优先列表.append(self.上一界面名)
+            if 当前界面名:
+                优先列表.append(当前界面名)
+            if 上一界面名 and 上一界面名 != 当前界面名:
+                优先列表.append(上一界面名)
 
             for 界面名称 in 优先列表 + [k for k in self.注册界面集合.keys() if k not in 优先列表]:
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     已找到 = True
                     if self._尝试执行误触(self.界面识别缓存[界面名称].误触区域):
                         continue
-                    self.更新上下文(上次识别界面名=self.当前界面名)
-                    self.当前界面名 = 界面名称
-                    if self._未知开始时间 is not None:
+                    self.更新上下文(上次识别界面名=当前界面名)
+                    当前界面名 = 界面名称
+                    if 未知开始时间 is not None:
                         self.更新数据("故障", False)
-                    self._未知开始时间 = None
+                    未知开始时间 = None
                     self.注册界面集合[界面名称](self.上下文, self.界面集合[界面名称])
 
             if not 已找到:
@@ -408,16 +419,26 @@ class 任务界面状态机类:
                             self.更新数据("日志", f"目前位于未注册界面: {界面名称}, 直接关闭当前界面")
                             break
                 if 是否处于未知界面:
-                    if self._未知开始时间 is None:
-                        self._未知开始时间 = time.time()
-                    经过时间 = time.time() - self._未知开始时间
-                    if 经过时间 >= self._未知超时时间:
+                    if 未知开始时间 is None:
+                        未知开始时间 = time.time()
+                    经过时间 = time.time() - 未知开始时间
+                    if 经过时间 >= 未知超时时间:
                         self.更新数据("故障", True)
                         self.保存未知图片(截图)
                         self.播放音乐()
-                        self._未知开始时间 = None
+                        未知开始时间 = None
                     else:
                         self.更新数据("日志", f"目前位于未知界面, {60 - 经过时间:.0f} 秒后报警")
+
+            # 检查任务级别超时
+            if self._任务超时时间 is not None:
+                任务已用时 = time.time() - 任务开始时间
+                if 任务已用时 >= self._任务超时时间:
+                    self.更新数据("日志", f"任务已超过设定超时时间 {self._任务超时时间:.0f} 秒, 播放提示音乐")
+                    self.播放音乐()
+                    self.更新数据("故障", True)
+                    # 为避免每轮循环反复触发，只播一次后清空超时配置
+                    self._任务超时时间 = None
 
             time.sleep(0.1)
 
