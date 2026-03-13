@@ -21,17 +21,7 @@
     <div style="flex: 1; overflow: auto">
       <vue-json-pretty v-if="data" deep="1" :data="data" showIcon :collapsedOnClickBrackets="false">
         <template #renderNodeValue="{ node, defaultValue }">
-          <el-select
-            v-if="node.key == '类型'"
-            v-model="node.content"
-            size="small"
-            style="display: inline-block; width: 150px"
-            @change="handleTypeChange(node)"
-          >
-            <el-option label="固定区域" value="固定区域" />
-            <el-option label="点阵" value="点阵" />
-            <el-option label="图片" value="图片" />
-          </el-select>
+          <span v-if="node.key == '类型'">{{ node.content }}</span>
           <el-input
             v-else
               style="display: inline-block; width: 90%"
@@ -55,13 +45,9 @@
             <el-button type="primary" size="small" @click="handleTest(node)"
               >测试</el-button
             >
-            <el-button v-if="node.key == '点阵'" type="primary" size="small" @click="handleAddConfig(node)"
-              >制作点阵</el-button
+            <el-button  type="primary" size="small" @click="handleAddConfig(node)"
+              >制作点阵/添加图片</el-button
             >
-            <el-button v-if="node.类型 == '图片'" type="primary" size="small"
-              >制作图片</el-button
-            >
-            {{ node }}
           </template>
 
           <el-button
@@ -531,29 +517,6 @@ const hasSelectionRect = computed(() => {
   return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
 });
 
-const handleTypeChange = (node) => {
-  const keys = getPathKeys(node.path);
-  if (!keys.length) return;
-
-  let target = data.value;
-  keys.forEach((key, index) => {
-    if (index < keys.length - 1) {
-      target = target[key];
-    }
-  });
-
-  const lastKey = keys[keys.length - 1];
-  const oldValue = target?.[lastKey];
-  const oldStr = oldValue == null ? "" : String(oldValue);
-  const newStr = node.content == null ? "" : String(node.content);
-
-  if (newStr === oldStr) {
-    return;
-  }
-
-  target[lastKey] = newStr;
-  ElMessage.success("保存成功");
-};
 
 const handleBlur = (node) => {
   const keys = getPathKeys(node.path);
