@@ -18,37 +18,27 @@
         </template>
       </el-input>
     </div>
-    <!-- <div style="display: flex; align-items: center; gap: 10px">
-      <el-cascader
-        :key="cascaderOptionsKey"
-        :props="cascaderProps"
-        style="width: 300px"
-        size="small"
-        placeholder="请选择配置类型"
-        v-model="selectedCascader"
-      />
-      <el-input v-model="selectedName" size="small" placeholder="名称输入框" />
-      <el-button
-        type="primary"
-        size="small"
-        @click="handleAdd"
-        :disabled="!selectedCascader.length || !selectedName"
-        >添加</el-button
-      >
-    </div> -->
     <div style="flex: 1; overflow: auto">
       <vue-json-pretty v-if="data" deep="1" :data="data" showIcon :collapsedOnClickBrackets="false">
         <template #renderNodeValue="{ node, defaultValue }">
-          <span v-if="node.key === '点阵'">{{
-            node.content ? '"已有点阵"' : '"没有点阵"'
-          }}</span>
-          <span v-else
-            ><el-input
+          <el-select
+            v-if="node.key == '类型'"
+            v-model="node.content"
+            size="small"
+            style="display: inline-block; width: 150px"
+            @change="handleTypeChange(node)"
+          >
+            <el-option label="固定区域" value="固定区域" />
+            <el-option label="点阵" value="点阵" />
+            <el-option label="图片" value="图片" />
+          </el-select>
+          <el-input
+            v-else
               style="display: inline-block; width: 90%"
               v-model="node.content"
               size="small"
               @blur="handleBlur(node)"
-          /></span>
+          />
         </template>
         <template #renderNodeActions="{ node, defaultActions }">
           <template
@@ -65,9 +55,13 @@
             <el-button type="primary" size="small" @click="handleTest(node)"
               >测试</el-button
             >
-            <el-button type="primary" size="small" @click="handleAddConfig(node)"
+            <el-button v-if="node.key == '点阵'" type="primary" size="small" @click="handleAddConfig(node)"
               >制作点阵</el-button
             >
+            <el-button v-if="node.类型 == '图片'" type="primary" size="small"
+              >制作图片</el-button
+            >
+            {{ node }}
           </template>
 
           <el-button
@@ -293,7 +287,7 @@
 import VueJsonPretty from "vue-json-pretty";
 import "vue-json-pretty/lib/styles.css";
 import { ref, watch, onMounted, computed, h } from "vue";
-import { ElMessage, ElMessageBox, ElInput, ElCheckbox } from "element-plus";
+import { ElMessage, ElMessageBox, ElInput, ElCheckbox, ElRadio, ElRadioGroup } from "element-plus";
 import { Close, Picture } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -537,6 +531,30 @@ const hasSelectionRect = computed(() => {
   return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
 });
 
+const handleTypeChange = (node) => {
+  const keys = getPathKeys(node.path);
+  if (!keys.length) return;
+
+  let target = data.value;
+  keys.forEach((key, index) => {
+    if (index < keys.length - 1) {
+      target = target[key];
+    }
+  });
+
+  const lastKey = keys[keys.length - 1];
+  const oldValue = target?.[lastKey];
+  const oldStr = oldValue == null ? "" : String(oldValue);
+  const newStr = node.content == null ? "" : String(node.content);
+
+  if (newStr === oldStr) {
+    return;
+  }
+
+  target[lastKey] = newStr;
+  ElMessage.success("保存成功");
+};
+
 const handleBlur = (node) => {
   const keys = getPathKeys(node.path);
   if (!keys.length) return;
@@ -691,8 +709,8 @@ const handleAddItem = (node) => {
     currentNode.value = getCurrentNode(node);
     itemNode = currentNode.value[node.key];
   }
-  // 是否是点阵类型（仅按钮需要）
-  const isMatrix = ref(true);
+  // 类型（仅按钮需要）：固定区域 / 点阵 / 图片
+  const type = ref("图片");
   // 名字
   const name = ref("");
 
@@ -715,17 +733,72 @@ const handleAddItem = (node) => {
                   {
                     style: "width:80px;text-align:right;",
                   },
-                  "是否点阵："
+                  "类型："
                 ),
-                h(ElCheckbox, {
-                  modelValue: isMatrix.value,
-                  "onUpdate:modelValue": (val) => {
-                    isMatrix.value = val;
+                h(
+                  ElRadioGroup,
+                  {
+                    modelValue: type.value,
+                    "onUpdate:modelValue": (val) => {
+                      type.value = val;
+                    },
                   },
-                }),
+                  () => [
+                    h(
+                      ElRadio,
+                      { label: "固定区域" },
+                      () => "固定区域"
+                    ),
+                    h(
+                      ElRadio,
+                      { label: "点阵" },
+                      () => "点阵"
+                    ),
+                    h(
+                      ElRadio,
+                      { label: "图片" },
+                      () => "图片"
+                    ),
+                  ]
+                ),
               ]
             )
-          : null,
+          : h(
+              "div",
+              {
+                style: "display:flex;align-items:center;gap:8px;",
+              },
+              [
+                h(
+                  "span",
+                  {
+                    style: "width:80px;text-align:right;",
+                  },
+                  "类型："
+                ),
+                h(
+                  ElRadioGroup,
+                  {
+                    modelValue: type.value,
+                    "onUpdate:modelValue": (val) => {
+                      type.value = val;
+                    },
+                  },
+                  () => [
+                    h(
+                      ElRadio,
+                      { label: "点阵" },
+                      () => "点阵"
+                    ),
+                    h(
+                      ElRadio,
+                      { label: "图片" },
+                      () => "图片"
+                    ),
+                  ]
+                ),
+              ]
+            ),
         h(
           "div",
           {
@@ -769,25 +842,28 @@ const handleAddItem = (node) => {
         return;
       }
 
-      if (node.key === "按钮" && !isMatrix.value) {
-        itemNode[key] = "";
-      } else {
-        if (node.path == "root") {
+      if (node.path == "root") {
           itemNode[key] = {
+            类型: type.value,
             查找区域: "",
             相似度: 0.9,
             状态: {},
             按钮: {},
             滑动区域: {},
-            识字区域: {}
+            识字区域: {},
+          };
+        } else if (type.value === "固定区域") {
+          itemNode[key] = {
+            类型: type.value,
+            固定区域: ""
           };
         } else {
           itemNode[key] = {
+            类型: type.value,
             查找区域: "",
             相似度: 0.9,
           };
         }
-      }
     })
     .catch(() => {});
 };
