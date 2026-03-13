@@ -512,3 +512,7 @@ def opencv字库识字(识别图片, 字库路径, 识别区域, 相似度, 文�
         result_texts.append("".join(current_word))
     # 有间隔时只返回第一个识别到的组合
     return result_texts[0] if result_texts else ""
+
+
+
+

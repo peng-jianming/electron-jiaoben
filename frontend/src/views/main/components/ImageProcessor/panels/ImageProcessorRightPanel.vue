@@ -33,6 +33,9 @@
       <el-tab-pane label="字库">
         <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
       </el-tab-pane>
+      <el-tab-pane label="图片库">
+        <ImageLibraryTab />
+      </el-tab-pane>
       <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
@@ -116,6 +119,7 @@ import FontLibraryTab from "../tabs/FontLibraryTab.vue";
 import FontLibraryMatchDebug from "../tabs/FontLibraryMatchDebug.vue";
 import FontLibraryOcrTest from "../tabs/FontLibraryOcrTest.vue";
 import ConfigTab from "../tabs/ConfigTab.vue";
+import ImageLibraryTab from "../tabs/ImageLibraryTab.vue";
 const props = defineProps({
   magnifierVisible: {
     type: Boolean,
