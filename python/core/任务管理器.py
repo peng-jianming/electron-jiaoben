@@ -253,6 +253,7 @@ class 任务管理器类:
             self.更新数据("日志", f"成功加载 {len(self.图片库缓存)} 张图片到图片库缓存")
         except Exception as e:
             self.更新数据("日志", f"加载图片库文件失败: {e}")
+
         return self.图片库缓存
 
     def 加载模型文件(self, 模型路径):
@@ -421,6 +422,7 @@ class 任务界面状态机类:
                         self.更新数据("故障", False)
                     未知开始时间 = None
                     self.注册界面集合[界面名称](self.上下文, self.界面集合[界面名称])
+                    break
 
             if not 已找到:
                 是否处于未知界面 = True

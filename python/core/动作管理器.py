@@ -25,7 +25,7 @@ class 动作管理器类:
         self.更新数据 = 更新数据
         self._截图上下文 = 截图上下文
         self.当前界面 = 配置.get("当前界面")
-        self.方式 = 配置.get("方式")
+        self.类型 = 配置.get("类型")
         self.查找字符串 = 配置.get("查找字符串")
         self.分类名 = 配置.get("分类名")
         self.大图路径 = 配置.get("大图路径")
@@ -57,7 +57,7 @@ class 动作管理器类:
         self.h = 0
 
         if 截图:
-            if self.方式 == "图片":
+            if self.类型 == "图片":
                 结果 = self._图片找图(
                     截图, self.查找字符串, self.相似度, self.查找区域
                 )
@@ -67,7 +67,7 @@ class 动作管理器类:
                     self.w = 结果["w"]
                     self.h = 结果["h"]
 
-            elif self.方式 == "点阵":
+            elif self.类型 == "点阵":
                 结果 = self._字库找图(
                     截图, self.查找字符串, self.相似度, self.查找区域
                 )
@@ -76,7 +76,7 @@ class 动作管理器类:
                     self.y = 结果["目标y"]
                     self.w = 结果["目标宽"]
                     self.h = 结果["目标高"]
-            elif self.方式 == "yolo":
+            elif self.类型 == "yolo":
                 结果 = self._yolo检测(截图, self.相似度)
                 if len(结果):
                     区域值 = [int(v) for v in self.查找区域.split(",")] if self.查找区域 else [0, 0, 0, 0]
