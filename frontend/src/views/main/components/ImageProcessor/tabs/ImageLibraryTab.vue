@@ -62,13 +62,16 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="140">
+      <el-table-column label="操作" width="200">
         <template #default="scope">
           <el-button type="primary" size="small" link @click.stop="handleShow(scope.row)">
             预览
           </el-button>
           <el-button type="primary" size="small" link @click.stop="handleTest(scope.row)">
             测试
+          </el-button>
+          <el-button type="danger" size="small" link @click.stop="handleDelete(scope.row)">
+            删除
           </el-button>
         </template>
       </el-table-column>
@@ -209,7 +212,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
 import { io } from "socket.io-client";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -389,6 +392,28 @@ function handleShow(row) {
 
 function handleRowClick(row) {
   handleShow(row);
+}
+
+async function handleDelete(row) {
+  if (!row) return;
+  const name = row.name || "该图片";
+  try {
+    await ElMessageBox.confirm(`确定要删除「${name}」吗？删除后将从图片库中移除并同步到 .npz 文件。`, "删除确认", {
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+  } catch {
+    return;
+  }
+  const index = imageList.value.findIndex((item) => item === row || (item.id !== undefined && item.id === row.id));
+  if (index !== -1) {
+    imageList.value.splice(index, 1);
+    ElMessage.success("已删除");
+    if (previewUrl.value === row.fullUrl) {
+      previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
+    }
+  }
 }
 
 function handleTest(row) {
