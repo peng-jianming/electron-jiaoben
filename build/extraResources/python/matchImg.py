@@ -3,6 +3,87 @@ import json
 import numpy as np
 from PIL import Image
 
+
+def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=cv2.TM_CCOEFF_NORMED):
+    """简单的 OpenCV 模板匹配封装。
+
+    :param large_array: 大图 numpy 数组 (H, W) 或 (H, W, C)
+    :param template_array: 模板图 numpy 数组 (h, w) 或 (h, w, C)
+    :param region: 检测区域 (x, y, width, height)，全 0 表示整图
+    :param method: OpenCV 匹配方法，默认 TM_CCOEFF_NORMED
+    :return: {"x", "y", "w", "h", "similarity"} 或 None
+    """
+    if large_array is None or template_array is None:
+        return None
+
+    # 转灰度
+    if len(large_array.shape) == 3:
+        large_gray = cv2.cvtColor(large_array, cv2.COLOR_BGR2GRAY)
+    else:
+        large_gray = large_array.copy()
+
+    if len(template_array.shape) == 3:
+        template_gray = cv2.cvtColor(template_array, cv2.COLOR_BGR2GRAY)
+    else:
+        template_gray = template_array.copy()
+
+    H, W = large_gray.shape[:2]
+    th, tw = template_gray.shape[:2]
+
+    x, y, width, height = region
+
+    # 解析检测区域
+    if x == 0 and y == 0 and width == 0 and height == 0:
+        search_area = large_gray
+        offset_x, offset_y = 0, 0
+    else:
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
+        if width <= 0:
+            width = W - x
+        if height <= 0:
+            height = H - y
+
+        crop_x = max(0, x)
+        crop_y = max(0, y)
+        crop_width = min(width, W - crop_x)
+        crop_height = min(height, H - crop_y)
+
+        if crop_width <= 0 or crop_height <= 0:
+            return None
+
+        search_area = large_gray[crop_y: crop_y + crop_height, crop_x: crop_x + crop_width]
+        offset_x, offset_y = crop_x, crop_y
+
+    # 模板不能比搜索区域大
+    if th > search_area.shape[0] or tw > search_area.shape[1]:
+        return None
+
+    # 进行模板匹配
+    result = cv2.matchTemplate(search_area, template_gray, method)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    # 根据不同方法选择相似度与坐标
+    if method in (cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED):
+        top_left = min_loc
+        similarity = float(1.0 - min_val)
+    else:
+        top_left = max_loc
+        similarity = float(max_val)
+
+    px = int(top_left[0])
+    py = int(top_left[1])
+
+    return {
+        "x": px + offset_x,
+        "y": py + offset_y,
+        "w": int(tw),
+        "h": int(th),
+        "similarity": similarity,
+    }
+
 def opencv字库找图(large_image_path, font_library_info_array, region=(0, 0, 0, 0), similarity=0.8):
     """
     根据字库信息数组进行颜色偏色找图，遍历数组直到找到符合相似度条件的就返回

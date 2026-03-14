@@ -24,6 +24,7 @@
           :current-device-id="currentDeviceId"
           ref="configTabRef"
           @add-font-library="handleAddFontLibrary"
+          @add-image-to-library="handleAddImageToLibrary"
           @start-code-generator-selection="
             (type) => $emit('start-code-generator-selection', type)
           "
@@ -34,7 +35,7 @@
         <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
       </el-tab-pane>
       <el-tab-pane label="图片库">
-        <ImageLibraryTab />
+        <ImageLibraryTab :current-device-id="currentDeviceId" ref="imageLibraryTabRef" />
       </el-tab-pane>
       <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab
@@ -177,6 +178,7 @@ const colorSelectionTabRef = ref(null);
 const imageUploadTabRef = ref(null);
 const codeGeneratorTabRef = ref(null);
 const fontLibraryTabRef = ref(null);
+const imageLibraryTabRef = ref(null);
 const configTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
@@ -396,6 +398,7 @@ defineExpose({
   getCodeGeneratorTabRef: () => codeGeneratorTabRef.value,
   getColorSelectionTabRef: () => colorSelectionTabRef.value,
   getConfigTabRef: () => configTabRef.value,
+  getImageLibraryTabRef: () => imageLibraryTabRef.value,
 });
 
 // 组件挂载时初始化 socket
@@ -431,6 +434,80 @@ onUnmounted(() => {
     deviceSocket = null;
   }
 });
+
+// 处理从 ConfigTab 发起的“添加图片到图片库”请求
+const handleAddImageToLibrary = async (payload) => {
+  try {
+    const { name, selectionRect, currentImageUrl } = payload || {};
+    if (!currentImageUrl) {
+      ElMessage.warning("当前没有图片，无法添加到图片库");
+      return;
+    }
+
+    const npzPath = imageLibraryTabRef.value?.getNpzPath?.() || "";
+    if (!npzPath) {
+      ElMessage.warning("请先在图片库标签页中选择 .npz 图片库文件");
+      return;
+    }
+
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          let startX = 0;
+          let startY = 0;
+          let width = img.width;
+          let height = img.height;
+
+          if (selectionRect && selectionRect.w > 0 && selectionRect.h > 0) {
+            startX = Math.max(0, Math.min(selectionRect.x, img.width - 1));
+            startY = Math.max(0, Math.min(selectionRect.y, img.height - 1));
+            width = Math.min(selectionRect.w, img.width - startX);
+            height = Math.min(selectionRect.h, img.height - startY);
+          }
+
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(
+            img,
+            startX,
+            startY,
+            width,
+            height,
+            0,
+            0,
+            width,
+            height
+          );
+          const dataUrl = canvas.toDataURL("image/png");
+          const base64 =
+            dataUrl.indexOf(",") >= 0 ? dataUrl.split(",")[1] : dataUrl;
+
+          imageLibraryTabRef.value?.addImageItemFromConfig?.({
+            name,
+            width,
+            height,
+            base64,
+          });
+          ElMessage.success("已将图片添加到图片库列表，将自动同步到 .npz 文件");
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = (e) => {
+        reject(e);
+      };
+      img.src = currentImageUrl;
+    });
+  } catch (error) {
+    console.error("添加图片到图片库失败:", error);
+    // 这里的错误提示已经在内部处理，大多数情况下不需要重复提示
+  }
+};
 </script>
 
 <style scoped>

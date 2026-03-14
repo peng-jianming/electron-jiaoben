@@ -8,7 +8,7 @@ import traceback
 import threading
 from collections import deque
 import tempfile
-from matchImg import opencv字库找图, opencv字库识字
+from matchImg import opencv字库找图, opencv字库识字, opencv模板匹配
 from pingjie import find_offset_by_correlation, stitch_maps
 
 # Socket.IO 客户端实例
@@ -667,6 +667,10 @@ def init_client(url="http://127.0.0.1:7070"):
                 "upload_flood_fill_image": 上传洪水填充图片,
                 "standalone_flood_fill": 独立洪水填充,
                 "standalone_flood_fill_animation": 独立洪水填充动画,
+                "load_image_library": 加载图片库,
+                "image_library_match": 图片库模板匹配,
+                "save_image_to_library": 保存图片到图片库,
+                "save_image_library": 保存图片库,
             }
             
             handler = handlers.get(data.get("type"))
@@ -878,6 +882,127 @@ def 发送图片匹配结果(result=None, result_image_bytes=None, error=None):
     )
 
 
+def 图片库模板匹配(data):
+    """使用图片库模板进行 OpenCV 模板匹配"""
+    try:
+        template_b64 = data.get("templateImage")
+        large_b64 = data.get("largeImage")
+        region = data.get("region") or None
+        similarity_threshold = float(data.get("similarity", 0.8))
+
+        if not template_b64:
+            发送图片匹配结果(error="缺少模板图片数据")
+            return
+
+        # 解码模板图片
+        try:
+            tmpl_bytes = base64.b64decode(template_b64)
+            tmpl_arr = np.frombuffer(tmpl_bytes, np.uint8)
+            template_img = cv2.imdecode(tmpl_arr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            发送图片匹配结果(error=f"解码模板图片失败: {e}")
+            return
+
+        if template_img is None:
+            发送图片匹配结果(error="无法解码模板图片")
+            return
+
+        # 解码大图：优先使用前端传入的 base64，否则自动截图
+        large_img = None
+        if large_b64:
+            try:
+                large_bytes = base64.b64decode(large_b64)
+                large_arr = np.frombuffer(large_bytes, np.uint8)
+                large_img = cv2.imdecode(large_arr, cv2.IMREAD_COLOR)
+            except Exception as e:
+                发送图片匹配结果(error=f"解码大图失败: {e}")
+                return
+        else:
+            if not _current_device_id:
+                发送图片匹配结果(error="未选择设备，请上传大图或连接设备后截图")
+                return
+            controller = ADBController(device_id=_current_device_id)
+            img_bytes = controller.截图到内存()
+            if not img_bytes:
+                发送图片匹配结果(error="自动截图失败")
+                return
+            try:
+                large_arr = np.frombuffer(img_bytes, np.uint8)
+                large_img = cv2.imdecode(large_arr, cv2.IMREAD_COLOR)
+            except Exception as e:
+                发送图片匹配结果(error=f"解码截图失败: {e}")
+                return
+
+        if large_img is None:
+            发送图片匹配结果(error="无法获取大图")
+            return
+
+        # 解析区域
+        region_tuple = (0, 0, 0, 0)
+        if region:
+            region_tuple = (
+                int(region.get("x", 0)),
+                int(region.get("y", 0)),
+                int(region.get("w", 0)),
+                int(region.get("h", 0)),
+            )
+
+        # 执行模板匹配
+        match = opencv模板匹配(large_img, template_img, region=region_tuple)
+        if not match:
+            发送图片匹配结果(error="未找到匹配位置")
+            return
+
+        if match.get("similarity", 0) < similarity_threshold:
+            发送图片匹配结果(
+                error=f"匹配相似度不足: {match.get('similarity', 0):.4f} < 阈值 {similarity_threshold:.4f}"
+            )
+            return
+
+        # 绘制结果矩形
+        x = int(match["x"])
+        y = int(match["y"])
+        w = int(match["w"])
+        h = int(match["h"])
+
+        result_image = large_img.copy()
+        cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # 显示相似度文本
+        sim_text = f"Sim: {match['similarity']:.4f}"
+        text_x, text_y = x, max(y - 10, 20)
+        (text_width, text_height), baseline = cv2.getTextSize(
+            sim_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
+        )
+        cv2.rectangle(
+            result_image,
+            (text_x - 5, text_y - text_height - 5),
+            (text_x + text_width + 5, text_y + baseline + 5),
+            (0, 255, 0),
+            -1,
+        )
+        cv2.putText(
+            result_image,
+            sim_text,
+            (text_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 0, 0),
+            2,
+        )
+
+        ok, buffer = cv2.imencode(".png", result_image)
+        if not ok:
+            发送图片匹配结果(error="编码结果图片失败")
+            return
+
+        发送图片匹配结果(result=match, result_image_bytes=buffer.tobytes())
+
+    except Exception as e:
+        traceback.print_exc()
+        发送图片匹配结果(error=str(e))
+
+
 def 发送字库匹配结果(result=None, result_image_bytes=None, error=None):
     """向 Electron 发送字库匹配结果"""
     message = {
@@ -916,6 +1041,236 @@ def 发送字库识字结果(text=None, error=None):
         message=message,
         wait_response=False,
     )
+
+
+def 发送图片库结果(items=None, error=None):
+    """向 Electron 发送图片库加载结果"""
+    message = {
+        "success": error is None,
+        "items": items or [],
+    }
+    if error:
+        message["error"] = error
+
+    send_to_electron(
+        prop="image-library",
+        message=message,
+        wait_response=False,
+    )
+
+
+def 加载图片库(data):
+    """加载 .npz 图片库文件，将其中的图片转为 base64 返回"""
+    try:
+        npz_path = data.get("npzPath") or data.get("path")
+        if not npz_path:
+            发送图片库结果(error="未提供图片库文件路径")
+            return
+
+        if not os.path.isfile(npz_path):
+            发送图片库结果(error=f"图片库文件不存在: {npz_path}")
+            return
+
+        try:
+            archive = np.load(npz_path, allow_pickle=True)
+        except Exception as e:
+            发送图片库结果(error=f"加载图片库失败: {e}")
+            return
+
+        items = []
+        for name in archive.files:
+            try:
+                arr = archive[name]
+                if arr is None:
+                    continue
+
+                img = np.array(arr)
+
+                # 只接受二维或三维图像
+                if img.ndim == 2:
+                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                elif img.ndim == 3:
+                    if img.shape[2] == 1:
+                        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                    elif img.shape[2] == 4:
+                        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                    elif img.shape[2] != 3:
+                        # 不支持的通道数，跳过
+                        continue
+                else:
+                    continue
+
+                # 归一化到 uint8
+                if img.dtype != np.uint8:
+                    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+                    img = img.astype(np.uint8)
+
+                h, w = img.shape[:2]
+                success, buffer = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+                if not success:
+                    continue
+
+                items.append(
+                    {
+                        "name": str(name),
+                        "width": int(w),
+                        "height": int(h),
+                        "channels": int(img.shape[2]) if img.ndim == 3 else 1,
+                        "image": base64.b64encode(buffer).decode("utf-8"),
+                    }
+                )
+            except Exception as e:
+                print(f"处理图片库条目失败: {name}, 错误: {e}")
+                continue
+
+        if not items:
+            发送图片库结果(items=[], error="图片库中没有有效的图片数据")
+        else:
+            发送图片库结果(items=items)
+
+    except Exception as e:
+        traceback.print_exc()
+        发送图片库结果(error=str(e))
+
+
+def 保存图片库(data):
+    """根据前端表格数据重写 .npz 图片库文件"""
+    try:
+        npz_path = data.get("npzPath") or data.get("path")
+        items = data.get("items") or []
+
+        if not npz_path:
+            print("保存图片库失败: 未提供图片库文件路径")
+            return
+
+        arrays = {}
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or f"image_{idx + 1}")
+            image_b64 = item.get("image")
+            if not image_b64:
+                continue
+
+            try:
+                img_bytes = base64.b64decode(image_b64)
+                img_arr = np.frombuffer(img_bytes, np.uint8)
+                img = cv2.imdecode(img_arr, cv2.IMREAD_UNCHANGED)
+            except Exception as e:
+                print(f"保存图片库失败: 解码图片失败: {e}")
+                continue
+
+            if img is None:
+                print("保存图片库失败: 无法解码图片")
+                continue
+
+            if img.ndim == 2:
+                img_to_save = img
+            elif img.ndim == 3:
+                if img.shape[2] == 1:
+                    img_to_save = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                elif img.shape[2] == 3:
+                    img_to_save = img
+                elif img.shape[2] == 4:
+                    img_to_save = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                else:
+                    print(f"保存图片库失败: 不支持的通道数: {img.shape[2]}")
+                    continue
+            else:
+                print(f"保存图片库失败: 不支持的维度: {img.ndim}")
+                continue
+
+            if img_to_save.dtype != np.uint8:
+                img_to_save = cv2.normalize(img_to_save, None, 0, 255, cv2.NORM_MINMAX)
+                img_to_save = img_to_save.astype(np.uint8)
+
+            arrays[name] = img_to_save
+
+        try:
+            np.savez_compressed(npz_path, **arrays)
+            print(f"保存图片库成功: {npz_path}, 共 {len(arrays)} 张图片")
+        except Exception as e:
+            print(f"保存图片库失败: 写入 npz 失败: {e}")
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"保存图片库出现异常: {e}")
+
+
+def 保存图片到图片库(data):
+    """将一张图片保存/追加到 .npz 图片库文件中"""
+    try:
+        npz_path = data.get("npzPath") or data.get("path")
+        image_b64 = data.get("image")
+        name = str(data.get("name") or f"image_{int(time.time())}")
+
+        if not npz_path:
+            print("保存图片到图片库失败: 未提供 npzPath")
+            return
+        if not image_b64:
+            print("保存图片到图片库失败: 未提供 image 数据")
+            return
+
+        # 解码图片
+        try:
+            img_bytes = base64.b64decode(image_b64)
+            img_arr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(img_arr, cv2.IMREAD_UNCHANGED)
+        except Exception as e:
+            print(f"保存图片到图片库失败: 解码图片失败: {e}")
+            return
+
+        if img is None:
+            print("保存图片到图片库失败: 无法解码图片")
+            return
+
+        # 只接受二维或三维图像，其他情况尝试转换到三通道
+        if img.ndim == 2:
+            img_to_save = img
+        elif img.ndim == 3:
+            # 统一转换为 BGR 三通道存储
+            if img.shape[2] == 1:
+                img_to_save = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            elif img.shape[2] == 3:
+                img_to_save = img
+            elif img.shape[2] == 4:
+                img_to_save = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            else:
+                # 不支持的通道数
+                print(f"保存图片到图片库失败: 不支持的通道数: {img.shape[2]}")
+                return
+        else:
+            print(f"保存图片到图片库失败: 不支持的维度: {img.ndim}")
+            return
+
+        # 归一化到 uint8
+        if img_to_save.dtype != np.uint8:
+            img_to_save = cv2.normalize(img_to_save, None, 0, 255, cv2.NORM_MINMAX)
+            img_to_save = img_to_save.astype(np.uint8)
+
+        # 读取已有 npz 内容（如果存在）
+        arrays = {}
+        if os.path.isfile(npz_path):
+            try:
+                archive = np.load(npz_path, allow_pickle=True)
+                for key in archive.files:
+                    arrays[key] = archive[key]
+            except Exception as e:
+                print(f"保存图片到图片库: 加载现有图片库失败，将创建新的文件: {e}")
+
+        # 使用名称作为键；如果同名则覆盖
+        arrays[name] = img_to_save
+
+        # 保存为压缩 npz
+        try:
+            np.savez_compressed(npz_path, **arrays)
+            print(f"保存图片到图片库成功: {npz_path} -> {name} (shape={img_to_save.shape})")
+        except Exception as e:
+            print(f"保存图片到图片库失败: 写入 npz 失败: {e}")
+
+    except Exception as e:
+        traceback.print_exc()
+        print(f"保存图片到图片库出现异常: {e}")
 
 
 def 字库匹配(data):

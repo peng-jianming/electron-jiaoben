@@ -670,7 +670,8 @@ const handleAddItem = (node) => {
     itemNode = data.value;
   } else {
     currentNode.value = getCurrentNode(node);
-    itemNode = currentNode.value[node.key];
+    itemNode = currentNode.value;
+    
   }
   // 类型（仅按钮需要）：固定区域 / 点阵 / 图片
   const type = ref("图片");
@@ -835,13 +836,22 @@ const handleAddItem = (node) => {
 const getCurrentNode = (node) => {
   const keys = getPathKeys(node.path);
 
-  if (node.level == 2 && keys.length >= 1) {
+  if (keys.length == 1) {
     return data.value[keys[0]];
   }
 
-  if (node.level == 4 && keys.length >= 3) {
+  if (keys.length == 2) {
+    return data.value[keys[0]][keys[1]];
+  }
+
+  if (keys.length == 3) {
     return data.value[keys[0]][keys[1]][keys[2]];
   }
+
+  if (keys.length == 4) {
+    return data.value[keys[0]][keys[1]][keys[2]][keys[3]];
+  }
+
 };
 const currentName = ref("");
 // ========== 节点操作 ==========
@@ -849,10 +859,26 @@ const handleAddConfig = (node) => {
   currentNode.value = getCurrentNode(node);
   const keys = getPathKeys(node.path);
   currentName.value = keys.join("_");
-  fontClickOffsetAreaInput.value = "";
-  // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
-  enableAutoCrop.value = true;
-  drawer.value = true;
+  if (currentNode.value.类型 == "图片") {
+    // 图片类型：将当前图片或圈选区域添加到图片库（由右侧面板统一处理）
+    if (!props.currentImage || !props.currentImage.url) {
+      ElMessage.warning("当前没有图片，无法添加到图片库");
+      return;
+    }
+    emit("add-image-to-library", {
+      name: currentName.value,
+      selectionRect: props.selectionRect || null,
+      currentImageUrl: props.currentImage.url,
+    });
+    return;
+  }
+  if (currentNode.value.类型 == "点阵") {
+    fontClickOffsetAreaInput.value = "";
+    // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
+    enableAutoCrop.value = true;
+    drawer.value = true;
+  }
+
 };
 
 // 切换偏移点击区域圈选模式

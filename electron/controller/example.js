@@ -95,6 +95,15 @@ class ExampleController {
         return { success: true, message: '存储图片结果已发送' };
       }
 
+      // 图片库加载结果事件
+      if (prop === 'image-library') {
+        const socketServer = getSocketServer();
+        if (socketServer) {
+          socketServer.io.emit('image-library', imageData);
+        }
+        return { success: true, message: '图片库结果已发送' };
+      }
+
       // 独立洪水填充结果
       if (prop === 'flood-fill-result') {
         const socketServer = getSocketServer();
