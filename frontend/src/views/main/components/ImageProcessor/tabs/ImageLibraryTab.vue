@@ -53,14 +53,14 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="尺寸" width="110">
+      <!-- <el-table-column label="尺寸" width="110">
         <template #default="scope">
           <span class="size-cell">
             {{ scope.row.width }} × {{ scope.row.height }}
             <span v-if="scope.row.channels"> ({{ scope.row.channels }})</span>
           </span>
         </template>
-      </el-table-column>
+      </el-table-column> -->
 
       <el-table-column label="操作" width="200">
         <template #default="scope">
@@ -302,11 +302,42 @@ async function handleSelectNpz() {
     previewUrl.value = null;
 
     await loadImageLibrary();
+    await saveImageLibraryPathToDB();
   } catch (error) {
     console.error("选择图片库失败:", error);
     ElMessage.error("选择图片库失败: " + (error.message || "未知错误"));
   } finally {
     fileLoading.value = false;
+  }
+}
+
+// 保存图片库路径到本地配置（与 ConfigTab/example 一致）
+async function saveImageLibraryPathToDB() {
+  try {
+    await ipc.invoke(ipcApiRoute.savePaths, {
+      imageLibraryPath: npzPath.value || "",
+    });
+  } catch (error) {
+    console.error("保存图片库路径失败:", error);
+  }
+}
+
+// 从本地配置加载图片库路径并在页面启动时自动加载
+async function loadImageLibraryPathFromDB() {
+  try {
+    const result = await ipc.invoke(ipcApiRoute.getPaths);
+    if (result && result.success && result.data && result.data.imageLibraryPath) {
+      isSyncingFromFile.value = true;
+      npzPath.value = result.data.imageLibraryPath;
+      await loadImageLibrary();
+      // 若加载超时或失败，handleImageLibraryResult 会设回 false；若一直没收到结果，这里兜底解除
+      setTimeout(() => {
+        isSyncingFromFile.value = false;
+      }, 2000);
+    }
+  } catch (error) {
+    console.error("加载图片库路径失败:", error);
+    isSyncingFromFile.value = false;
   }
 }
 
@@ -345,6 +376,7 @@ function handleImageLibraryResult(data) {
     ElMessage.error(data?.error || "加载图片库失败");
     imageList.value = [];
     previewUrl.value = null;
+    isSyncingFromFile.value = false;
     return;
   }
 
@@ -355,6 +387,7 @@ function handleImageLibraryResult(data) {
     ElMessage.warning(data.error || "图片库中没有有效的图片");
     imageList.value = [];
     previewUrl.value = null;
+    isSyncingFromFile.value = false;
     return;
   }
 
@@ -421,6 +454,28 @@ function handleTest(row) {
     ElMessage.warning("请先选择要测试的图片模板");
     return;
   }
+  openTestWithRow(row, {});
+}
+
+/** 按图片名打开测试弹框（供配置页“测试”使用：名称与 testFontLibraryName 一致的那张图传到后端测试） */
+function openTestByImageName(name, options = {}) {
+  const trimmedName = (name || "").trim();
+  if (!trimmedName) {
+    ElMessage.warning("图片名不能为空");
+    return false;
+  }
+  const row = imageList.value.find(
+    (item) => (item.name || "").trim() === trimmedName
+  );
+  if (!row) {
+    ElMessage.warning(`图片库中未找到名为「${trimmedName}」的图片`);
+    return false;
+  }
+  openTestWithRow(row, options);
+  return true;
+}
+
+function openTestWithRow(row, options = {}) {
   currentTestRow.value = row;
   // 记录模板 base64（去掉 data URL 前缀）
   if (row.rawBase64) {
@@ -437,8 +492,11 @@ function handleTest(row) {
   // 重置测试状态
   largeImageUrl.value = null;
   largeImageFile.value = null;
-  regionInput.value = "";
-  similarity.value = 0.8;
+  regionInput.value = options.region != null ? String(options.region).trim() : "";
+  similarity.value =
+    options.similarity != null && !Number.isNaN(Number(options.similarity))
+      ? Number(options.similarity)
+      : 0.8;
   resultImageUrl.value = null;
   matching.value = false;
   testDialogVisible.value = true;
@@ -575,10 +633,13 @@ async function handleMatch() {
 }
 
 function handleMatchResult(data) {
+  const wasOurRequest = matching.value;
   matching.value = false;
 
   if (!data || !data.success) {
-    ElMessage.error(data?.error || "匹配失败");
+    if (wasOurRequest) {
+      ElMessage.error(data?.error || "匹配失败");
+    }
     return;
   }
 
@@ -586,10 +647,12 @@ function handleMatchResult(data) {
     resultImageUrl.value = `data:image/png;base64,${data.resultImage}`;
   }
 
-  if (data.result) {
-    ElMessage.success("匹配完成");
-  } else {
-    ElMessage.warning("未找到匹配位置");
+  if (wasOurRequest) {
+    if (data.result) {
+      ElMessage.success("匹配完成");
+    } else {
+      ElMessage.warning("未找到匹配位置");
+    }
   }
 }
 
@@ -607,6 +670,7 @@ function fileToBase64(file) {
 
 onMounted(() => {
   initImageSocket();
+  loadImageLibraryPathFromDB();
 });
 
 onUnmounted(() => {
@@ -615,6 +679,55 @@ onUnmounted(() => {
     imageSocket = null;
   }
 });
+
+// 将当前表格数据同步到 .npz 图片库（公共函数，供 watch 和外部显式调用）
+async function syncImageLibraryToNpz(val) {
+  if (!npzPath.value) return;
+  if (isSyncingFromFile.value) return;
+
+  const source = val || imageList.value;
+  try {
+    const items = (source || []).map((row, index) => ({
+      name: row.name || `图片${index + 1}`,
+      image:
+        row.rawBase64 ||
+        (row.fullUrl && row.fullUrl.includes(",") ? row.fullUrl.split(",")[1] : ""),
+    })).filter((item) => item.image);
+
+    if (!items.length) {
+      // 表格为空也允许写回，等价于清空 npz
+    }
+
+    // 检查同名：存在同名时提示是否覆盖，取消则不保存
+    const nameCount = {};
+    items.forEach((item) => {
+      const n = (item.name || "").trim();
+      nameCount[n] = (nameCount[n] || 0) + 1;
+    });
+    const duplicateNames = Object.keys(nameCount).filter((n) => nameCount[n] > 1);
+    if (duplicateNames.length > 0) {
+      try {
+        await ElMessageBox.confirm(
+          `存在同名图片「${duplicateNames.join("」「")}」，保存时将只保留每名的最后一项（覆盖前面的）。是否继续？`,
+          "同名覆盖确认",
+          { confirmButtonText: "覆盖并保存", cancelButtonText: "取消", type: "warning" }
+        );
+      } catch {
+        ElMessage.info("已取消保存，请修改同名后再保存");
+        return;
+      }
+    }
+
+    await ipc.invoke(ipcApiRoute.sendToPython, {
+      type: "save_image_library",
+      npzPath: npzPath.value,
+      items,
+    });
+  } catch (error) {
+    console.error("同步图片库到 .npz 失败:", error);
+    ElMessage.error("同步图片库到 .npz 失败: " + (error.message || "未知错误"));
+  }
+}
 
 // 监听表格数据变化，同步到 .npz 图片库（以当前表格为唯一来源）
 watch(
@@ -628,26 +741,8 @@ watch(
     }
 
     // 简单防抖，避免频繁写盘
-    syncTimer = setTimeout(async () => {
-      try {
-        const items = (val || []).map((row, index) => ({
-          name: row.name || `图片${index + 1}`,
-          image: row.rawBase64 || (row.fullUrl && row.fullUrl.includes(",") ? row.fullUrl.split(",")[1] : ""),
-        })).filter((item) => item.image);
-
-        if (!items.length) {
-          // 表格为空也允许写回，等价于清空 npz
-        }
-
-        await ipc.invoke(ipcApiRoute.sendToPython, {
-          type: "save_image_library",
-          npzPath: npzPath.value,
-          items,
-        });
-      } catch (error) {
-        console.error("同步图片库到 .npz 失败:", error);
-        ElMessage.error("同步图片库到 .npz 失败: " + (error.message || "未知错误"));
-      }
+    syncTimer = setTimeout(() => {
+      syncImageLibraryToNpz(val);
     }, 500);
   },
   { deep: true }
@@ -686,20 +781,41 @@ function deleteByName(name) {
 defineExpose({
   getNpzPath: () => npzPath.value || "",
   deleteByName,
-  addImageItemFromConfig: (payload) => {
+  /** 按图片名打开模板匹配测试弹框（名称与 testFontLibraryName 一致时由配置页调用） */
+  openTestByImageName,
+  // 从外部显式触发一次同步（例如 ConfigTab 制作点阵/添加图片完成后）
+  syncNow: () => syncImageLibraryToNpz(imageList.value),
+  addImageItemFromConfig: async (payload) => {
     const { name, width, height, base64 } = payload || {};
-    if (!base64) return;
+    if (!base64) return false;
+    const displayName = (name || `图片${imageList.value.length + 1}`).trim();
     const fullUrl = `data:image/png;base64,${base64}`;
-    imageList.value.push({
+    const newItem = {
       id: Date.now() + Math.random(),
-      name: name || `图片${imageList.value.length + 1}`,
+      name: displayName,
       width: width || 0,
       height: height || 0,
       channels: 3,
       fullUrl,
       thumbUrl: fullUrl,
       rawBase64: base64,
-    });
+    };
+    const existingIndex = imageList.value.findIndex((item) => (item.name || "").trim() === displayName);
+    if (existingIndex !== -1) {
+      try {
+        await ElMessageBox.confirm(`同名「${displayName}」已存在，是否覆盖？`, "同名确认", {
+          confirmButtonText: "覆盖",
+          cancelButtonText: "取消",
+          type: "warning",
+        });
+      } catch {
+        return false;
+      }
+      imageList.value.splice(existingIndex, 1, newItem);
+    } else {
+      imageList.value.push(newItem);
+    }
+    return true;
   },
 });
 </script>

@@ -26,6 +26,7 @@
           @add-font-library="handleAddFontLibrary"
           @add-image-to-library="handleAddImageToLibrary"
           @delete-library-resource="handleDeleteLibraryResource"
+          @open-image-test="handleOpenImageTest"
           @start-code-generator-selection="
             (type) => $emit('start-code-generator-selection', type)
           "
@@ -35,10 +36,10 @@
       <el-tab-pane label="字库">
         <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
       </el-tab-pane>
-      <el-tab-pane label="图片库">
+      <el-tab-pane label="图片库" name="image-library">
         <ImageLibraryTab :current-device-id="currentDeviceId" ref="imageLibraryTabRef" />
       </el-tab-pane>
-      <el-tab-pane label="偏色二值化" name="deviation">
+      <!-- <el-tab-pane label="偏色二值化" name="deviation">
         <ColorSelectionTab
           :current-selected-colors="currentSelectedColors"
           :current-image="currentImage"
@@ -67,7 +68,7 @@
           :current-device-id="currentDeviceId"
           :font-library-path="fontLibraryPath"
         />
-      </el-tab-pane>
+      </el-tab-pane> -->
 
       <!-- <el-tab-pane label="颜色记录" name="color-record">
         <ColorRecordList 
@@ -184,7 +185,7 @@ const configTabRef = ref(null);
 const uploadedImages = ref([]);
 const screenshotLoading = ref(false);
 const isRightPanelScreenshotPending = ref(false); // 标记是否是右侧面板发起的截图
-const activeTab = ref("deviation"); // 当前激活的 tab
+const activeTab = ref("config"); // 当前激活的 tab
 let deviceSocket = null;
 
 // 处理 tab 切换
@@ -436,6 +437,17 @@ onUnmounted(() => {
   }
 });
 
+// 处理从 ConfigTab 发起的“图片测试”：用图片库中与 testFontLibraryName 同名的图片打开模板匹配测试
+const handleOpenImageTest = ({ name, similarity, region } = {}) => {
+  activeTab.value = "image-library";
+  nextTick(() => {
+    imageLibraryTabRef.value?.openTestByImageName?.(name, {
+      similarity,
+      region,
+    });
+  });
+};
+
 // 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）
 const handleDeleteLibraryResource = async ({ type, name } = {}) => {
   if (!name) return;
@@ -474,7 +486,7 @@ const handleAddImageToLibrary = async (payload) => {
     await new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => {
+      img.onload = async () => {
         try {
           let startX = 0;
           let startY = 0;
@@ -507,13 +519,21 @@ const handleAddImageToLibrary = async (payload) => {
           const base64 =
             dataUrl.indexOf(",") >= 0 ? dataUrl.split(",")[1] : dataUrl;
 
-          imageLibraryTabRef.value?.addImageItemFromConfig?.({
+          const added = await imageLibraryTabRef.value?.addImageItemFromConfig?.({
             name,
             width,
             height,
             base64,
           });
-          ElMessage.success("已将图片添加到图片库列表，将自动同步到 .npz 文件");
+          if (added) {
+            ElMessage.success("已添加到图片库列表，稍后将自动同步到 .npz 文件");
+          // 主动触发一次同步，避免初始化阶段的防抖/标志导致本次添加未写入 .npz
+          try {
+            await imageLibraryTabRef.value?.syncNow?.();
+          } catch (e) {
+            console.error("手动同步图片库到 .npz 失败:", e);
+          }
+          }
           resolve();
         } catch (e) {
           reject(e);

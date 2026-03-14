@@ -1070,23 +1070,24 @@ class ExampleService {
    */
   getPaths() {
     try {
+      const defaultPaths = { resourcePath: '', configPath: '', fontLibraryPath: '', imageLibraryPath: '' };
       if (!fs.existsSync(this.configFilePath)) {
-        return { success: true, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
+        return { success: true, data: defaultPaths };
       }
-      
+
       const content = fs.readFileSync(this.configFilePath, 'utf8');
       const config = JSON.parse(content);
-      
+
       const paths = config.paths || {};
-      
+
       if (_.isEmpty(paths)) {
-        return { success: true, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
+        return { success: true, data: defaultPaths };
       }
-      
-      return { success: true, data: paths };
+
+      return { success: true, data: { ...defaultPaths, ...paths } };
     } catch (error) {
       console.error('读取路径配置错误:', error);
-      return { success: false, message: error.message, data: { resourcePath: '', configPath: '', fontLibraryPath: '' } };
+      return { success: false, message: error.message, data: { resourcePath: '', configPath: '', fontLibraryPath: '', imageLibraryPath: '' } };
     }
   }
 }

@@ -525,16 +525,17 @@ class ExampleController {
   // ==================== 路径配置存储功能 ====================
 
   /**
-   * 保存路径配置
-   * @param {Object} args - 参数对象 { resourcePath, configPath, fontLibraryPath }
+   * 保存路径配置（只更新传入的字段，未传入的路径不会被清除）
+   * @param {Object} args - 参数对象，可包含 resourcePath, configPath, fontLibraryPath, imageLibraryPath 的任意子集
    */
   savePaths(args, event) {
     try {
-      return exampleService.savePaths({
-        resourcePath: args.resourcePath || '',
-        configPath: args.configPath || '',
-        fontLibraryPath: args.fontLibraryPath || ''
-      });
+      const toSave = {};
+      if (args.hasOwnProperty('resourcePath')) toSave.resourcePath = args.resourcePath || '';
+      if (args.hasOwnProperty('configPath')) toSave.configPath = args.configPath || '';
+      if (args.hasOwnProperty('fontLibraryPath')) toSave.fontLibraryPath = args.fontLibraryPath || '';
+      if (args.hasOwnProperty('imageLibraryPath')) toSave.imageLibraryPath = args.imageLibraryPath || '';
+      return exampleService.savePaths(toSave);
     } catch (error) {
       console.error('保存路径配置错误:', error);
       return { success: false, message: error.message };

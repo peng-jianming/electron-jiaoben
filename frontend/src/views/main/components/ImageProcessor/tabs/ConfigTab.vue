@@ -308,6 +308,7 @@ const emit = defineEmits([
   "add-font-library",
   "add-image-to-library",
   "delete-library-resource",
+  "open-image-test",
 ]);
 
 const data = ref(undefined);
@@ -1245,7 +1246,7 @@ const getPathKeys = (path) => {
   return path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, "")) ?? [];
 };
 
-/** 点击测试：弹出找字测试弹框，按当前配置项名称（点阵名）查询所有同名点阵，并自动填入该配置的相似度、范围 */
+/** 点击测试：点阵则弹出找字测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
 const handleTest = (node) => {
   if (!node || node.key == null) return;
 
@@ -1255,13 +1256,26 @@ const handleTest = (node) => {
     configItem = configItem?.[key];
   }
 
-  testFontLibraryName.value = path.join("_");
-  testSimilarity.value =
+  const name = path.join("_");
+  const similarity =
     configItem?.相似度 != null ? Number(configItem.相似度) : undefined;
-  testRegion.value =
+  const region =
     configItem?.查找区域 != null && configItem.查找区域 !== ""
       ? String(configItem.查找区域).trim()
       : "";
+
+  if (configItem?.类型 === "图片") {
+    emit("open-image-test", {
+      name,
+      similarity,
+      region,
+    });
+    return;
+  }
+
+  testFontLibraryName.value = name;
+  testSimilarity.value = similarity;
+  testRegion.value = region;
   testDialogVisible.value = true;
 };
 

@@ -397,12 +397,15 @@ async function handleMatch() {
   }
 }
 
-// 处理匹配结果
+// 处理匹配结果（仅在本组件发起的请求时提示，避免重复弹窗）
 function handleMatchResult(data) {
+  const wasOurRequest = matching.value;
   matching.value = false;
 
   if (!data || !data.success) {
-    ElMessage.error(data?.error || "匹配失败");
+    if (wasOurRequest) {
+      ElMessage.error(data?.error || "匹配失败");
+    }
     return;
   }
 
@@ -412,9 +415,13 @@ function handleMatchResult(data) {
 
   if (data.result) {
     matchResult.value = data.result;
-    ElMessage.success("匹配完成");
-  } else {
-    ElMessage.warning("未找到匹配位置");
+  }
+  if (wasOurRequest) {
+    if (data.result) {
+      ElMessage.success("匹配完成");
+    } else {
+      ElMessage.warning("未找到匹配位置");
+    }
   }
 }
 
