@@ -306,6 +306,8 @@ const emit = defineEmits([
   "start-code-generator-selection",
   "stop-code-generator-selection",
   "add-font-library",
+  "add-image-to-library",
+  "delete-library-resource",
 ]);
 
 const data = ref(undefined);
@@ -1272,8 +1274,7 @@ const onTestDialogClosed = () => {
 
 /** 删除节点对应的配置项 */
 const handleDelete = (node) => {
-  const keys = node.path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, ""));
-
+  const keys = getPathKeys(node.path);
   if (!keys.length) {
     ElMessage.warning("无法解析节点路径");
     return;
@@ -1287,6 +1288,9 @@ const handleDelete = (node) => {
     ElMessage.warning("项不存在或无法删除");
     return;
   }
+  const 类型 = parent[keyToDelete]?.类型;
+  const nameToDelete = keys.join("_");
+
   ElMessageBox.confirm(`确定要删除「${keyToDelete}」吗？`, "删除确认", {
     confirmButtonText: "删除",
     cancelButtonText: "取消",
@@ -1295,6 +1299,19 @@ const handleDelete = (node) => {
     .then(() => {
       delete parent[keyToDelete];
       ElMessage.success("已删除");
+
+      if (类型 === "图片" || 类型 === "点阵") {
+        ElMessageBox.confirm(`是否删除「${keyToDelete}」对应的资源？`, "删除确认", {
+          confirmButtonText: "删除",
+          cancelButtonText: "取消",
+          type: "warning",
+        })
+          .then(() => {
+            emit("delete-library-resource", { type: 类型, name: nameToDelete });
+            ElMessage.success(`${keyToDelete} 对应的资源已删除`);
+          })
+          .catch(() => {});
+      }
     })
     .catch(() => {});
 };

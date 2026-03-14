@@ -25,6 +25,7 @@
           ref="configTabRef"
           @add-font-library="handleAddFontLibrary"
           @add-image-to-library="handleAddImageToLibrary"
+          @delete-library-resource="handleDeleteLibraryResource"
           @start-code-generator-selection="
             (type) => $emit('start-code-generator-selection', type)
           "
@@ -434,6 +435,26 @@ onUnmounted(() => {
     deviceSocket = null;
   }
 });
+
+// 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）
+const handleDeleteLibraryResource = async ({ type, name } = {}) => {
+  if (!name) return;
+  if (type === "图片") {
+    const deleted = imageLibraryTabRef.value?.deleteByName?.(name);
+    if (!deleted) {
+      ElMessage.info("图片库中未找到同名资源，或已删除");
+    }
+  } else if (type === "点阵") {
+    try {
+      const deleted = await fontLibraryTabRef.value?.deleteByName?.(name);
+      if (!deleted) {
+        ElMessage.info("字库中未找到同名资源，或已删除");
+      }
+    } catch (e) {
+      ElMessage.error("删除字库资源失败: " + (e?.message || "未知错误"));
+    }
+  }
+};
 
 // 处理从 ConfigTab 发起的“添加图片到图片库”请求
 const handleAddImageToLibrary = async (payload) => {

@@ -603,6 +603,87 @@ const handleDelete = async (row) => {
     ElMessage.success("已删除");
 };
 
+/**
+ * 判断资源名是否与待删除名匹配：
+ * - 待删除名无下划线：精确匹配 或 带下划线名称的第一段相同（如 111 匹配 111、111_222_333）
+ * - 待删除名有下划线：仅精确匹配
+ */
+function nameMatchesDeletion(itemName, nameToDelete) {
+    const n = (itemName || "").trim();
+    const t = String(nameToDelete).trim();
+    if (t.includes("_")) return n === t;
+    return n === t || n.startsWith(t + "_");
+}
+
+/** 按名称删除字库中与 name 相同的资源（供 ConfigTab 删除配置项后联动使用，不再弹确认） */
+const deleteByName = async (name) => {
+    if (!name || typeof name !== "string") return false;
+    const trimmed = String(name).trim();
+
+    const indices = fontLibraryList.value
+        .map((item, i) => (nameMatchesDeletion(item.name, trimmed) ? i : -1))
+        .filter((i) => i >= 0)
+        .sort((a, b) => b - a);
+    if (indices.length === 0) return false;
+
+    const itemsToDelete = indices.map((i) => fontLibraryList.value[i]).filter(Boolean);
+
+    if (selectedFilePath.value) {
+        try {
+            const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+                filePath: selectedFilePath.value
+            });
+
+            if (readResult && readResult.success) {
+                let arr = [];
+                try {
+                    const parsed = JSON.parse(readResult.content);
+                    arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+                } catch (e) {
+                    throw new Error("字库 JSON 格式无效");
+                }
+
+                const filteredArr = arr.filter((jsonItem) => {
+                    if (!jsonItem) return true;
+                    const itemName = (jsonItem["名字"] != null) ? String(jsonItem["名字"]).trim() : "";
+                    const matchesAny = itemsToDelete.some((itemToDelete) => {
+                        if (!nameMatchesDeletion(itemName, itemToDelete.name)) return false;
+                        const sizeStr = `${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}`;
+                        const itemSize = (jsonItem["长宽有效数量"] != null) ? String(jsonItem["长宽有效数量"]).trim() : "";
+                        if (itemSize !== sizeStr) return false;
+                        const itemDev = (jsonItem["偏色"] != null) ? String(jsonItem["偏色"]).trim() : "";
+                        if (itemDev !== itemToDelete.deviation) return false;
+                        const itemOffset = (jsonItem["偏移点击区域"] != null && jsonItem["偏移点击区域"] !== "") ? String(jsonItem["偏移点击区域"]).trim() : "0,0,0,0";
+                        const clickOffsetAreaExpected = itemToDelete.clickOffsetArea || "0,0,0,0";
+                        if (itemOffset !== clickOffsetAreaExpected) return false;
+                        if (jsonItem["点阵"] !== itemToDelete.matrix) return false;
+                        return true;
+                    });
+                    return !matchesAny;
+                });
+
+                const content = JSON.stringify(filteredArr, null, 2);
+
+                const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
+                    filePath: selectedFilePath.value,
+                    content
+                });
+
+                if (!writeResult || !writeResult.success) {
+                    throw new Error(writeResult?.message || "删除文件内容失败");
+                }
+            }
+        } catch (error) {
+            console.error("从文件中删除字库失败:", error);
+            ElMessage.error("从文件中删除字库失败: " + (error.message || "未知错误"));
+            return false;
+        }
+    }
+
+    indices.forEach((i) => fontLibraryList.value.splice(i, 1));
+    return true;
+};
+
 // 处理清空列表
 const handleClearList = () => {
     if (fontLibraryList.value.length === 0) {
@@ -790,7 +871,8 @@ defineExpose({
     addFontLibraryItem,
     hasSelectedFile,
     getFontLibraryList,
-    getFontLibraryPath
+    getFontLibraryPath,
+    deleteByName
 });
 
 // 组件挂载时加载保存的字库路径

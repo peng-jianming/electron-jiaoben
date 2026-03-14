@@ -653,9 +653,39 @@ watch(
   { deep: true }
 );
 
+/**
+ * 判断资源名是否与待删除名匹配：
+ * - 待删除名无下划线：精确匹配 或 带下划线名称的第一段相同（如 111 匹配 111、111_222_333）
+ * - 待删除名有下划线：仅精确匹配
+ */
+function nameMatchesDeletion(itemName, nameToDelete) {
+  const n = (itemName || "").trim();
+  const t = nameToDelete.trim();
+  if (t.includes("_")) return n === t;
+  return n === t || n.startsWith(t + "_");
+}
+
+/** 按名称删除图片库中与 name 相同的资源（供 ConfigTab 删除配置项后联动使用，不再弹确认） */
+function deleteByName(name) {
+  if (!name || typeof name !== "string") return false;
+  const trimmed = name.trim();
+  const indices = imageList.value
+    .map((item, i) => (nameMatchesDeletion(item.name, trimmed) ? i : -1))
+    .filter((i) => i >= 0)
+    .sort((a, b) => b - a);
+  if (indices.length === 0) return false;
+  const removedUrls = new Set(indices.map((i) => imageList.value[i]?.fullUrl).filter(Boolean));
+  indices.forEach((i) => imageList.value.splice(i, 1));
+  if (removedUrls.has(previewUrl.value)) {
+    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
+  }
+  return true;
+}
+
 // 暴露给父组件的方法
 defineExpose({
   getNpzPath: () => npzPath.value || "",
+  deleteByName,
   addImageItemFromConfig: (payload) => {
     const { name, width, height, base64 } = payload || {};
     if (!base64) return;
