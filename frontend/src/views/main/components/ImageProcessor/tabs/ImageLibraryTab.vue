@@ -231,6 +231,10 @@ const previewUrl = ref(null);
 let imageSocket = null;
 const isSyncingFromFile = ref(false);
 let syncTimer = null;
+/** 初始化时是否已从 DB 加载过路径（仅 socket 连接成功后加载一次，避免未连上就请求导致超时） */
+let initialLoadFromDBDone = false;
+/** loadImageLibrary 的 15s 超时定时器 id，用于在收到结果或卸载时清除 */
+let loadLibraryTimeoutId = null;
 
 // 测试相关状态
 const testDialogVisible = ref(false);
@@ -255,6 +259,11 @@ function initImageSocket() {
 
   imageSocket.on("connect", () => {
     console.log("图片库 Socket 连接成功");
+    // 仅在首次连接成功后从 DB 加载配置并加载图片库，避免在 socket 未连上时发请求导致结果收不到而超时
+    if (!initialLoadFromDBDone) {
+      initialLoadFromDBDone = true;
+      loadImageLibraryPathFromDB();
+    }
   });
 
   imageSocket.on("image-library", (data) => {
@@ -348,6 +357,10 @@ async function loadImageLibrary() {
   }
 
   try {
+    if (loadLibraryTimeoutId) {
+      clearTimeout(loadLibraryTimeoutId);
+      loadLibraryTimeoutId = null;
+    }
     fileLoading.value = true;
     // 发送请求到 Python，实际数据通过 Socket 返回
     await ipc.invoke(ipcApiRoute.sendToPython, {
@@ -355,8 +368,9 @@ async function loadImageLibrary() {
       npzPath: npzPath.value,
     });
 
-    // 设置一个简单的超时提示
-    setTimeout(() => {
+    // 设置一个简单的超时提示，收到结果时会在 handleImageLibraryResult 里清除
+    loadLibraryTimeoutId = setTimeout(() => {
+      loadLibraryTimeoutId = null;
       if (fileLoading.value && imageList.value.length === 0) {
         fileLoading.value = false;
         ElMessage.error("加载图片库超时");
@@ -365,15 +379,27 @@ async function loadImageLibrary() {
   } catch (error) {
     console.error("加载图片库请求失败:", error);
     ElMessage.error("加载图片库请求失败: " + (error.message || "未知错误"));
+    if (loadLibraryTimeoutId) {
+      clearTimeout(loadLibraryTimeoutId);
+      loadLibraryTimeoutId = null;
+    }
     fileLoading.value = false;
   }
 }
 
 function handleImageLibraryResult(data) {
+  if (loadLibraryTimeoutId) {
+    clearTimeout(loadLibraryTimeoutId);
+    loadLibraryTimeoutId = null;
+  }
   fileLoading.value = false;
 
   if (!data || !data.success) {
-    ElMessage.error(data?.error || "加载图片库失败");
+    // “图片库中没有有效的图片数据”不提示，仅静默清空
+    const noValidDataMsg = "图片库中没有有效的图片数据";
+    if (data?.error !== noValidDataMsg) {
+      ElMessage.error(data?.error || "加载图片库失败");
+    }
     imageList.value = [];
     previewUrl.value = null;
     isSyncingFromFile.value = false;
@@ -384,7 +410,6 @@ function handleImageLibraryResult(data) {
 
   const items = Array.isArray(data.items) ? data.items : [];
   if (!items.length) {
-    ElMessage.warning(data.error || "图片库中没有有效的图片");
     imageList.value = [];
     previewUrl.value = null;
     isSyncingFromFile.value = false;
@@ -410,7 +435,10 @@ function handleImageLibraryResult(data) {
     previewUrl.value = imageList.value[0].fullUrl;
   }
 
-  ElMessage.success(`已加载 ${imageList.value.length} 张图片`);
+  // 初始化从配置加载时不提示，仅用户手动选择图片库时提示
+  if (!isSyncingFromFile.value) {
+    ElMessage.success(`已加载 ${imageList.value.length} 张图片`);
+  }
 
   // 加载完成后短暂延迟再允许同步，避免初始化时触发写回
   setTimeout(() => {
@@ -670,10 +698,14 @@ function fileToBase64(file) {
 
 onMounted(() => {
   initImageSocket();
-  loadImageLibraryPathFromDB();
+  // 不再在此处调用 loadImageLibraryPathFromDB，改为在 socket "connect" 后再调用，避免未连上就请求导致收不到结果而超时
 });
 
 onUnmounted(() => {
+  if (loadLibraryTimeoutId) {
+    clearTimeout(loadLibraryTimeoutId);
+    loadLibraryTimeoutId = null;
+  }
   if (imageSocket) {
     imageSocket.disconnect();
     imageSocket = null;
