@@ -36,6 +36,7 @@ class 动作管理器类:
         self.固定点击区域 = 配置.get("固定点击区域", "")
         self.误触区域 = 配置.get("误触区域", "")
         self.字库集合 = {}
+        self.图片库集合 = {}
         self.模型 = None
         self.x = 0
         self.y = 0
@@ -56,7 +57,26 @@ class 动作管理器类:
         self.h = 0
 
         if 截图:
-            if self.方式 == "yolo":
+            if self.方式 == "图片":
+                结果 = self._图片找图(
+                    截图, self.查找字符串, self.相似度, self.查找区域
+                )
+                if 结果:
+                    self.x = 结果["x"]
+                    self.y = 结果["y"]
+                    self.w = 结果["w"]
+                    self.h = 结果["h"]
+
+            elif self.方式 == "点阵":
+                结果 = self._字库找图(
+                    截图, self.查找字符串, self.相似度, self.查找区域
+                )
+                if 结果:
+                    self.x = 结果["目标x"]
+                    self.y = 结果["目标y"]
+                    self.w = 结果["目标宽"]
+                    self.h = 结果["目标高"]
+            elif self.方式 == "yolo":
                 结果 = self._yolo检测(截图, self.相似度)
                 if len(结果):
                     区域值 = [int(v) for v in self.查找区域.split(",")] if self.查找区域 else [0, 0, 0, 0]
@@ -68,15 +88,6 @@ class 动作管理器类:
                             self.w = math.floor(r["w"])
                             self.h = math.floor(r["h"])
                             break
-            else:
-                结果 = self._字库找图(
-                    截图, self.查找字符串, self.相似度, self.查找区域
-                )
-                if 结果:
-                    self.x = 结果["目标x"]
-                    self.y = 结果["目标y"]
-                    self.w = 结果["目标宽"]
-                    self.h = 结果["目标高"]
         return self
 
     def 点击(self, 日志=None, 延时=(1, 3)):
@@ -126,6 +137,10 @@ class 动作管理器类:
 
     def 设置字库(self, 字库集合):
         self.字库集合 = 字库集合
+        return self
+
+    def 设置图片库(self, 图片库集合):
+        self.图片库集合 = 图片库集合 or {}
         return self
 
     def 设置模型(self, 模型):
@@ -291,3 +306,79 @@ class 动作管理器类:
                 检测结果.append(检测)
 
         return 检测结果
+
+    def _图片找图(self, 大图, 图片名, 相似度=0.9, 区域=""):
+        """根据图片库中的模板名进行模板匹配找图，区域格式: "x,y,w,h"。"""
+        if 图片名 not in self.图片库集合:
+            self.更新数据("日志", f"未找到图片库: {图片名}")
+            return None
+
+        模板 = self.图片库集合[图片名]
+        if 模板 is None or not hasattr(模板, 'shape'):
+            self.更新数据("日志", f"图片库 {图片名} 的模板无效")
+            return None
+
+        # 大图转 numpy
+        if isinstance(大图, Image.Image):
+            大图数组 = np.array(大图.convert("RGB"))
+            大图数组 = cv2.cvtColor(大图数组, cv2.COLOR_RGB2BGR)
+        else:
+            大图数组 = np.array(Image.open(大图).convert("RGB"))
+            大图数组 = cv2.cvtColor(大图数组, cv2.COLOR_RGB2BGR)
+
+        if 大图数组 is None:
+            return None
+
+        大图高, 大图宽 = 大图数组.shape[:2]
+        x, y, 宽, 高 = [int(v) for v in 区域.split(",")] if 区域 else [0, 0, 0, 0]
+
+        if x == 0 and y == 0 and 宽 == 0 and 高 == 0:
+            搜索区域 = 大图数组
+            偏移x, 偏移y = 0, 0
+        else:
+            if x < 0:
+                x = 0
+            if y < 0:
+                y = 0
+            if 宽 <= 0:
+                宽 = 大图宽 - x
+            if 高 <= 0:
+                高 = 大图高 - y
+            裁剪x = max(0, x)
+            裁剪y = max(0, y)
+            裁剪宽 = min(宽, 大图宽 - 裁剪x)
+            裁剪高 = min(高, 大图高 - 裁剪y)
+            if 裁剪宽 <= 0 or 裁剪高 <= 0:
+                return None
+            搜索区域 = 大图数组[裁剪y: 裁剪y + 裁剪高, 裁剪x: 裁剪x + 裁剪宽]
+            偏移x, 偏移y = 裁剪x, 裁剪y
+
+        # 模板与搜索区域通道一致（灰度或 BGR）
+        if len(模板.shape) == 2:
+            搜索图 = cv2.cvtColor(搜索区域, cv2.COLOR_BGR2GRAY)
+            模板图 = np.asarray(模板, dtype=np.uint8)
+        else:
+            模板图 = np.asarray(模板, dtype=np.uint8)
+            if 模板图.shape[2] != 搜索区域.shape[2]:
+                搜索图 = cv2.cvtColor(搜索区域, cv2.COLOR_BGR2GRAY)
+                模板图 = cv2.cvtColor(模板图, cv2.COLOR_BGR2GRAY)
+            else:
+                搜索图 = 搜索区域
+                模板图 = 模板图
+
+        if 模板图.shape[0] > 搜索图.shape[0] or 模板图.shape[1] > 搜索图.shape[1]:
+            return None
+
+        匹配结果 = cv2.matchTemplate(搜索图, 模板图, cv2.TM_CCOEFF_NORMED)
+        最小值, 最大值, 最小位置, 最大位置 = cv2.minMaxLoc(匹配结果)
+
+        if 最大值 >= 相似度:
+            模板高, 模板宽 = 模板图.shape[:2]
+            return {
+                "x": 最大位置[0] + 偏移x,
+                "y": 最大位置[1] + 偏移y,
+                "w": 模板宽,
+                "h": 模板高,
+                "相似度": float(最大值),
+            }
+        return None

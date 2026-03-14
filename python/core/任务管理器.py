@@ -13,7 +13,7 @@ from .截图管理器 import 截图管理器类
 from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 设置 import (
-    字库文件路径, 模型文件路径, 音乐文件路径,
+    字库文件路径, 图片库文件路径, 模型文件路径, 音乐文件路径,
     未知截图目录, 界面配置文件路径, 任务目录
 )
 
@@ -47,6 +47,7 @@ class 任务管理器类:
 
         # 资源配置
         self.字库缓存 = self.加载字库文件(字库文件路径)
+        self.图片库缓存 = self.加载图片库文件(图片库文件路径)
         self._模型 = None
 
         # 界面配置
@@ -238,6 +239,22 @@ class 任务管理器类:
         self.更新数据("日志", f"成功加载 {加载数量} 个字库到缓存")
         return self.字库缓存
 
+    def 加载图片库文件(self, 图片库文件路径):
+        """加载图片库文件（.npz 格式），键为图片名，值为模板图像数组，供模板匹配找图使用。"""
+        self.图片库缓存 = {}
+        if not 图片库文件路径 or not os.path.isfile(图片库文件路径):
+            self.更新数据("日志", "图片库文件不存在，跳过加载")
+            return self.图片库缓存
+        try:
+            data = np.load(图片库文件路径, allow_pickle=False)
+            for 名称 in data.files:
+                self.图片库缓存[名称] = np.asarray(data[名称])
+            data.close()
+            self.更新数据("日志", f"成功加载 {len(self.图片库缓存)} 张图片到图片库缓存")
+        except Exception as e:
+            self.更新数据("日志", f"加载图片库文件失败: {e}")
+        return self.图片库缓存
+
     def 加载模型文件(self, 模型路径):
         """加载 YOLO 模型"""
         from ultralytics import YOLO
@@ -260,6 +277,7 @@ class 任务管理器类:
             self.界面识别缓存[界面名称] = (
                 动作管理器类(识别配置, self.控制器, self._截图上下文, self.更新数据)
                 .设置字库(self.字库缓存)
+                .设置图片库(self.图片库缓存)
                 .设置模型(self._模型)
             )
             # 创建界面配置对象
@@ -269,6 +287,7 @@ class 任务管理器类:
                 self.控制器,
                 self._截图上下文,
                 self.字库缓存,
+                self.图片库缓存,
                 self._模型,
                 self.更新数据
             )

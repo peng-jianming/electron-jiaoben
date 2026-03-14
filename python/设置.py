@@ -23,6 +23,9 @@ import os
 # 字库文件路径
 字库文件路径 = os.path.join(资源目录, "字库.json")
 
+# 图片库文件路径（.npz 格式，用于模板匹配找图）
+图片库文件路径 = os.path.join(资源目录, "图片库.npz")
+
 # 账号文件路径
 账号文件路径 = os.path.join(资源目录, "账号.json")
 
