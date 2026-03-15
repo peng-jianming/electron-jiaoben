@@ -291,7 +291,13 @@ const handleDisableDevice = (row) => {
 };
 
 const handleRefreshTaskConfig = (row) => {
-  sendToBackend("设置账号任务配置列表", { 账号: row.账号, 任务配置列表: JSON.parse(JSON.stringify(taskSelectValue.value)) });
+  const 任务配置列表 = JSON.parse(JSON.stringify(taskSelectValue.value));
+  sendToBackend("设置账号任务配置列表", { 账号: row.账号, 任务配置列表 });
+  // 刷新后立即更新本地该账号的任务配置，这样点击「开始」时会用最新配置
+  const index = accountList.value.findIndex((item) => item.账号 === row.账号);
+  if (index !== -1) {
+    accountList.value[index] = { ...accountList.value[index], 任务配置列表 };
+  }
 };
 
 // ─── 批量操作 ────────────────────────────────
