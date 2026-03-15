@@ -822,7 +822,7 @@ const handleAddItem = (node) => {
         } else if (type.value === "固定区域") {
           itemNode[key] = {
             类型: type.value,
-            固定区域: ""
+            固定点击区域: ""
           };
         } else {
           itemNode[key] = {
