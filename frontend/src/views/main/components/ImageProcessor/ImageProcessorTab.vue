@@ -1799,6 +1799,33 @@ function handleImageClick(event) {
     return;
   }
 
+  // 当在配置 tab 且「添加字库配置」抽屉打开时，允许直接点击图片选取颜色（无需开启圈选）
+  if (activeRightTab.value === "config") {
+    const configTabRef = rightPanelRef.value?.getConfigTabRef?.();
+    if (typeof configTabRef?.isDrawerOpen === "function" && configTabRef.isDrawerOpen()) {
+      const containerRect = imageContainerRef.value.getBoundingClientRect();
+      const containerX = event.clientX - containerRect.left;
+      const containerY = event.clientY - containerRect.top;
+      const imageX = containerX - imageTranslateX.value;
+      const imageY = containerY - imageTranslateY.value;
+      const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+      const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
+      if (
+        imageX >= 0 &&
+        imageX < imgDisplayWidth &&
+        imageY >= 0 &&
+        imageY < imgDisplayHeight
+      ) {
+        const naturalX = Math.floor(imageX / imageScale.value);
+        const naturalY = Math.floor(imageY / imageScale.value);
+        updateCurrentColor(naturalX, naturalY);
+        if (currentColor.value && configTabRef.addColor) {
+          configTabRef.addColor(currentColor.value);
+        }
+      }
+      return;
+    }
+  }
 }
 
 // 移除颜色

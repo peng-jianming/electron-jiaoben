@@ -403,9 +403,10 @@ defineExpose({
   getImageLibraryTabRef: () => imageLibraryTabRef.value,
 });
 
-// 组件挂载时初始化 socket
+// 组件挂载时初始化 socket，并同步当前 tab 到父组件（避免父组件 activeRightTab 仍为默认值导致选色落入错误列表）
 onMounted(() => {
   initDeviceSocket();
+  emit("tab-change", activeTab.value);
 });
 
 // 处理添加字库

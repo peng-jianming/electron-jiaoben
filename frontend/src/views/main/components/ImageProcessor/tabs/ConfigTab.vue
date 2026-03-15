@@ -1359,10 +1359,12 @@ onMounted(() => {
   loadConfigPathFromDB();
 });
 
-// 暴露给父组件的方法
+// 暴露给父组件的方法与状态
 defineExpose({
   addColor,
   setFontClickOffsetAreaFromSelection,
+  /** 是否正在显示「添加字库配置」抽屉，用于在未开启圈选时也允许点击图片选色 */
+  isDrawerOpen: () => drawer.value,
 });
 </script>
 
