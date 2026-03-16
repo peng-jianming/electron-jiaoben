@@ -628,6 +628,7 @@ const handleClearAllColors = () => {
 
 const handleAddSliderArea = (node) => {
   currentNode.value = getCurrentNode(node);
+  
   ElMessageBox.prompt("", "提示", {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
@@ -637,11 +638,11 @@ const handleAddSliderArea = (node) => {
       ElMessage.error("滑动区域名称不能为空");
       return;
     }
-    if (Object.prototype.hasOwnProperty.call(currentNode.value["滑动区域"], value.trim())) {
+    if (Object.prototype.hasOwnProperty.call(currentNode.value, value.trim())) {
       ElMessage.error("名称已存在");
       return;
     }
-    currentNode.value["滑动区域"][value.trim()] = {
+    currentNode.value[value.trim()] = {
       起始区域: "",
       结束区域: "",
     };
@@ -660,11 +661,11 @@ const handleAddSzArea = (node) => {
       ElMessage.error("识字区域名称不能为空");
       return;
     }
-    if (Object.prototype.hasOwnProperty.call(currentNode.value["识字区域"], value.trim())) {
+    if (Object.prototype.hasOwnProperty.call(currentNode.value, value.trim())) {
       ElMessage.error("名称已存在");
       return;
     }
-    currentNode.value["识字区域"][value.trim()] = ''
+    currentNode.value[value.trim()] = ''
   });
 };
 const handleAddItem = (node) => {
@@ -1144,11 +1145,7 @@ const handleConfirmAddConfig = async () => {
           const deviationStr = deviationList.join("|");
           // 点阵 = hex&width,height,count
           const matrixStr = `${matrixHex}&${width},${height},${whitePixelCount}`;
-          if (currentNode.value) {
-            currentNode.value["偏色"] = deviationStr;
-            currentNode.value["点阵"] = matrixStr;
-          }
-
+          
           // 处理偏移点击区域，格式为 x,y,w,h，若未填写则默认 0,0,0,0
           let clickOffsetArea = "0,0,0,0";
           if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
