@@ -338,6 +338,25 @@ def opencv字库找图单个(large_image_path, line, region=(0, 0, 0, 0)):
     return _make_result(max_loc[0], max_loc[1], max_val)
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def _解析字库项(item):
     """
     从字库 JSON 项（dict）解析出匹配所需字段。
@@ -374,6 +393,8 @@ def _解析字库项(item):
     except ValueError:
         return None
     return (点阵, width, height, 偏色, 名字, target_offset_x, target_offset_y, target_offset_w, target_offset_h)
+
+
 
 
 def _字库找图单个2_在图上(large_array, 字库项, region=(0, 0, 0, 0)):
@@ -487,6 +508,14 @@ def _字库找图单个2_在图上(large_array, 字库项, region=(0, 0, 0, 0)):
         }
     print(f"字库行找图 - 字库名: {name}, 相似度: {max_val:.4f}, 位置: {max_loc}")
     return _make_result(max_loc[0], max_loc[1], max_val)
+
+
+
+
+
+
+
+
 
 
 def _加载字库文件(字库路径):

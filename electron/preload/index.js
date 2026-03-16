@@ -27,7 +27,7 @@ const createPythonServer = async () => {
 const abc = () => {
   console.log(getExtraResourcesDir());
   
-  const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [path.join(getExtraResourcesDir(), 'python', 'index.py')], {
+  const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [path.join(getExtraResourcesDir(), 'python', 'main.py')], {
     stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
     detached: false,
     cwd: path.join(getExtraResourcesDir(), 'python'),
