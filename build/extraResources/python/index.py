@@ -652,21 +652,25 @@ def init_client(url="http://127.0.0.1:7070"):
 
             handlers = {
                 "upload_image": 上传图片,
-                "process_steps": 处理步骤列表,
                 "save_image": 保存图片,
+
+                "process_steps": 处理步骤列表,
+                "standalone_flood_fill_animation": 独立洪水填充动画,
+                "standalone_flood_fill": 独立洪水填充,
                 "flood_fill_animation": 洪水填充动画,
+                "stitch_image": 拼接当前图片,
+                "clear_stitch": 清空拼接,
+                "batch_stitch": 批量拼接图片,
+
+
                 "get_devices": 获取设备列表,
                 "set_device": 设置当前设备,
                 "capture_screenshot": 截图当前设备,
                 "font_library_match": 字库匹配,
                 "font_library_ocr": 字库识字,
-                "stitch_image": 拼接当前图片,
-                "clear_stitch": 清空拼接,
-                "batch_stitch": 批量拼接图片,
-                "get_stored_image": 获取存储图片,
-                "upload_flood_fill_image": 上传洪水填充图片,
-                "standalone_flood_fill": 独立洪水填充,
-                "standalone_flood_fill_animation": 独立洪水填充动画,
+
+
+
                 "load_image_library": 加载图片库,
                 "image_library_match": 图片库模板匹配,
                 "save_image_to_library": 保存图片到图片库,
@@ -1480,61 +1484,6 @@ def 字库识字(data):
 
 # 独立洪水填充模块使用的图片（与管线处理分离）
 _flood_fill_custom_image = None
-
-
-def 获取存储图片(data):
-    """获取存储的管线处理 / 拼接结果图片，供独立洪水填充使用"""
-    global _flood_fill_custom_image
-
-    source = data.get("source", "processed")
-    img = None
-
-    if source == "processed":
-        img = _current_processed_image
-    elif source == "stitched":
-        if _stitched_image is not None:
-            img = (_stitched_image * 255).astype(np.uint8)
-
-    if img is None:
-        label = "拼接" if source == "stitched" else "管线处理"
-        send_to_electron(
-            prop="stored-image-result",
-            message={"success": False, "error": f"没有可用的{label}结果图片"},
-            wait_response=False,
-        )
-        return
-
-    _flood_fill_custom_image = img.copy()
-
-    _, buffer = cv2.imencode(".png", img, [cv2.IMWRITE_PNG_COMPRESSION, 1])
-    send_to_electron(
-        prop="stored-image-result",
-        message={
-            "success": True,
-            "image": base64.b64encode(buffer).decode("utf-8"),
-            "source": source,
-        },
-        wait_response=False,
-    )
-
-
-def 上传洪水填充图片(data):
-    """接收自定义上传的图片，存入独立洪水填充缓存"""
-    global _flood_fill_custom_image
-
-    image_base64 = data.get("image")
-    if not image_base64:
-        return
-
-    try:
-        raw = base64.b64decode(image_base64)
-        nparr = np.frombuffer(raw, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is not None:
-            _flood_fill_custom_image = img
-            print("独立洪水填充: 自定义图片已加载")
-    except Exception as e:
-        print(f"独立洪水填充: 加载自定义图片失败 - {e}")
 
 
 def 独立洪水填充(data):
