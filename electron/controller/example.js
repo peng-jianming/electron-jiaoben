@@ -2,6 +2,9 @@
 
 const { exampleService } = require('../service/example');
 const { getSocketServer } = require('ee-core/socket');
+const { getBaseDir, getExtraResourcesDir } = require('ee-core/ps');
+const path = require('path');
+const crossSpawn = require('cross-spawn');
 const {
   getMainWindow
 } = require('ee-core/electron/window');
@@ -13,6 +16,21 @@ class ExampleController {
    * @param event - ipc通信时才有值。详情见：控制器文档
    */
 
+  async 启动后端服务(args, event) {
+    const coreProcess = crossSpawn('C:/ProgramData/anaconda3/python.exe', [path.join(getBaseDir(), 'python', 'index.py')], {
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+      detached: false,
+      maxBuffer: 1024 * 1024 * 1024,
+      windowsHide: true
+    });
+    coreProcess.on('exit', (code, signal) => {
+      logger.info('Python exit：', 'code=', code, 'signal=', signal);
+    });
+
+    coreProcess.on('error', (err) => {
+      logger.error('Python error：', err);
+    });
+  }
 
   /**
   * 接收 后端 的数据,根据传的事件名直接转发前端,在这不做任何处理
@@ -20,6 +38,7 @@ class ExampleController {
   * @param {Object} event - 事件对象
   */
   从后端接收数据(args, event) {
+
     try {
       // 通过 type 来决定发送给前端哪个事件
       const 事件名 = args.事件名;
@@ -62,54 +81,6 @@ class ExampleController {
       return { success: false, message: error.message };
     }
   }
-
-
-  获取账号列表(args, event) {
-    const accountList = exampleService.获取账号列表();
-    return accountList;
-  }
-
-
-  保存账号列表(args, event) {
-    try {
-      return exampleService.保存账号列表(args);
-    } catch (error) {
-      console.error('保存账号列表错误:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 获取任务配置（已选任务列表 + 任务配置）
-   * @param {Object} args
-   * @param {Object} event
-   */
-  获取任务配置(args, event) {
-    try {
-      return exampleService.获取任务配置();
-    } catch (error) {
-      console.error('获取任务配置错误:', error);
-      return {
-        selectedTasks: [],
-        taskConfig: []
-      };
-    }
-  }
-
-  /**
-   * 保存任务配置（已选任务列表 + 任务配置）
-   * @param {Object} args - { taskSelectValue } 或 { selectedTasks, taskConfig }
-   * @param {Object} event
-   */
-  保存任务配置(args, event) {
-    try {
-      return exampleService.保存任务配置(args);
-    } catch (error) {
-      console.error('保存任务配置错误:', error);
-      return false;
-    }
-  }
-
 
   操作主窗口(args, event) {
     const win = getMainWindow();

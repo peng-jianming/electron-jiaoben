@@ -41,7 +41,7 @@ module.exports = () => {
     },
     socketServer: {
       enable: true,
-      port: 7072,
+      port: 7075,
       path: "/socket.io/",
       connectTimeout: 45000,
       pingTimeout: 30000,

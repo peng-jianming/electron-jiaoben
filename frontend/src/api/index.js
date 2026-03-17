@@ -4,10 +4,7 @@
  * Definition of communication channels between main process and rendering process
  */
 const ipcApiRoute = {
-  获取账号列表: 'controller/example/获取账号列表',
-  保存账号列表: 'controller/example/保存账号列表',
-  获取任务配置: 'controller/example/获取任务配置',
-  保存任务配置: 'controller/example/保存任务配置',
+  启动后端服务: 'controller/example/启动后端服务',
   发送到后端: 'controller/example/发送到后端',
   操作主窗口: 'controller/example/操作主窗口',
   获取主窗口位置: 'controller/example/获取主窗口位置',

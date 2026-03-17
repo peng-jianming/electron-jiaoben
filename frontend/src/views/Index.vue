@@ -1,45 +1,33 @@
 <template>
   <div class="app-container">
-    <TitleBar title="设备管理系统" />
+    <TitleBar title="咚咚锵" />
 
     <div class="main-wrapper">
       <!-- 左侧导航栏 -->
       <aside class="sidebar">
         <div class="nav-menu">
           <div
+            v-for="(value, key) in map"
+            :key="key"
             class="nav-item"
-            :class="{ active: currentTab === 'account' }"
-            @click="currentTab = 'account'"
-            title="账号管理"
+            :class="{ active: currentTab === key }"
+            @click="currentTab = key"
           >
-            <el-icon :size="22"><User /></el-icon>
-            <span class="nav-label">账号</span>
-          </div>
-          <div
-            class="nav-item"
-            :class="{ active: currentTab === 'device' }"
-            @click="currentTab = 'device'"
-            title="设备管理"
-          >
-            <el-icon :size="22"><Monitor /></el-icon>
-            <span class="nav-label">设备</span>
-          </div>
-          <div
-            class="nav-item"
-            :class="{ active: currentTab === 'task' }"
-            @click="currentTab = 'task'"
-            title="任务配置"
-          >
-            <el-icon :size="22"><List /></el-icon>
-            <span class="nav-label">任务</span>
+            <el-icon :size="22"><component :is="value.icon" /> </el-icon>
+            <span class="nav-label">{{ value.name }}</span>
           </div>
         </div>
-        
+
         <!-- 底部状态指示 -->
         <div class="sidebar-footer">
           <div class="status-indicator">
-            <span class="status-dot" :class="{ online: isBackendReady, waiting: isConnected && !isBackendReady }"></span>
-            <span class="status-text">{{ isBackendReady ? '已连接' : isConnected ? '等待后端' : '未连接' }}</span>
+            <span
+              class="status-dot"
+              :class="{ online: isBackendReady, waiting: isConnected && !isBackendReady }"
+            ></span>
+            <span class="status-text">{{
+              isBackendReady ? "已连接" : isConnected ? "等待后端" : "未连接"
+            }}</span>
           </div>
         </div>
       </aside>
@@ -48,67 +36,12 @@
       <main class="main-content">
         <!-- 内容面板 -->
         <div class="content-panel">
-          <div class="panel-header">
-            <h3 class="panel-title">
-              <el-icon v-if="currentTab === 'device'"><Monitor /></el-icon>
-              <el-icon v-else-if="currentTab === 'task'"><List /></el-icon>
-              <el-icon v-else><User /></el-icon>
-              {{ panelTitle }}
-            </h3>
-            <div class="panel-actions">
-              <el-button 
-                v-if="currentTab === 'device'"
-                type="primary" 
-                plain 
-                size="small"
-                @click="handleGetDeviceList"
-              >
-                <el-icon><Refresh /></el-icon>
-                刷新设备
-              </el-button>
-              <el-button 
-                v-if="currentTab === 'account'"
-                type="primary" 
-                plain 
-                size="small"
-                @click="handleGetAccountList"
-              >
-                <el-icon><Refresh /></el-icon>
-                刷新账号
-              </el-button>
-            </div>
-          </div>
-          
-          <div class="panel-body">
-            <Account
-              v-show="currentTab === 'account'"
-              :list="accountList"
-              :taskSelectValue="taskSelectValue"
-              @startTask="handleStartAccountTask"
-              @pauseTask="handlePauseAccountTask"
-              @resumeTask="handleResumeAccountTask"
-              @endTask="handleEndAccountTask"
-              @batchStart="handleBatchStart"
-              @batchPause="handleBatchPause"
-              @batchResume="handleBatchResume"
-              @batchEnd="handleBatchEnd"
-              @openLog="handleOpenLog"
-              @refreshTaskConfig="handleRefreshTaskConfig"
-            />
-            <Device
-              v-show="currentTab === 'device'"
-              :list="deviceList"
-              @enableDevice="handleEnableDevice"
-              @disableDevice="handleDisableDevice"
-            />
-            <Task
-              v-show="currentTab === 'task'"
-              :task-list="taskList"
-              v-model="taskSelectValue"
-              @reload="handleGetTaskList"
-              class="task-select-full"
-            />
-          </div>
+          <component
+            v-for="(value, key) in map"
+            v-show="currentTab === key"
+            :key="key"
+            :is="value.component"
+          />
         </div>
       </main>
     </div>
@@ -116,69 +49,30 @@
 </template>
 
 <script setup>
-import Account from "@/components/Account.vue";
-import Device from "@/components/Device.vue";
-import Task from "@/components/Task.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
-
+import ImageProcessing from "@/components/image-processing/index.vue";
 import { ref, computed, onMounted, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
 
-const currentTab = ref("account");
+const currentTab = ref("image-processing");
 const isConnected = ref(false);
 const isBackendReady = ref(false);
-const deviceList = ref([]);
-const taskList = ref([]);
-const accountList = ref([]);
 
-const taskSelectValue = ref([]);
-
-async function loadTaskConfig() {
-  if (!ipc) return;
-  try {
-    const res = await ipc.invoke(ipcApiRoute.获取任务配置);
-    if (!Array.isArray(res)) return;
-    taskSelectValue.value = res;
-  } catch (e) {}
-}
-
-async function saveTaskConfig() {
-  if (!ipc) return;
-  try {
-    await ipc.invoke(ipcApiRoute.保存任务配置, {
-      taskSelectValue: JSON.parse(JSON.stringify(taskSelectValue.value)),
-    });
-  } catch (e) {}
-}
-
-const panelTitle = computed(() => {
-  const titles = {
-    device: '设备管理',
-    task: '任务配置',
-    account: '账号管理'
+const map = computed(() => {
+  return {
+    "image-processing": {
+      name: "图像处理",
+      icon: User,
+      component: ImageProcessing,
+    },
   };
-  return titles[currentTab.value] || '';
 });
 
 let matchSocket = null;
-
-// 更新账号状态（合并 socket 推送的字段到对应账号行）
-function updateAccountStatus(statusData) {
-  const 账号key = statusData.账号;
-  if (!账号key) return;
-
-  const index = accountList.value.findIndex((item) => item.账号 === 账号key);
-  if (index === -1) return;
-
-  accountList.value[index] = {
-    ...accountList.value[index],
-    ...statusData,
-  };
-}
 
 function initMatchSocket() {
   return new Promise((resolve, reject) => {
@@ -186,55 +80,22 @@ function initMatchSocket() {
       resolve();
       return;
     }
-
-    matchSocket = io("ws://localhost:7072");
+    matchSocket = io("ws://localhost:7075");
 
     matchSocket.on("connect", () => {
       console.log("匹配 Socket 连接成功");
       isConnected.value = true;
-    });
-
-    matchSocket.on("disconnect", () => {
-      console.log("匹配 Socket 断开连接");
-      isConnected.value = false;
-      isBackendReady.value = false;
+      ipc.invoke(ipcApiRoute.启动后端服务);
     });
 
     matchSocket.on("backend-ready", () => {
       console.log("后端已准备就绪");
       isBackendReady.value = true;
-      handleGetDeviceList();
-      handleGetTaskList();
-      handleGetAccountList();
     });
 
     matchSocket.on("device-list", (data) => {
       console.log("收到设备列表:", data);
       deviceList.value = Array.isArray(data) ? data : [];
-    });
-
-    matchSocket.on("task-list", (data) => {
-      console.log("收到任务列表:", data);
-      taskList.value = data;
-      resolve();
-    });
-
-    matchSocket.on("account-list", (data) => {
-      console.log("收到账号列表:", data);
-      if (Array.isArray(data)) {
-        accountList.value = data.map((item) => ({
-          ...item,
-          设备ID: "",
-          状态: "空闲",
-          当前任务: "",
-          日志: "",
-        }));
-      }
-    });
-
-    matchSocket.on("account-status-update", (data) => {
-      console.log("收到账号状态更新:", data);
-      updateAccountStatus(data);
     });
   });
 }
@@ -249,75 +110,12 @@ function sendToBackend(类型, extra = {}) {
   ipc.invoke(ipcApiRoute.发送到后端, { 类型, ...extra });
 }
 
-const handleGetDeviceList = () => sendToBackend("获取设备列表");
-const handleGetTaskList = () => sendToBackend("获取任务列表");
-const handleGetAccountList = () => sendToBackend("获取账号列表");
-
-// ─── 账号操作 ────────────────────────────────
-
-const handleStartAccountTask = (row) => {
-  const 账号自带配置 = Array.isArray(row.任务配置列表) && row.任务配置列表.length > 0;
-  const 任务配置列表 = 账号自带配置
-    ? JSON.parse(JSON.stringify(row.任务配置列表))
-    : JSON.parse(JSON.stringify(taskSelectValue.value));
-  sendToBackend("账号开始任务", {
-    账号: row.账号,
-    任务配置列表,
-  });
-};
-
 const handleEndAccountTask = (row) => {
   sendToBackend("账号结束任务", { 账号: row.账号 });
 };
 
-const handlePauseAccountTask = (row) => {
-  sendToBackend("账号暂停任务", { 账号: row.账号 });
-};
-
-const handleResumeAccountTask = (row) => {
-  sendToBackend("账号恢复任务", { 账号: row.账号 });
-};
-
-const handleOpenLog = (row) => {
-  sendToBackend("打开日志", { 账号: row.账号 });
-};
-
-const handleEnableDevice = (row) => {
-  sendToBackend("启用设备", { 设备ID: row.设备ID });
-};
-
-const handleDisableDevice = (row) => {
-  sendToBackend("禁用设备", { 设备ID: row.设备ID });
-};
-
-const handleRefreshTaskConfig = (row) => {
-  const 任务配置列表 = JSON.parse(JSON.stringify(taskSelectValue.value));
-  sendToBackend("设置账号任务配置列表", { 账号: row.账号, 任务配置列表 });
-  // 刷新后立即更新本地该账号的任务配置，这样点击「开始」时会用最新配置
-  const index = accountList.value.findIndex((item) => item.账号 === row.账号);
-  if (index !== -1) {
-    accountList.value[index] = { ...accountList.value[index], 任务配置列表 };
-  }
-};
-
-// ─── 批量操作 ────────────────────────────────
-
-const handleBatchStart = () => {
-  sendToBackend("全部开始", {
-    任务配置列表: JSON.parse(JSON.stringify(taskSelectValue.value)),
-  });
-};
-
-const handleBatchPause = () => sendToBackend("全部暂停");
-const handleBatchResume = () => sendToBackend("全部恢复");
-const handleBatchEnd = () => sendToBackend("全部结束");
-
-// 监听任务选择变更，自动持久化
-watch(taskSelectValue, () => saveTaskConfig(), { deep: true });
-
 onMounted(async () => {
   await initMatchSocket();
-  loadTaskConfig();
 });
 </script>
 
@@ -392,16 +190,20 @@ body,
   transition: all 0.25s ease;
   color: @text-muted;
   position: relative;
-  
+
   &:hover {
     color: @primary-color;
     background: rgba(91, 106, 240, 0.06);
   }
-  
+
   &.active {
     color: @primary-color;
-    background: linear-gradient(135deg, rgba(91, 106, 240, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
-    
+    background: linear-gradient(
+      135deg,
+      rgba(91, 106, 240, 0.12) 0%,
+      rgba(139, 92, 246, 0.08) 100%
+    );
+
     .el-icon {
       transform: scale(1.05);
     }
@@ -434,13 +236,13 @@ body,
   height: 8px;
   border-radius: 50%;
   background-color: @danger-color;
-  
+
   &.online {
     background-color: @success-color;
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
     animation: pulse 2s infinite;
   }
-  
+
   &.waiting {
     background-color: @warning-color;
     box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
@@ -449,8 +251,13 @@ body,
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .status-text {
@@ -500,7 +307,7 @@ body,
   display: flex;
   align-items: center;
   gap: 10px;
-  
+
   .el-icon {
     color: @primary-color;
     background: rgba(91, 106, 240, 0.1);
@@ -525,24 +332,24 @@ body,
   height: 100% !important;
   min-height: unset !important;
   max-height: unset !important;
-  
+
   :deep(.task-columns) {
     height: 100%;
   }
-  
+
   :deep(.column) {
     flex: 1;
     min-width: 200px;
   }
-  
+
   :deep(.column-tasks) {
     flex: 0 0 30%;
   }
-  
+
   :deep(.column-selected) {
     flex: 0 0 25%;
   }
-  
+
   :deep(.column-config) {
     flex: 1;
   }
@@ -566,7 +373,7 @@ body,
 
 :deep(.el-table) {
   border-radius: 6px;
-  
+
   th.el-table__cell {
     background-color: #fafafa;
     color: @text-secondary;
