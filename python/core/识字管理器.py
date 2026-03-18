@@ -36,7 +36,7 @@ def get_ocr():
 
 class 识字管理器类:
     """对图片做 OCR，返回识别结果列表。可与设备控制器.截图到内存() 配合使用。"""
-    def __init__(self, 截图上下文=None):
+    def __init__(self, 截图上下文):
         self._截图上下文 = 截图上下文
         get_ocr()
 
