@@ -21,18 +21,22 @@ export const useFloodFillStore = defineStore('floodFill', () => {
   // 结果预览
   const floodResultImage = ref('');
   const lastErrorMessage = ref('');
+  const pendingUploadResolvers = ref({});
 
   // 状态
   const isFilling = ref(false);
   const isAnimating = ref(false);
 
-  // 使用的展示图片：优先使用洪水填充结果，否则使用图像处理模块当前展示图片
-  const displayImageSrc = computed(() => {
-    if (floodResultImage.value) return floodResultImage.value;
+  // 输入图展示：不包含结果图（由组件分开展示）
+  const inputDisplayImageSrc = computed(() => {
     if (inputImage.value.source === 'flood') {
       return floodInputPreview.value || '';
     }
     return imageProcessingStore.displayImageSrc || '';
+  });
+
+  const resultDisplayImageSrc = computed(() => {
+    return floodResultImage.value || '';
   });
 
   const hasSeedPoint = computed(() => {
@@ -46,9 +50,9 @@ export const useFloodFillStore = defineStore('floodFill', () => {
   const hasImage = computed(() => {
     const hasInputId = !!(inputImage.value && inputImage.value.id);
     if (inputImage.value.source === 'processing') {
-      return !!(imageProcessingStore.currentImageId || displayImageSrc.value);
+      return !!(imageProcessingStore.currentImageId || inputDisplayImageSrc.value);
     }
-    return !!(hasInputId || floodInputPreview.value || displayImageSrc.value);
+    return !!(hasInputId || floodInputPreview.value || inputDisplayImageSrc.value);
   });
 
   const sendToBackend = (类型, extra = {}) => {
@@ -93,6 +97,35 @@ export const useFloodFillStore = defineStore('floodFill', () => {
     if (data && typeof data.preview === 'string') {
       floodInputPreview.value = data.preview;
     }
+
+    const requestId = data && data.requestId;
+    if (requestId && pendingUploadResolvers.value && pendingUploadResolvers.value[requestId]) {
+      try {
+        pendingUploadResolvers.value[requestId]({ imageId: data.imageId, preview: data.preview });
+      } finally {
+        delete pendingUploadResolvers.value[requestId];
+      }
+    }
+  };
+
+  const uploadEditedImageDataUrl = async (dataUrl) => {
+    if (!dataUrl) return null;
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const p = new Promise((resolve) => {
+      pendingUploadResolvers.value[requestId] = resolve;
+    });
+
+    sendToBackend('洪水填充上传base64缓存', {
+      dataUrl,
+      requestId,
+    });
+
+    const res = await p;
+    if (res && res.imageId) {
+      inputImage.value = { source: 'flood', id: res.imageId };
+    }
+    return (res && res.imageId) || null;
   };
 
   // 由前端图片组件在 onLoad 时设置原始尺寸
@@ -204,13 +237,15 @@ export const useFloodFillStore = defineStore('floodFill', () => {
     lastErrorMessage,
     isFilling,
     isAnimating,
-    displayImageSrc,
+    inputDisplayImageSrc,
+    resultDisplayImageSrc,
     hasSeedPoint,
     hasImage,
     // actions
     useImageFromProcessing,
     handleFloodImageUpload,
     handleFloodImageUploaded,
+    uploadEditedImageDataUrl,
     setImageNaturalSize,
     setSeedPointByClientPoint,
     startFloodFill,

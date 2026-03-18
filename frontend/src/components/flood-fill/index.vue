@@ -6,7 +6,7 @@
 
     <div class="panel-body">
       <div class="layout">
-        <!-- 左侧：图片与交互 -->
+        <!-- 左侧：原图/可编辑图 与交互 -->
         <div class="left-pane">
           <div class="toolbar">
             <el-button type="primary" size="small" @click="triggerUpload">
@@ -37,6 +37,9 @@
             >
               播放动画
             </el-button>
+            <el-button size="small" :disabled="!hasImage" @click="resetEditedToOriginal">
+              重置处理图
+            </el-button>
           </div>
 
           <!-- 隐藏的文件选择器 -->
@@ -49,24 +52,32 @@
           />
 
           <div class="image-area" v-if="hasImage">
-            <div class="image-container" ref="imageContainerRef">
-              <img
-                v-if="displayImageSrc"
-                :src="displayImageSrc"
-                class="image"
-                ref="imageRef"
-                @load="onImageLoad"
-                @click="onImageClick"
-              />
-              <div v-else class="image-placeholder">正在加载图片...</div>
-
-              <div v-if="hasSeedPoint" class="seed-point-indicator" :style="seedPointStyle"></div>
-            </div>
-
-            <div class="tips">
-              <p>1. 在图片上点击选择起始点（需要填充的区域内）</p>
-              <p>2. 点击「开始填充」查看结果</p>
-              <p>3. 点击「播放动画」在新窗口中查看填充过程</p>
+            <div class="preview-card preview-card-full">
+              <div class="preview-title">当前图片</div>
+              <div
+                class="edit-container"
+                ref="editContainerRef"
+                @wheel="onWheel"
+                @mousedown="onMouseDown"
+                @mousemove="onMouseMove"
+                @mouseup="onMouseUp"
+                @mouseleave="onMouseUp"
+                @click="onCanvasClick"
+              >
+                <div
+                  class="canvas-stage"
+                  ref="canvasStageRef"
+                  :style="stageStyle"
+                >
+                  <canvas ref="editCanvasRef" class="edit-canvas"></canvas>
+                  <div
+                    v-if="hasSeedPoint && naturalReady"
+                    class="seed-point-indicator"
+                    :style="seedPointStyleInStage"
+                  ></div>
+                </div>
+                <div v-if="!naturalReady" class="image-placeholder">正在加载图片...</div>
+              </div>
             </div>
           </div>
 
@@ -77,6 +88,18 @@
 
         <!-- 右侧：结果预览（与说明） -->
         <div class="right-pane">
+          <div class="result-card">
+            <div class="preview-title">结果图片</div>
+            <div class="result-container">
+              <img
+                v-if="resultImageSrc"
+                :src="resultImageSrc"
+                class="result-image"
+              />
+              <div v-else class="result-placeholder">暂无结果，点击「开始填充」生成</div>
+            </div>
+          </div>
+
           <div class="info-card">
             <h4>当前状态</h4>
             <ul>
@@ -110,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
 import { useImageProcessingStore } from "@/stores/imageProcessing";
@@ -122,36 +145,52 @@ const floodFillStore = useFloodFillStore();
 const { currentImageId } = storeToRefs(imageProcessingStore);
 
 const fileInputRef = ref(null);
-const imageContainerRef = ref(null);
-const imageRef = ref(null);
+const editContainerRef = ref(null);
+const canvasStageRef = ref(null);
+const editCanvasRef = ref(null);
 
-const displayImageSrc = computed(() => floodFillStore.displayImageSrc);
+const originalImageSrc = computed(() => floodFillStore.inputDisplayImageSrc);
+const resultImageSrc = computed(() => floodFillStore.resultDisplayImageSrc);
 const hasSeedPoint = computed(() => floodFillStore.hasSeedPoint);
 const hasImage = computed(() => floodFillStore.hasImage);
 
 const canUseProcessingImage = computed(() => !!currentImageId.value);
 
-const seedPointStyle = computed(() => {
-  if (!imageContainerRef.value || !imageRef.value || !hasSeedPoint.value) return {};
+const naturalReady = ref(false);
+const viewScale = ref(1);
+const viewTranslate = ref({ x: 0, y: 0 });
+const isPanning = ref(false);
+const panStart = ref({ x: 0, y: 0, tx: 0, ty: 0 });
+const undoStack = ref([]);
+const maxUndo = 50;
+const spacePressed = ref(false);
 
-  const containerRect = imageContainerRef.value.getBoundingClientRect();
-  const imgRect = imageRef.value.getBoundingClientRect();
+const stageStyle = computed(() => {
+  return {
+    transform: `translate(${viewTranslate.value.x}px, ${viewTranslate.value.y}px) scale(${viewScale.value})`,
+    transformOrigin: "0 0",
+  };
+});
 
-  if (!containerRect.width || !containerRect.height) return {};
-  if (!imgRect.width || !imgRect.height) return {};
+const seedPointStyleInStage = computed(() => {
+  // 让缩放/平移触发重新计算（虽然圆点会跟着 transform 走，但这里用于确保依赖完整）
+  const _scale = viewScale.value;
+  const _tx = viewTranslate.value.x;
+  const _ty = viewTranslate.value.y;
 
-  if (!floodFillStore.imageNaturalWidth || !floodFillStore.imageNaturalHeight) {
-    return {};
-  }
+  const canvas = editCanvasRef.value;
+  if (!canvas || !hasSeedPoint.value) return {};
 
-  const scaleX = imgRect.width / floodFillStore.imageNaturalWidth;
-  const scaleY = imgRect.height / floodFillStore.imageNaturalHeight;
+  const w = canvas.width || 0;
+  const h = canvas.height || 0;
+  if (!w || !h) return {};
 
-  const imgOffsetLeft = imgRect.left - containerRect.left;
-  const imgOffsetTop = imgRect.top - containerRect.top;
+  const cssW = canvas.clientWidth || 0;
+  const cssH = canvas.clientHeight || 0;
+  if (!cssW || !cssH) return {};
 
-  const left = imgOffsetLeft + floodFillStore.seedPoint.x * scaleX;
-  const top = imgOffsetTop + floodFillStore.seedPoint.y * scaleY;
+  const left = (floodFillStore.seedPoint.x / w) * cssW;
+  const top = (floodFillStore.seedPoint.y / h) * cssH;
 
   return {
     left: `${left}px`,
@@ -189,26 +228,137 @@ const useFromProcessing = () => {
   floodFillStore.useImageFromProcessing();
 };
 
-const onImageLoad = (event) => {
-  const img = event.target;
-  const naturalWidth = img.naturalWidth;
-  const naturalHeight = img.naturalHeight;
-  floodFillStore.setImageNaturalSize(naturalWidth, naturalHeight);
+const setupCanvasFromOriginal = async () => {
+  const src = originalImageSrc.value;
+  const canvas = editCanvasRef.value;
+  if (!src || !canvas) return;
+
+  naturalReady.value = false;
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.src = src;
+  await new Promise((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("图片加载失败"));
+  });
+
+  floodFillStore.setImageNaturalSize(img.naturalWidth, img.naturalHeight);
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  viewScale.value = 1;
+  viewTranslate.value = { x: 0, y: 0 };
+  undoStack.value = [];
+  naturalReady.value = true;
 };
 
-const onImageClick = (event) => {
-  const img = event.target;
-  const rect = img.getBoundingClientRect();
+const resetEditedToOriginal = async () => {
+  if (!hasImage.value) return;
+  try {
+    await setupCanvasFromOriginal();
+    ElMessage.success("已重置处理图");
+  } catch (e) {
+    ElMessage.error("重置失败");
+  }
+};
 
-  const offsetX = event.clientX - rect.left;
-  const offsetY = event.clientY - rect.top;
+const getCanvasPointFromClient = (clientX, clientY) => {
+  const canvas = editCanvasRef.value;
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+
+  const x = Math.floor(((clientX - rect.left) / rect.width) * canvas.width);
+  const y = Math.floor(((clientY - rect.top) / rect.height) * canvas.height);
+  if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return null;
+  return { x, y, rect };
+};
+
+const pushUndo = () => {
+  const canvas = editCanvasRef.value;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  undoStack.value.push(snapshot);
+  if (undoStack.value.length > maxUndo) undoStack.value.shift();
+};
+
+const undoPaint = () => {
+  const canvas = editCanvasRef.value;
+  if (!canvas) return;
+  const last = undoStack.value.pop();
+  if (!last) return;
+  const ctx = canvas.getContext("2d");
+  ctx.putImageData(last, 0, 0);
+};
+
+const paintWhitePixel = (x, y) => {
+  const canvas = editCanvasRef.value;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  pushUndo();
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x, y, 1, 1);
+};
+
+const onCanvasClick = (event) => {
+  if (!naturalReady.value) return;
+  if (event.altKey) {
+    const p = getCanvasPointFromClient(event.clientX, event.clientY);
+    if (!p) return;
+    paintWhitePixel(p.x, p.y);
+    return;
+  }
+
+  // Ctrl / 空格用于缩放&拖动时，不应触发选点
+  if (event.ctrlKey || spacePressed.value) return;
+
+  const p = getCanvasPointFromClient(event.clientX, event.clientY);
+  if (!p) return;
 
   floodFillStore.setSeedPointByClientPoint({
-    offsetX,
-    offsetY,
-    clientWidth: rect.width,
-    clientHeight: rect.height,
+    offsetX: p.x,
+    offsetY: p.y,
+    clientWidth: editCanvasRef.value.width,
+    clientHeight: editCanvasRef.value.height,
   });
+};
+
+const onWheel = (event) => {
+  if (!event.ctrlKey) return;
+  event.preventDefault();
+
+  const delta = event.deltaY;
+  const factor = delta > 0 ? 0.9 : 1.1;
+  const next = Math.min(8, Math.max(0.2, viewScale.value * factor));
+  viewScale.value = next;
+};
+
+const onMouseDown = (event) => {
+  if (!(event.ctrlKey || spacePressed.value)) return;
+  isPanning.value = true;
+  panStart.value = {
+    x: event.clientX,
+    y: event.clientY,
+    tx: viewTranslate.value.x,
+    ty: viewTranslate.value.y,
+  };
+};
+
+const onMouseMove = (event) => {
+  if (!isPanning.value) return;
+  const dx = event.clientX - panStart.value.x;
+  const dy = event.clientY - panStart.value.y;
+  viewTranslate.value = { x: panStart.value.tx + dx, y: panStart.value.ty + dy };
+};
+
+const onMouseUp = () => {
+  isPanning.value = false;
 };
 
 const handleStartFloodFill = () => {
@@ -220,7 +370,22 @@ const handleStartFloodFill = () => {
     ElMessage.warning("请先在图片上点击选取起始点");
     return;
   }
-  floodFillStore.startFloodFill();
+
+  const canvas = editCanvasRef.value;
+  if (!canvas) {
+    ElMessage.warning("处理图未就绪");
+    return;
+  }
+
+  const dataUrl = canvas.toDataURL("image/png");
+  floodFillStore
+    .uploadEditedImageDataUrl(dataUrl)
+    .then(() => {
+      floodFillStore.startFloodFill();
+    })
+    .catch(() => {
+      ElMessage.error("上传处理图失败");
+    });
 };
 
 const handlePlayAnimation = () => {
@@ -230,6 +395,51 @@ const handlePlayAnimation = () => {
   }
   floodFillStore.playFloodFillAnimation(0);
 };
+
+const onKeyDown = (event) => {
+  const key = (event && event.key) || "";
+  const isZ = key.toLowerCase() === "z";
+  if (event.ctrlKey && isZ) {
+    event.preventDefault();
+    undoPaint();
+    return;
+  }
+  if (key === " " || key === "Spacebar" || event.code === "Space") {
+    spacePressed.value = true;
+    // 避免空格触发页面滚动，影响拖动体验
+    event.preventDefault();
+  }
+};
+
+const onKeyUp = (event) => {
+  const key = (event && event.key) || "";
+  if (key === " " || key === "Spacebar" || event.code === "Space") {
+    spacePressed.value = false;
+  }
+};
+
+watch(
+  () => originalImageSrc.value,
+  async (v) => {
+    if (!v) return;
+    try {
+      await nextTick();
+      await setupCanvasFromOriginal();
+    } catch (e) {
+      // ignore
+    }
+  }
+);
+
+onMounted(() => {
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKeyDown);
+  window.removeEventListener("keyup", onKeyUp);
+});
 </script>
 
 <style scoped lang="less">
@@ -294,7 +504,36 @@ const handlePlayAnimation = () => {
   gap: 8px;
 }
 
-.image-container {
+.image {
+  max-width: 100%;
+  max-height: 100%;
+  cursor: default;
+  user-select: none;
+}
+
+.image-placeholder {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.preview-card-full {
+  flex: 1;
+}
+
+.preview-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.edit-container {
   flex: 1;
   background: #0f172a;
   border-radius: 8px;
@@ -303,18 +542,19 @@ const handlePlayAnimation = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.image {
-  max-width: 100%;
-  max-height: 100%;
-  cursor: crosshair;
+  min-height: 180px;
   user-select: none;
 }
 
-.image-placeholder {
-  color: #94a3b8;
-  font-size: 13px;
+.canvas-stage {
+  position: relative;
+  display: inline-block;
+}
+
+.edit-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .seed-point-indicator {
@@ -326,6 +566,7 @@ const handlePlayAnimation = () => {
   position: absolute;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+  pointer-events: none;
 }
 
 .tips {
@@ -365,5 +606,36 @@ const handlePlayAnimation = () => {
   padding-left: 16px;
   font-size: 12px;
   color: #475569;
+}
+
+.result-card {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-container {
+  background: #0f172a;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.result-image {
+  max-width: 100%;
+  max-height: 100%;
+  user-select: none;
+}
+
+.result-placeholder {
+  color: #94a3b8;
+  font-size: 13px;
 }
 </style>

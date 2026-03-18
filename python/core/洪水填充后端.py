@@ -5,6 +5,7 @@ from collections import deque
 import os
 import uuid
 from io import BytesIO
+import base64
 
 import cv2
 import numpy as np
@@ -126,11 +127,12 @@ class 洪水填充后端类:
         洪水填充 tab 上传图片时调用（独立缓存）：
         - 类型：洪水填充上传缓存
         - 参数：{ 图片路径: str }
-        - 返回事件：flood-image-uploaded { imageId, preview }
+        - 返回事件：flood-image-uploaded { imageId, preview, requestId? }
         """
         try:
             payload = 数据 or {}
             图片路径 = payload.get("图片路径")
+            request_id = payload.get("requestId")
             if not 图片路径 or not isinstance(图片路径, str):
                 raise ValueError("未收到有效的图片路径")
             if not os.path.exists(图片路径):
@@ -151,10 +153,46 @@ class 洪水填充后端类:
 
             self._通信管理器.发送到Electron(
                 "flood-image-uploaded",
-                {"imageId": image_id, "preview": preview_dataurl},
+                {"imageId": image_id, "preview": preview_dataurl, "requestId": request_id},
             )
         except Exception as e:
             print(f"处理洪水填充上传图片异常: {e}")
+            traceback.print_exc()
+
+    def 处理上传base64图片(self, 数据):
+        """
+        前端在本地对图片做像素级修补后，将 base64(dataUrl) 上传到洪水填充缓存：
+        - 类型：洪水填充上传base64缓存
+        - 参数：{ dataUrl: str, requestId?: str }
+        - 返回事件：flood-image-uploaded { imageId, preview, requestId? }
+        """
+        try:
+            payload = 数据 or {}
+            data_url = payload.get("dataUrl") or payload.get("data_url") or ""
+            request_id = payload.get("requestId")
+            if not data_url or not isinstance(data_url, str):
+                raise ValueError("未收到有效的 dataUrl")
+
+            if "," in data_url:
+                _, b64 = data_url.split(",", 1)
+            else:
+                b64 = data_url
+
+            try:
+                img_bytes = base64.b64decode(b64, validate=False)
+            except Exception as e:
+                raise ValueError(f"base64 解码失败: {e}")
+
+            image_id = self._save_image_bytes(img_bytes)
+            img_bgr = self._load_image_by_id(image_id, image_source="flood")
+            preview_dataurl = self._cv2_to_dataurl(img_bgr)
+
+            self._通信管理器.发送到Electron(
+                "flood-image-uploaded",
+                {"imageId": image_id, "preview": preview_dataurl, "requestId": request_id},
+            )
+        except Exception as e:
+            print(f"处理洪水填充上传base64图片异常: {e}")
             traceback.print_exc()
 
     def 处理洪水填充(self, 数据):
