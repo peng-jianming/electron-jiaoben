@@ -26,7 +26,7 @@ class 通信管理器类:
     def _注册事件(self):
         @self._客户端.on("message")
         def 收到消息(数据):
-            print(f"收到来自 Electron 的消息: {数据}")
+            # print(f"收到来自 Electron 的消息: {数据}")
             if isinstance(数据, dict) and 数据.get("类型"):
                 self._消息队列.put((数据.get("类型"), 数据))
             else:

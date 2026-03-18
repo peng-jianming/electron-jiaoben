@@ -52,7 +52,7 @@
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 import ImageProcessing from "@/components/image-processing/index.vue";
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, provide } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -61,6 +61,14 @@ import { io } from "socket.io-client";
 const currentTab = ref("image-processing");
 const isConnected = ref(false);
 const isBackendReady = ref(false);
+const imageProcessingResult = ref("");
+const colorFilterPreview = ref("");
+const imageUploadedInfo = ref({ imageId: "", preview: "" });
+
+provide("sendToBackend", sendToBackend);
+provide("imageProcessingResult", imageProcessingResult);
+provide("colorFilterPreview", colorFilterPreview);
+provide("imageUploadedInfo", imageUploadedInfo);
 
 const map = computed(() => {
   return {
@@ -93,9 +101,28 @@ function initMatchSocket() {
       isBackendReady.value = true;
     });
 
-    matchSocket.on("device-list", (data) => {
-      console.log("收到设备列表:", data);
-      deviceList.value = Array.isArray(data) ? data : [];
+    matchSocket.on("image-uploaded", (data) => {
+      console.log("收到图片上传缓存结果:", data);
+      if (data && typeof data.imageId === "string") {
+        imageUploadedInfo.value = {
+          imageId: data.imageId,
+          preview: data.preview || "",
+        };
+      }
+    });
+
+    matchSocket.on("image-processing-result", (data) => {
+      console.log("收到图像处理结果:", data);
+      if (data && typeof data.image === "string") {
+        imageProcessingResult.value = data.image;
+      }
+    });
+
+    matchSocket.on("color-filter-preview", (data) => {
+      console.log("收到颜色过滤预览结果:", data);
+      if (data && typeof data.image === "string") {
+        colorFilterPreview.value = data.image;
+      }
     });
   });
 }
@@ -110,9 +137,6 @@ function sendToBackend(类型, extra = {}) {
   ipc.invoke(ipcApiRoute.发送到后端, { 类型, ...extra });
 }
 
-const handleEndAccountTask = (row) => {
-  sendToBackend("账号结束任务", { 账号: row.账号 });
-};
 
 onMounted(async () => {
   await initMatchSocket();
