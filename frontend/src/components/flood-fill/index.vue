@@ -1,9 +1,5 @@
 <template>
   <div class="flood-fill-wrapper">
-    <div class="panel-header">
-      <h3 class="panel-title">洪水填充</h3>
-    </div>
-
     <div class="panel-body">
       <div class="layout">
         <!-- 左侧：原图/可编辑图 与交互 -->
@@ -20,25 +16,15 @@
               使用图像处理结果
             </el-button>
 
-            <el-button
-              type="success"
-              size="small"
-              :disabled="!hasImage || !hasSeedPoint || floodFillStore.isFilling"
-              :loading="floodFillStore.isFilling"
-              @click="handleStartFloodFill"
-            >
-              开始填充
-            </el-button>
-
-            <el-button
-              size="small"
-              :disabled="!hasImage || !hasSeedPoint"
-              @click="handlePlayAnimation"
-            >
-              播放动画
-            </el-button>
             <el-button size="small" :disabled="!hasImage" @click="resetEditedToOriginal">
               重置处理图
+            </el-button>
+
+            <el-button size="small" :disabled="!hasImage || !naturalReady" @click="fitToContainer">
+              适应性缩放
+            </el-button>
+            <el-button size="small" :disabled="!hasImage || !naturalReady" @click="resetViewToOriginal">
+              原始缩放
             </el-button>
           </div>
 
@@ -53,7 +39,6 @@
 
           <div class="image-area" v-if="hasImage">
             <div class="preview-card preview-card-full">
-              <div class="preview-title">当前图片</div>
               <div
                 class="edit-container"
                 ref="editContainerRef"
@@ -61,20 +46,23 @@
                 @mousedown="onMouseDown"
                 @mousemove="onMouseMove"
                 @mouseup="onMouseUp"
-                @mouseleave="onMouseUp"
+                @mouseleave="onMouseLeave"
+                @mouseenter="onMouseEnter"
                 @click="onCanvasClick"
               >
-                <div
-                  class="canvas-stage"
-                  ref="canvasStageRef"
-                  :style="stageStyle"
-                >
+                <div class="canvas-stage" ref="canvasStageRef" :style="stageStyle">
                   <canvas ref="editCanvasRef" class="edit-canvas"></canvas>
                   <div
                     v-if="hasSeedPoint && naturalReady"
                     class="seed-point-indicator"
                     :style="seedPointStyleInStage"
                   ></div>
+                </div>
+                <div v-show="magnifier.visible" class="magnifier" :style="magnifierStyle">
+                  <canvas ref="magnifierCanvasRef" class="magnifier-canvas"></canvas>
+                  <div class="magnifier-info">
+                    ({{ magnifier.pixel.x }}, {{ magnifier.pixel.y }})
+                  </div>
                 </div>
                 <div v-if="!naturalReady" class="image-placeholder">正在加载图片...</div>
               </div>
@@ -91,41 +79,29 @@
           <div class="result-card">
             <div class="preview-title">结果图片</div>
             <div class="result-container">
-              <img
-                v-if="resultImageSrc"
-                :src="resultImageSrc"
-                class="result-image"
-              />
+              <img v-if="resultImageSrc" :src="resultImageSrc" class="result-image" />
               <div v-else class="result-placeholder">暂无结果，点击「开始填充」生成</div>
             </div>
           </div>
 
-          <div class="info-card">
-            <h4>当前状态</h4>
-            <ul>
-              <li>
-                图片：<span>{{ hasImage ? "已就绪" : "未选择" }}</span>
-              </li>
-              <li>
-                起始点：
-                <span v-if="hasSeedPoint">
-                  ({{ floodFillStore.seedPoint.x }}, {{ floodFillStore.seedPoint.y }})
-                </span>
-                <span v-else>未选择</span>
-              </li>
-              <li>
-                填充状态：
-                <span>
-                  {{ floodFillStore.isFilling ? "填充中..." : "空闲" }}
-                </span>
-              </li>
-            </ul>
-          </div>
+          <el-button
+            type="success"
+            size="small"
+            :disabled="!hasImage || !hasSeedPoint || floodFillStore.isFilling"
+            :loading="floodFillStore.isFilling"
+            @click="handleStartFloodFill"
+          >
+            开始填充
+          </el-button>
 
-          <div class="info-card">
-            <h4>说明</h4>
-            <p>可以在图像处理中先做二值化、膨胀、腐蚀等操作，让需要填充的区域闭合后，再在此处执行洪水填充。</p>
-          </div>
+          <el-button
+            style="margin-left: 0;"
+            size="small"
+            :disabled="!hasImage || !hasSeedPoint"
+            @click="handlePlayAnimation"
+          >
+            播放动画
+          </el-button>
         </div>
       </div>
     </div>
@@ -148,6 +124,7 @@ const fileInputRef = ref(null);
 const editContainerRef = ref(null);
 const canvasStageRef = ref(null);
 const editCanvasRef = ref(null);
+const magnifierCanvasRef = ref(null);
 
 const originalImageSrc = computed(() => floodFillStore.inputDisplayImageSrc);
 const resultImageSrc = computed(() => floodFillStore.resultDisplayImageSrc);
@@ -164,6 +141,31 @@ const panStart = ref({ x: 0, y: 0, tx: 0, ty: 0 });
 const undoStack = ref([]);
 const maxUndo = 50;
 const spacePressed = ref(false);
+
+const magnifier = ref({
+  visible: false,
+  left: 0,
+  top: 0,
+  pixel: { x: 0, y: 0 },
+});
+
+const magnifierStyle = computed(() => {
+  return {
+    left: `${magnifier.value.left}px`,
+    top: `${magnifier.value.top}px`,
+  };
+});
+
+const MAG_PIXELS = 11;
+// 放大镜每个像素格的显示尺寸（越大越“清晰”）
+const MAG_SCALE = 12;
+const MAG_CANVAS_SIZE = MAG_PIXELS * MAG_SCALE;
+const MAG_BOX_PADDING = 10;
+const MAG_BOX_W = MAG_CANVAS_SIZE + MAG_BOX_PADDING * 2;
+const MAG_BOX_H = MAG_CANVAS_SIZE + MAG_BOX_PADDING * 2 + 20;
+let magRaf = 0;
+let magPending = false;
+let lastMagClient = { x: 0, y: 0 };
 
 const stageStyle = computed(() => {
   return {
@@ -279,6 +281,154 @@ const getCanvasPointFromClient = (clientX, clientY) => {
   return { x, y, rect };
 };
 
+const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+const setViewCenteredWithScale = (scale) => {
+  const next = Number.isFinite(scale) ? scale : 1;
+  const clamped = Math.min(8, Math.max(0.05, next));
+  viewScale.value = clamped;
+
+  const stage = canvasStageRef.value;
+  if (!stage) {
+    viewTranslate.value = { x: 0, y: 0 };
+    return;
+  }
+
+  const baseW = stage.offsetWidth || 0; // 未应用 transform 的布局尺寸
+  const baseH = stage.offsetHeight || 0;
+  if (!baseW || !baseH) {
+    viewTranslate.value = { x: 0, y: 0 };
+    return;
+  }
+
+  // 关键点：.edit-container 已经用 flex 把“未缩放的 stage 布局盒子”居中。
+  // transform 不参与布局，所以我们只需要补偿缩放带来的尺寸差：
+  // 让缩放后的盒子仍以中心为基准缩放（视觉上居中）。
+  viewTranslate.value = {
+    x: (baseW * (1 - clamped)) / 2,
+    y: (baseH * (1 - clamped)) / 2,
+  };
+};
+
+const fitToContainer = async () => {
+  if (!naturalReady.value) return;
+  await nextTick();
+
+  const container = editContainerRef.value;
+  const stage = canvasStageRef.value;
+  if (!container || !stage) return;
+
+  const cr = container.getBoundingClientRect();
+  const baseW = stage.offsetWidth || 0; // 不含 transform 的布局尺寸
+  const baseH = stage.offsetHeight || 0;
+  if (!cr.width || !cr.height || !baseW || !baseH) return;
+
+  // “最大边占满”：等价于 contain，取 min 比例，使最长边刚好贴边，另一边留空
+  const scale = Math.min(cr.width / baseW, cr.height / baseH);
+  setViewCenteredWithScale(scale);
+};
+
+const resetViewToOriginal = async () => {
+  if (!naturalReady.value) return;
+  await nextTick();
+  setViewCenteredWithScale(1);
+};
+
+const drawMagnifierAt = (pixelX, pixelY) => {
+  const srcCanvas = editCanvasRef.value;
+  const magCanvas = magnifierCanvasRef.value;
+  if (!srcCanvas || !magCanvas) return;
+
+  magCanvas.width = MAG_CANVAS_SIZE;
+  magCanvas.height = MAG_CANVAS_SIZE;
+
+  const ctx = magCanvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, MAG_CANVAS_SIZE, MAG_CANVAS_SIZE);
+
+  const half = Math.floor(MAG_PIXELS / 2);
+  const sx = clamp(pixelX - half, 0, Math.max(0, srcCanvas.width - MAG_PIXELS));
+  const sy = clamp(pixelY - half, 0, Math.max(0, srcCanvas.height - MAG_PIXELS));
+
+  ctx.drawImage(
+    srcCanvas,
+    sx,
+    sy,
+    MAG_PIXELS,
+    MAG_PIXELS,
+    0,
+    0,
+    MAG_CANVAS_SIZE,
+    MAG_CANVAS_SIZE
+  );
+
+  // 网格线（每个像素格边界）
+  ctx.save();
+  ctx.strokeStyle = "rgba(226, 232, 240, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < MAG_PIXELS; i++) {
+    const p = i * MAG_SCALE + 0.5;
+    ctx.moveTo(p, 0);
+    ctx.lineTo(p, MAG_CANVAS_SIZE);
+    ctx.moveTo(0, p);
+    ctx.lineTo(MAG_CANVAS_SIZE, p);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // 中心像素十字
+  const center = half * MAG_SCALE + Math.floor(MAG_SCALE / 2);
+  ctx.strokeStyle = "rgba(34, 197, 94, 0.95)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(center + 0.5, 0);
+  ctx.lineTo(center + 0.5, MAG_CANVAS_SIZE);
+  ctx.moveTo(0, center + 0.5);
+  ctx.lineTo(MAG_CANVAS_SIZE, center + 0.5);
+  ctx.stroke();
+
+  // 边框
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.strokeRect(0.5, 0.5, MAG_CANVAS_SIZE - 1, MAG_CANVAS_SIZE - 1);
+};
+
+const updateMagnifierFromEvent = (event) => {
+  if (!naturalReady.value) return;
+  if (event.ctrlKey || spacePressed.value) return;
+
+  const p = getCanvasPointFromClient(event.clientX, event.clientY);
+  if (!p) {
+    magnifier.value.visible = false;
+    return;
+  }
+
+  magnifier.value.visible = true;
+  magnifier.value.pixel = { x: p.x, y: p.y };
+
+  const container = editContainerRef.value;
+  if (container) {
+    const cr = container.getBoundingClientRect();
+    const rawLeft = event.clientX - cr.left + 16;
+    const rawTop = event.clientY - cr.top + 16;
+    const maxLeft = Math.max(0, cr.width - MAG_BOX_W - 4);
+    const maxTop = Math.max(0, cr.height - MAG_BOX_H - 4);
+    magnifier.value.left = clamp(rawLeft, 4, maxLeft);
+    magnifier.value.top = clamp(rawTop, 4, maxTop);
+  }
+
+  lastMagClient = { x: event.clientX, y: event.clientY };
+  if (magPending) return;
+  magPending = true;
+  if (magRaf) cancelAnimationFrame(magRaf);
+  magRaf = requestAnimationFrame(() => {
+    magPending = false;
+    drawMagnifierAt(magnifier.value.pixel.x, magnifier.value.pixel.y);
+  });
+};
+
 const pushUndo = () => {
   const canvas = editCanvasRef.value;
   if (!canvas) return;
@@ -312,6 +462,8 @@ const onCanvasClick = (event) => {
     const p = getCanvasPointFromClient(event.clientX, event.clientY);
     if (!p) return;
     paintWhitePixel(p.x, p.y);
+    // alt 点击涂色后立即刷新放大镜（否则需要移动鼠标才会触发 mousemove 重绘）
+    updateMagnifierFromEvent(event);
     return;
   }
 
@@ -351,14 +503,27 @@ const onMouseDown = (event) => {
 };
 
 const onMouseMove = (event) => {
-  if (!isPanning.value) return;
-  const dx = event.clientX - panStart.value.x;
-  const dy = event.clientY - panStart.value.y;
-  viewTranslate.value = { x: panStart.value.tx + dx, y: panStart.value.ty + dy };
+  if (isPanning.value) {
+    const dx = event.clientX - panStart.value.x;
+    const dy = event.clientY - panStart.value.y;
+    viewTranslate.value = { x: panStart.value.tx + dx, y: panStart.value.ty + dy };
+    magnifier.value.visible = false;
+    return;
+  }
+  updateMagnifierFromEvent(event);
 };
 
 const onMouseUp = () => {
   isPanning.value = false;
+};
+
+const onMouseLeave = () => {
+  isPanning.value = false;
+  magnifier.value.visible = false;
+};
+
+const onMouseEnter = (event) => {
+  updateMagnifierFromEvent(event);
 };
 
 const handleStartFloodFill = () => {
@@ -439,6 +604,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeyDown);
   window.removeEventListener("keyup", onKeyUp);
+  if (magRaf) cancelAnimationFrame(magRaf);
 });
 </script>
 
@@ -555,6 +721,35 @@ onBeforeUnmount(() => {
   display: block;
   max-width: 100%;
   max-height: 100%;
+}
+
+.magnifier {
+  position: absolute;
+  width: 152px;
+  height: 172px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  padding: 10px;
+  pointer-events: none;
+  z-index: 5;
+  backdrop-filter: blur(8px);
+}
+
+.magnifier-canvas {
+  width: 132px;
+  height: 132px;
+  display: block;
+  border-radius: 8px;
+}
+
+.magnifier-info {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.9);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .seed-point-indicator {
