@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {
+      "type": "二值化",
+      "params": {
+        "threshold": 151
+      }
+    }
+  ]
+}

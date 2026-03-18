@@ -118,7 +118,7 @@ const props = defineProps({
 });
 
 const imageProcessingStore = useImageProcessingStore();
-const { colorFilterPreview, imageUploadedInfo, imageProcessingResult } =
+const { colorFilterPreview, currentImageId, imageProcessingResult } =
   storeToRefs(imageProcessingStore);
 
 const visible = ref(false);
@@ -139,18 +139,12 @@ const currentHoverColorHex = ref("");
 
 const rows = ref([]);
 
-const currentImageId = computed(() => {
-  return (imageUploadedInfo.value && imageUploadedInfo.value.imageId) || "";
+const currentImageIdComputed = computed(() => {
+  return currentImageId.value || "";
 });
 
 const currentImageSrc = computed(() => {
-  if (imageProcessingResult.value) {
-    return imageProcessingResult.value;
-  }
-  if (imageUploadedInfo.value && imageUploadedInfo.value.preview) {
-    return imageUploadedInfo.value.preview;
-  }
-  return "";
+  return imageProcessingResult.value || "";
 });
 
 const openDialog = () => {
@@ -304,7 +298,7 @@ const sendRowsToBackend = (val) => {
   // 表格数据发生变化时打印
   // 只打印必要字段，避免过多无用信息
   imageProcessingStore.sendToBackend("颜色过滤", {
-    imageId: currentImageId.value,
+    imageId: currentImageIdComputed.value,
     rows: val.map((item) => ({
       baseColor: item.baseColorHex,
       offset:

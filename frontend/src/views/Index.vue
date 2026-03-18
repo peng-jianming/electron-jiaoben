@@ -13,7 +13,6 @@
             :class="{ active: currentTab === key }"
             @click="currentTab = key"
           >
-            <el-icon :size="22"><component :is="value.icon" /> </el-icon>
             <span class="nav-label">{{ value.name }}</span>
           </div>
         </div>
@@ -52,6 +51,7 @@
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 import ImageProcessing from "@/components/image-processing/index.vue";
+import FloodFill from "@/components/flood-fill/index.vue";
 import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
@@ -65,8 +65,11 @@ const map = computed(() => {
   return {
     "image-processing": {
       name: "图像处理",
-      icon: User,
       component: ImageProcessing,
+    },
+    "flood-fill": {
+      name: "洪水填充",
+      component: FloodFill,
     },
   };
 });

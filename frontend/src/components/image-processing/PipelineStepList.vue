@@ -38,6 +38,14 @@
               v-else-if="step.type === '颜色过滤'"
               :data="step.params"
             />
+            <DilationStep
+              v-else-if="step.type === '膨胀'"
+              :data="step.params"
+            />
+            <ErosionStep
+              v-else-if="step.type === '腐蚀'"
+              :data="step.params"
+            />
           </div>
         </div>
       </VueDraggable>
@@ -60,20 +68,22 @@ import { ref, computed } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import BinarizationStep from "./steps/BinarizationStep.vue";
 import ColorFilterStep from "./steps/ColorFilterStep.vue";
+import DilationStep from "./steps/DilationStep.vue";
+import ErosionStep from "./steps/ErosionStep.vue";
 import { storeToRefs } from "pinia";
 import { useImageProcessingStore } from "@/stores/imageProcessing";
 
 const selectedModule = ref("");
 
 const imageProcessingStore = useImageProcessingStore();
-const { imageUploadedInfo, pipelineSteps, pipelineStepOptions } =
+const { currentImageId, pipelineSteps, pipelineStepOptions } =
   storeToRefs(imageProcessingStore);
 
 const steps = pipelineSteps;
 const enumList = pipelineStepOptions;
 
 const canProcess = computed(() => {
-  return Boolean(imageUploadedInfo.value && imageUploadedInfo.value.imageId);
+  return Boolean(currentImageId.value);
 });
 
 const addModule = () => {
