@@ -52,6 +52,8 @@ import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 import ImageProcessing from "@/components/image-processing/index.vue";
 import FloodFill from "@/components/flood-fill/index.vue";
+import PathFinding from "@/components/path-finding/index.vue";
+import ImageStitching from "@/components/image-stitching/index.vue";
 import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
@@ -67,9 +69,17 @@ const map = computed(() => {
       name: "图像处理",
       component: ImageProcessing,
     },
+    "image-stitching": {
+      name: "图像拼接",
+      component: ImageStitching,
+    },
     "flood-fill": {
       name: "洪水填充",
       component: FloodFill,
+    },
+    "path-finding": {
+      name: "寻路处理",
+      component: PathFinding,
     },
   };
 });
