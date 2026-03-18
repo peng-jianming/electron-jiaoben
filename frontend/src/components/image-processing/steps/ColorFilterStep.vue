@@ -106,27 +106,20 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch, inject } from "vue";
+import { onMounted, ref, watch, computed } from "vue";
+import { storeToRefs } from "pinia";
+import { useImageProcessingStore } from "@/stores/imageProcessing";
 
 const props = defineProps({
   data: {
     type: Object,
     default: () => ({}),
   },
-  // 当前原始图 URL（来自父组件）
-  imageSrc: {
-    type: String,
-    default: "",
-  },
-  // 当前图片对应的后端 imageId
-  imageId: {
-    type: String,
-    default: "",
-  },
 });
 
-const sendToBackend = inject("sendToBackend", null);
-const colorFilterPreview = inject("colorFilterPreview", null);
+const imageProcessingStore = useImageProcessingStore();
+const { colorFilterPreview, imageUploadedInfo, imageProcessingResult } =
+  storeToRefs(imageProcessingStore);
 
 const visible = ref(false);
 const mainCanvasRef = ref(null);
@@ -145,6 +138,20 @@ const imageElement = ref(null);
 const currentHoverColorHex = ref("");
 
 const rows = ref([]);
+
+const currentImageId = computed(() => {
+  return (imageUploadedInfo.value && imageUploadedInfo.value.imageId) || "";
+});
+
+const currentImageSrc = computed(() => {
+  if (imageProcessingResult.value) {
+    return imageProcessingResult.value;
+  }
+  if (imageUploadedInfo.value && imageUploadedInfo.value.preview) {
+    return imageUploadedInfo.value.preview;
+  }
+  return "";
+});
 
 const openDialog = () => {
   visible.value = true;
@@ -296,11 +303,14 @@ const debounce = (fn, delay = 300) => {
 const sendRowsToBackend = (val) => {
   // 表格数据发生变化时打印
   // 只打印必要字段，避免过多无用信息
-  sendToBackend("颜色过滤", {
-    imageId: props.imageId,
+  imageProcessingStore.sendToBackend("颜色过滤", {
+    imageId: currentImageId.value,
     rows: val.map((item) => ({
       baseColor: item.baseColorHex,
-      offset: numToHex(item.offset) + numToHex(item.offset) + numToHex(item.offset)
+      offset:
+        numToHex(item.offset) +
+        numToHex(item.offset) +
+        numToHex(item.offset),
     })),
   });
 };
@@ -340,9 +350,9 @@ const initCanvasImage = () => {
     drawMainCanvas();
   };
 
-  // 如果外面传了 imageSrc 就用，否则画一张占位图片
-  if (props.imageSrc) {
-    img.src = props.imageSrc;
+  // 如果 store 里有当前图片就用，否则画一张占位图片
+  if (currentImageSrc.value) {
+    img.src = currentImageSrc.value;
   } else {
     const tempCanvas = document.createElement("canvas");
     tempCanvas.width = width;

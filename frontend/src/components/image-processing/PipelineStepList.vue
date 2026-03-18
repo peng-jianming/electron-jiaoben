@@ -37,8 +37,6 @@
             <ColorFilterStep
               v-else-if="step.type === '颜色过滤'"
               :data="step.params"
-              :image-src="props.imageSrc"
-              :image-id="props.imageId"
             />
           </div>
         </div>
@@ -58,68 +56,38 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import BinarizationStep from "./steps/BinarizationStep.vue";
 import ColorFilterStep from "./steps/ColorFilterStep.vue";
-
-const props = defineProps({
-  canProcess: {
-    type: Boolean,
-    default: true,
-  },
-  imageId: {
-    type: String,
-    default: "",
-  },
-  imageSrc: {
-    type: String,
-    default: "",
-  },
-});
-
-const emit = defineEmits(["process"]);
+import { storeToRefs } from "pinia";
+import { useImageProcessingStore } from "@/stores/imageProcessing";
 
 const selectedModule = ref("");
-const steps = ref([]);
-const enumList = [
-  {
-    type: "二值化",
-    params: {
-      threshold: 127,
-    },
-  },
-  {
-    type: "颜色过滤",
-    params: {},
-  },
-];
+
+const imageProcessingStore = useImageProcessingStore();
+const { imageUploadedInfo, pipelineSteps, pipelineStepOptions } =
+  storeToRefs(imageProcessingStore);
+
+const steps = pipelineSteps;
+const enumList = pipelineStepOptions;
+
+const canProcess = computed(() => {
+  return Boolean(imageUploadedInfo.value && imageUploadedInfo.value.imageId);
+});
 
 const addModule = () => {
   if (!selectedModule.value) return;
 
-  const base = JSON.parse(
-    JSON.stringify(enumList.find((item) => item.type === selectedModule.value))
-  );
-
-  steps.value.push({
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    ...base,
-  });
+  imageProcessingStore.addPipelineStep(selectedModule.value);
 };
 
 const removeStep = (index) => {
-  steps.value.splice(index, 1);
+  imageProcessingStore.removePipelineStepByIndex(index);
 };
 
 const handleProcess = () => {
-  const paramsArr = steps.value.map((step) => ({
-    type: step.type,
-    params: { ...step.params },
-  }));
-  console.log(paramsArr, "process");
-  
-  emit("process", paramsArr);
+  imageProcessingStore.handlePipelineProcess();
 };
 </script>
 

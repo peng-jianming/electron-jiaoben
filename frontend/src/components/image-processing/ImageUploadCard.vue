@@ -27,11 +27,11 @@
 
 <script setup>
 import { ref } from 'vue';
-
-const emit = defineEmits(['image-change']);
+import { useImageProcessingStore } from '@/stores/imageProcessing';
 
 const fileInputRef = ref(null);
 const fileName = ref('');
+const imageProcessingStore = useImageProcessingStore();
 
 // 仅在前端本地生成预览，不再把 base64 发给后端
 const readFileAsDataUrl = (file) => {
@@ -58,8 +58,8 @@ const handleFile = async (file) => {
     preview = '';
   }
 
-  // 对外只暴露「路径 + 预览」，由上层决定如何使用
-  emit('image-change', {
+  // 直接交给全局 store 处理
+  imageProcessingStore.handleImageChange({
     path: filePath,
     preview,
   });

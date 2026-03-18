@@ -1,21 +1,20 @@
 <template>
   <div class="image-show">
-    <div v-if="!imageSrc" class="placeholder">
+    <div v-if="!displayImageSrc" class="placeholder">
       暂无图片，请先在左侧上传
     </div>
     <div v-else class="image-wrapper">
-      <img :src="imageSrc" alt="预览图片" class="image" />
+      <img :src="displayImageSrc" alt="预览图片" class="image" />
     </div>
   </div>
 </template>
 
 <script setup>
-const props = defineProps({
-  imageSrc: {
-    type: String,
-    default: ''
-  }
-});
+import { storeToRefs } from "pinia";
+import { useImageProcessingStore } from "@/stores/imageProcessing";
+
+const imageProcessingStore = useImageProcessingStore();
+const { displayImageSrc } = storeToRefs(imageProcessingStore);
 </script>
 
 <style scoped>

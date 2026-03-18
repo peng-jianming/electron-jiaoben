@@ -52,23 +52,14 @@
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 import ImageProcessing from "@/components/image-processing/index.vue";
-import { ref, computed, onMounted, provide } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
-import { ipc } from "@/utils/ipcRenderer";
-import { ipcApiRoute } from "@/api";
-import { io } from "socket.io-client";
+import { storeToRefs } from "pinia";
+import { useImageProcessingStore } from "@/stores/imageProcessing";
 
 const currentTab = ref("image-processing");
-const isConnected = ref(false);
-const isBackendReady = ref(false);
-const imageProcessingResult = ref("");
-const colorFilterPreview = ref("");
-const imageUploadedInfo = ref({ imageId: "", preview: "" });
-
-provide("sendToBackend", sendToBackend);
-provide("imageProcessingResult", imageProcessingResult);
-provide("colorFilterPreview", colorFilterPreview);
-provide("imageUploadedInfo", imageUploadedInfo);
+const imageProcessingStore = useImageProcessingStore();
+const { isConnected, isBackendReady } = storeToRefs(imageProcessingStore);
 
 const map = computed(() => {
   return {
@@ -80,66 +71,8 @@ const map = computed(() => {
   };
 });
 
-let matchSocket = null;
-
-function initMatchSocket() {
-  return new Promise((resolve, reject) => {
-    if (matchSocket) {
-      resolve();
-      return;
-    }
-    matchSocket = io("ws://localhost:7075");
-
-    matchSocket.on("connect", () => {
-      console.log("匹配 Socket 连接成功");
-      isConnected.value = true;
-      ipc.invoke(ipcApiRoute.启动后端服务);
-    });
-
-    matchSocket.on("backend-ready", () => {
-      console.log("后端已准备就绪");
-      isBackendReady.value = true;
-    });
-
-    matchSocket.on("image-uploaded", (data) => {
-      console.log("收到图片上传缓存结果:", data);
-      if (data && typeof data.imageId === "string") {
-        imageUploadedInfo.value = {
-          imageId: data.imageId,
-          preview: data.preview || "",
-        };
-      }
-    });
-
-    matchSocket.on("image-processing-result", (data) => {
-      console.log("收到图像处理结果:", data);
-      if (data && typeof data.image === "string") {
-        imageProcessingResult.value = data.image;
-      }
-    });
-
-    matchSocket.on("color-filter-preview", (data) => {
-      console.log("收到颜色过滤预览结果:", data);
-      if (data && typeof data.image === "string") {
-        colorFilterPreview.value = data.image;
-      }
-    });
-  });
-}
-
-// ─── 发送指令到后端 ──────────────────────────
-
-function sendToBackend(类型, extra = {}) {
-  if (!isBackendReady.value) {
-    ElMessage.warning("后端还未连接，请稍候...");
-    return;
-  }
-  ipc.invoke(ipcApiRoute.发送到后端, { 类型, ...extra });
-}
-
-
 onMounted(async () => {
-  await initMatchSocket();
+  await imageProcessingStore.initMatchSocket();
 });
 </script>
 
