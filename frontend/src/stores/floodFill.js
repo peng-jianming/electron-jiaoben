@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useImageProcessingStore } from '@/stores/imageProcessing';
+import { getMatchSocket } from '@/utils/matchSocket';
 
 export const useFloodFillStore = defineStore('floodFill', () => {
   const imageProcessingStore = useImageProcessingStore();
@@ -174,6 +175,23 @@ export const useFloodFillStore = defineStore('floodFill', () => {
   const markAnimationStopped = () => {
     isAnimating.value = false;
   };
+
+
+  const socket = getMatchSocket();
+  // 洪水填充上传图片回传（与图像处理的 image-uploaded 隔离）
+  socket.on('flood-image-uploaded', (data) => {
+    handleFloodImageUploaded(data || {});
+  });
+
+  // 洪水填充结果预览
+  socket.on('flood-fill-result', (data) => {
+    handleFloodFillResult(data || {});
+  });
+
+  // 洪水填充失败（用于解除 loading）
+  socket.on('flood-fill-error', (data) => {
+    handleFloodFillError(data || {});
+  });
 
   return {
     // state

@@ -22,10 +22,10 @@
           <div class="status-indicator">
             <span
               class="status-dot"
-              :class="{ online: isBackendReady, waiting: isConnected && !isBackendReady }"
+              :class="{ online: isBackendReady, waiting: !isBackendReady }"
             ></span>
             <span class="status-text">{{
-              isBackendReady ? "已连接" : isConnected ? "等待后端" : "未连接"
+              isBackendReady ? "已连接" : "等待后端" 
             }}</span>
           </div>
         </div>
@@ -59,7 +59,7 @@ import { useImageProcessingStore } from "@/stores/imageProcessing";
 
 const currentTab = ref("image-processing");
 const imageProcessingStore = useImageProcessingStore();
-const { isConnected, isBackendReady } = storeToRefs(imageProcessingStore);
+const {isBackendReady } = storeToRefs(imageProcessingStore);
 
 const map = computed(() => {
   return {
@@ -75,7 +75,7 @@ const map = computed(() => {
 });
 
 onMounted(async () => {
-  await imageProcessingStore.initMatchSocket();
+  // matchSocket 已在 main.js 连接成功后才挂载页面
 });
 </script>
 

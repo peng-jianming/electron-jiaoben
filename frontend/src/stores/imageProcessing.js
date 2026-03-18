@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { io } from 'socket.io-client';
 import { ipc } from '@/utils/ipcRenderer';
 import { ipcApiRoute } from '@/api';
+import { getMatchSocket } from '@/utils/matchSocket';
 
 export const useImageProcessingStore = defineStore('imageProcessing', () => {
-  const isConnected = ref(false);
   const isBackendReady = ref(false);
   const imageProcessingResult = ref('');
   const colorFilterPreview = ref('');
@@ -55,116 +54,64 @@ export const useImageProcessingStore = defineStore('imageProcessing', () => {
     return imageProcessingResult.value || '';
   });
 
-  let matchSocket = null;
-  let floodFillStorePromise = null;
+  const socket = getMatchSocket();
+  
+  socket.on('backend-ready', () => {
+    isBackendReady.value = true;
+  });
 
-  const getFloodFillStore = () => {
-    if (!floodFillStorePromise) {
-      floodFillStorePromise = import('@/stores/floodFill').then((mod) => {
-        const useFloodFillStore = mod && mod.useFloodFillStore;
-        if (typeof useFloodFillStore !== 'function') {
-          throw new Error('useFloodFillStore 未导出或不是函数');
-        }
-        return useFloodFillStore();
-      });
+  socket.on('image-uploaded', (data) => {
+    if (data && typeof data.imageId === 'string') {
+      currentImageId.value = data.imageId;
+      // 上传图片返回时，直接作为当前展示图片
+      imageProcessingResult.value = data.preview || '';
     }
-    return floodFillStorePromise;
-  };
+  });
 
-  const initMatchSocket = () => {
-    return new Promise((resolve, reject) => {
-      if (matchSocket) {
-        resolve();
-        return;
-      }
+  // 后端启动后推送的流水线参数，用于页面初始化时回显
+  socket.on('image-processing-pipeline-params', (data) => {
+    const steps = (data && data.steps) || [];
+    if (!Array.isArray(steps)) return;
 
-      matchSocket = io('ws://localhost:7075');
-
-      matchSocket.on('connect', () => {
-        // 连接成功后，通知 electron 启动后端服务
-        isConnected.value = true;
-        ipc.invoke(ipcApiRoute.启动后端服务);
-      });
-
-      matchSocket.on('backend-ready', () => {
-        isBackendReady.value = true;
-      });
-
-      matchSocket.on('image-uploaded', (data) => {
-        if (data && typeof data.imageId === 'string') {
-          currentImageId.value = data.imageId;
-          // 上传图片返回时，直接作为当前展示图片
-          imageProcessingResult.value = data.preview || '';
-        }
-      });
-
-      // 洪水填充上传图片回传（与图像处理的 image-uploaded 隔离）
-      matchSocket.on('flood-image-uploaded', (data) => {
-        getFloodFillStore()
-          .then((store) => store.handleFloodImageUploaded(data || {}))
-          .catch((e) => console.warn('处理洪水填充上传结果失败:', e));
-      });
-
-      // 后端启动后推送的流水线参数，用于页面初始化时回显
-      matchSocket.on('image-processing-pipeline-params', (data) => {
-        const steps = (data && data.steps) || [];
-        if (!Array.isArray(steps)) return;
-
-        pipelineSteps.value = steps.map((step) => {
-          const safeStep = step || {};
-          return {
-            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            type: safeStep.type,
-            params: { ...(safeStep.params || {}) },
-          };
-        });
-      });
-
-      matchSocket.on('image-processing-result', (data) => {
-        if (data && typeof data.image === 'string') {
-          imageProcessingResult.value = data.image;
-        }
-      });
-
-      matchSocket.on('color-filter-preview', (data) => {
-        if (data && typeof data.image === 'string') {
-          colorFilterPreview.value = data.image;
-        }
-      });
-
-      // 洪水填充结果预览
-      matchSocket.on('flood-fill-result', (data) => {
-        getFloodFillStore()
-          .then((store) => store.handleFloodFillResult(data || {}))
-          .catch((e) => console.warn('处理洪水填充结果失败:', e));
-      });
-
-      // 洪水填充失败（用于解除 loading）
-      matchSocket.on('flood-fill-error', (data) => {
-        getFloodFillStore()
-          .then((store) => store.handleFloodFillError(data || {}))
-          .catch((e) => console.warn('处理洪水填充错误失败:', e));
-      });
-
-      // ADB 设备列表
-      matchSocket.on('adb-devices', (data) => {
-        const devices = (data && (data.devices || data.list)) || [];
-        if (Array.isArray(devices)) {
-          adbDevices.value = devices;
-        } else {
-          adbDevices.value = [];
-        }
-      });
-
-      // ADB 设备连接结果
-      matchSocket.on('adb-device-connected', (data) => {
-        const success = !!(data && data.success);
-        if (success) {
-          currentDeviceId.value = data.deviceId || '';
-        }
-      });
+    pipelineSteps.value = steps.map((step) => {
+      const safeStep = step || {};
+      return {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        type: safeStep.type,
+        params: { ...(safeStep.params || {}) },
+      };
     });
-  };
+  });
+
+  socket.on('image-processing-result', (data) => {
+    if (data && typeof data.image === 'string') {
+      imageProcessingResult.value = data.image;
+    }
+  });
+
+  socket.on('color-filter-preview', (data) => {
+    if (data && typeof data.image === 'string') {
+      colorFilterPreview.value = data.image;
+    }
+  });
+
+  // ADB 设备列表
+  socket.on('adb-devices', (data) => {
+    const devices = (data && (data.devices || data.list)) || [];
+    if (Array.isArray(devices)) {
+      adbDevices.value = devices;
+    } else {
+      adbDevices.value = [];
+    }
+  });
+
+  // ADB 设备连接结果
+  socket.on('adb-device-connected', (data) => {
+    const success = !!(data && data.success);
+    if (success) {
+      currentDeviceId.value = data.deviceId || '';
+    }
+  });
 
   const sendToBackend = (类型, extra = {}) => {
     if (!isBackendReady.value) {
@@ -235,7 +182,6 @@ export const useImageProcessingStore = defineStore('imageProcessing', () => {
 
   return {
     // state
-    isConnected,
     isBackendReady,
     imageProcessingResult,
     colorFilterPreview,
@@ -246,7 +192,6 @@ export const useImageProcessingStore = defineStore('imageProcessing', () => {
     pipelineSteps,
     pipelineStepOptions,
     // actions
-    initMatchSocket,
     sendToBackend,
     handleImageChange,
     addPipelineStep,

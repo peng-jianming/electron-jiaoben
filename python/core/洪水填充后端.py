@@ -107,7 +107,6 @@ class 洪水填充后端类:
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
         while queue:
-            print("2222222")
             px, py = queue.popleft()
             if np.array_equal(result[py, px], seed_color):
                 result[py, px] = fill_color_arr
@@ -118,11 +117,6 @@ class 洪水填充后端类:
                         if np.array_equal(result[ny, nx], seed_color):
                             visited[ny, nx] = True
                             queue.append((nx, ny))
-
-
-        cv2.imshow("result", result)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
         return result
 
     # ========== 对前端暴露的方法 ==========
