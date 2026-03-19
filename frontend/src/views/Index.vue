@@ -54,6 +54,7 @@ import ImageProcessing from "@/components/image-processing/index.vue";
 import FloodFill from "@/components/flood-fill/index.vue";
 import PathFinding from "@/components/path-finding/index.vue";
 import ImageStitching from "@/components/image-stitching/index.vue";
+import PathFindingTest from "@/components/path-finding-test/index.vue";
 import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
@@ -78,15 +79,16 @@ const map = computed(() => {
       component: FloodFill,
     },
     "path-finding": {
-      name: "寻路处理",
+      name: "路线规划",
       component: PathFinding,
+    },
+    "path-finding-test": {
+      name: "寻路测试",
+      component: PathFindingTest,
     },
   };
 });
 
-onMounted(async () => {
-  // matchSocket 已在 main.js 连接成功后才挂载页面
-});
 </script>
 
 <style lang="less">
