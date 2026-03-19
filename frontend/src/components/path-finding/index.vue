@@ -4,38 +4,46 @@
       <div class="layout">
         <div class="left-pane">
           <div class="toolbar">
-            <el-button type="primary" size="small" @click="triggerUpload">上传图片</el-button>
-            <el-button size="small" :disabled="!canUseFloodFillResult" @click="useFloodFillResult">
-              使用洪水填充结果
-            </el-button>
-            <el-button size="small" :disabled="!hasImage || pathFindingStore.isGettingSkeleton" :loading="pathFindingStore.isGettingSkeleton" @click="handleGetSkeleton">
-              获取骨干网
-            </el-button>
-            <el-button
-              type="success"
-              size="small"
-              :disabled="!hasImage || !hasStart || !hasEnd || pathFindingStore.isFinding"
-              :loading="pathFindingStore.isFinding"
-              @click="handleStartFinding"
+            <el-button type="primary" size="small" @click="triggerUpload"
+              >上传图片</el-button
             >
-              开始寻路
+            <el-button
+              size="small"
+              :disabled="!canUseFloodFillResult"
+              @click="useFloodFillResult"
+            >
+              使用洪水填充结果
             </el-button>
           </div>
 
-          <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onFileChange" />
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept="image/*"
+            style="display: none"
+            @change="onFileChange"
+          />
 
           <div v-if="hasImage" class="image-area">
-            <div class="preview-title">上传/输入图片（点击选点：先起点后终点）</div>
-            <div class="edit-container" @click="onCanvasClick">
+            <div class="preview-title">上传/输入图片（先点按钮选择起点/终点，再点击地图）</div>
+            <div
+              class="edit-container"
+              :class="{ 'is-selecting-point': !!selectionMode }"
+              @click="onCanvasClick"
+            >
               <canvas ref="canvasRef" class="edit-canvas"></canvas>
-              <div v-if="hasStart && naturalReady" class="pt start" :style="startStyle"></div>
+              <div
+                v-if="hasStart && naturalReady"
+                class="pt start"
+                :style="startStyle"
+              ></div>
               <div v-if="hasEnd && naturalReady" class="pt end" :style="endStyle"></div>
               <div v-if="!naturalReady" class="image-placeholder">正在加载图片...</div>
             </div>
             <div class="tips">
-              <div>起点：({{ startPoint.x ?? "-" }}, {{ startPoint.y ?? "-" }})</div>
-              <div>终点：({{ endPoint.x ?? "-" }}, {{ endPoint.y ?? "-" }})</div>
-              <div v-if="pathFindingStore.lastErrorMessage" class="err">{{ pathFindingStore.lastErrorMessage }}</div>
+              <div v-if="pathFindingStore.lastErrorMessage" class="err">
+                {{ pathFindingStore.lastErrorMessage }}
+              </div>
             </div>
           </div>
           <div v-else class="empty-tip">请先上传图片，或使用洪水填充后的图片。</div>
@@ -43,7 +51,17 @@
 
         <div class="right-pane">
           <div class="result-card">
-            <div class="preview-title">骨干网</div>
+            <div class="preview-title">
+              <div>骨干网</div>
+              <el-button
+                size="small"
+                :disabled="!hasImage || pathFindingStore.isGettingSkeleton"
+                :loading="pathFindingStore.isGettingSkeleton"
+                @click="handleGetSkeleton"
+              >
+                获取骨干网
+              </el-button>
+            </div>
             <div class="result-container">
               <img v-if="skeletonImage" :src="skeletonImage" class="result-image" />
               <div v-else class="result-placeholder">暂无骨干网结果</div>
@@ -51,10 +69,50 @@
           </div>
 
           <div class="result-card">
-            <div class="preview-title">路线图</div>
+            <div class="preview-title">
+              <div>路线图</div>
+             
+               
+            </div>
             <div class="result-container">
               <img v-if="resultImage" :src="resultImage" class="result-image" />
               <div v-else class="result-placeholder">暂无路线结果</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <el-input size="small" :model-value="startInputText" :readonly="true">
+                <template #append>
+                  <el-button
+                    size="small"
+                    :disabled="!canSelectPoints"
+                    @click="selectStart"
+                  >
+                    选择起点
+                  </el-button>
+                </template>
+              </el-input>
+              <el-input size="small" :model-value="endInputText" :readonly="true">
+                <template #append>
+                  <el-button
+                    size="small"
+                    :disabled="!canSelectPoints"
+                    @click="selectEnd"
+                  >
+                    选择终点
+                  </el-button>
+                </template>
+              </el-input>
+             
+              <el-button
+                type="success"
+                size="small"
+                :disabled="
+                  !hasImage || !hasStart || !hasEnd || pathFindingStore.isFinding
+                "
+                :loading="pathFindingStore.isFinding"
+                @click="handleStartFinding"
+              >
+                规划路线
+              </el-button>
             </div>
           </div>
         </div>
@@ -78,6 +136,7 @@ const { startPoint, endPoint } = storeToRefs(pathFindingStore);
 const fileInputRef = ref(null);
 const canvasRef = ref(null);
 const naturalReady = ref(false);
+const selectionMode = ref(null); // 'start' | 'end' | null
 
 const inputSrc = computed(() => pathFindingStore.inputDisplayImageSrc);
 const skeletonImage = computed(() => pathFindingStore.skeletonImage);
@@ -86,6 +145,16 @@ const resultImage = computed(() => pathFindingStore.resultImage);
 const hasImage = computed(() => pathFindingStore.hasImage);
 const hasStart = computed(() => pathFindingStore.hasStart);
 const hasEnd = computed(() => pathFindingStore.hasEnd);
+const canSelectPoints = computed(() => hasImage.value && naturalReady.value);
+const isSelectingPoint = computed(() => selectionMode.value === "start" || selectionMode.value === "end");
+const startInputText = computed(() => {
+  if (!hasStart.value) return "";
+  return `(${startPoint.value.x}, ${startPoint.value.y})`;
+});
+const endInputText = computed(() => {
+  if (!hasEnd.value) return "";
+  return `(${endPoint.value.x}, ${endPoint.value.y})`;
+});
 const canUseFloodFillResult = computed(() => !!floodFillStore.resultDisplayImageSrc);
 
 const triggerUpload = () => fileInputRef.value && fileInputRef.value.click();
@@ -150,22 +219,34 @@ const getCanvasPointFromClient = (clientX, clientY) => {
 
 const onCanvasClick = (event) => {
   if (!naturalReady.value) return;
+  if (!selectionMode.value) return;
   const p = getCanvasPointFromClient(event.clientX, event.clientY);
   if (!p) return;
 
-  const type = !hasStart.value ? "start" : !hasEnd.value ? "end" : "start";
-  if (type === "start") {
-    // 如果已经有终点，再点一次从头开始
-    if (hasEnd.value) {
-      endPoint.value = { x: null, y: null };
-    }
-  }
-
   pathFindingStore.setPointByImagePoint({
-    type,
+    type: selectionMode.value,
     x: p.x,
     y: p.y,
   });
+  selectionMode.value = null;
+};
+
+const selectStart = () => {
+  if (!hasImage.value) return;
+  if (!naturalReady.value) {
+    ElMessage.info("图片正在加载中，请稍候再点");
+    return;
+  }
+  selectionMode.value = "start";
+};
+
+const selectEnd = () => {
+  if (!hasImage.value) return;
+  if (!naturalReady.value) {
+    ElMessage.info("图片正在加载中，请稍候再点");
+    return;
+  }
+  selectionMode.value = "end";
 };
 
 const getMarkerStyle = (pt) => {
@@ -187,8 +268,8 @@ const getMarkerStyle = (pt) => {
   const y = Number(pt?.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return {};
 
-  const left = (canvasRect.left - parentRect.left) + (x / cw) * canvasRect.width;
-  const top = (canvasRect.top - parentRect.top) + (y / ch) * canvasRect.height;
+  const left = canvasRect.left - parentRect.left + (x / cw) * canvasRect.width;
+  const top = canvasRect.top - parentRect.top + (y / ch) * canvasRect.height;
   return { left: `${left}px`, top: `${top}px` };
 };
 
@@ -216,7 +297,7 @@ const handleStartFinding = () => {
     return;
   }
   if (!hasStart.value || !hasEnd.value) {
-    ElMessage.warning("请先在图片上选择起点和终点");
+    ElMessage.warning("请先选择起点和终点");
     return;
   }
   pathFindingStore.startFinding();
@@ -232,6 +313,7 @@ watch(
     } catch (e) {
       // ignore
     }
+    selectionMode.value = null;
   },
   { immediate: true }
 );
@@ -294,6 +376,9 @@ watch(
   font-size: 12px;
   font-weight: 600;
   color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .edit-container {
@@ -307,6 +392,10 @@ watch(
   justify-content: center;
   min-height: 220px;
   user-select: none;
+  cursor: default;
+}
+
+.edit-container.is-selecting-point {
   cursor: crosshair;
 }
 
