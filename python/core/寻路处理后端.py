@@ -302,6 +302,8 @@ class 寻路处理后端类:
     def __init__(self, 通信管理器, 图像处理后端实例: 图像处理后端类):
         self._通信管理器 = 通信管理器
         self._图像处理后端 = 图像处理后端实例
+        # 记录当前用于寻路/匹配的原始地图 imageId
+        self._current_image_id = None
 
     def _cv2_to_dataurl(self, img):
         return self._图像处理后端._cv2_to_dataurl(img)
@@ -356,6 +358,8 @@ class 寻路处理后端类:
             buf = BytesIO()
             pil_img.save(buf, format="PNG")
             image_id = self._save_image_bytes(buf.getvalue())
+            # 记录当前原始地图 id，供后续匹配使用
+            self._current_image_id = image_id
 
             img_rgb = np.array(pil_img)
             img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
@@ -390,6 +394,9 @@ class 寻路处理后端类:
             image_id = self._save_image_bytes(img_bytes)
             img_bgr = self._load_image_by_id(image_id)
             preview_dataurl = self._cv2_to_dataurl(img_bgr)
+
+            # 记录当前原始地图 id，供后续匹配使用
+            self._current_image_id = image_id
 
             self._通信管理器.发送到Electron(
                 "path-image-uploaded",
@@ -497,4 +504,77 @@ class 寻路处理后端类:
                 self._通信管理器.发送到Electron("path-finding-error", {"message": str(e)})
             except Exception:
                 pass
+
+    # ===== 对前端 / 小地图处理暴露：原始地图模板匹配 =====
+    def 处理小地图匹配(self, 数据):
+        """
+        小地图与原始地图进行模板匹配：
+        - 被动从 socket 收到小地图帧（同 图像处理小地图 的数据结构）：{ dataUrl | image }
+        - 使用当前记录的原始地图 imageId 作为大图，在其上用小地图做模板匹配
+        - 返回事件：match-map-frame { image: dataUrl, score: float, topLeft: [x,y], center: [x,y], size: [w,h] }
+        """
+        try:
+            if not self._current_image_id:
+                return
+            payload = 数据 or {}
+            data_url = (
+                payload.get("dataUrl")
+                or payload.get("data_url")
+                or payload.get("image")
+                or ""
+            )
+            if not data_url or not isinstance(data_url, str):
+                return
+            # 解析 dataUrl 为 OpenCV BGR 图像
+            try:
+                if "," in data_url:
+                    _, b64 = data_url.split(",", 1)
+                else:
+                    b64 = data_url
+                img_bytes = base64.b64decode(b64, validate=False)
+                pil_img = Image.open(BytesIO(img_bytes)).convert("RGB")
+                mini_rgb = np.array(pil_img)
+                mini_bgr = cv2.cvtColor(mini_rgb, cv2.COLOR_RGB2BGR)
+            except Exception:
+                return
+            big_bgr = self._load_image_by_id(self._current_image_id, image_source="path")
+            if big_bgr is None or mini_bgr is None:
+                return
+            big_h, big_w = big_bgr.shape[:2]
+            mini_h, mini_w = mini_bgr.shape[:2]
+            if big_h <= 0 or big_w <= 0 or mini_h <= 0 or mini_w <= 0:
+                return
+            if mini_h > big_h or mini_w > big_w:
+                return
+            big_gray = cv2.cvtColor(big_bgr, cv2.COLOR_BGR2GRAY)
+            mini_gray = cv2.cvtColor(mini_bgr, cv2.COLOR_BGR2GRAY)
+
+            res = cv2.matchTemplate(big_gray, mini_gray, cv2.TM_CCOEFF_NORMED)
+            _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(res)
+            # 相似度过低则忽略
+            if max_val < 0.3:
+                return
+
+            top_left = max_loc
+            bottom_right = (top_left[0] + mini_w, top_left[1] + mini_h)
+            center = (top_left[0] + mini_w // 2, top_left[1] + mini_h // 2)
+
+            vis = big_bgr.copy()
+            cv2.rectangle(vis, top_left, bottom_right, (0, 0, 255), 2)
+            cv2.circle(vis, center, 4, (0, 255, 255), -1)
+
+            dataurl = self._cv2_to_dataurl(vis)
+            self._通信管理器.发送到Electron(
+                "match-map-frame",
+                {
+                    "image": dataurl,
+                    "score": float(max_val),
+                    "topLeft": [int(top_left[0]), int(top_left[1])],
+                    "center": [int(center[0]), int(center[1])],
+                    "size": [int(mini_w), int(mini_h)],
+                },
+            )
+        except Exception as e:
+            print(f"小地图模板匹配异常: {e}")
+            traceback.print_exc()
 

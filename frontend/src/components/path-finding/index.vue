@@ -216,7 +216,6 @@
             <div class="result-card" style="flex: 1">
               <div class="preview-title">
                 <div>匹配地图实时显示</div>
-                <el-button size="small" @click="handleGetMatchMap">开始匹配</el-button>
               </div>
               <div class="result-container">
                 <img v-if="matchMapImage" :src="matchMapImage" class="result-image" />
@@ -287,6 +286,7 @@ const skeletonImage = computed(() => pathFindingStore.skeletonImage);
 const resultImage = computed(() => pathFindingStore.resultImage);
 
 const miniMapImage = ref("");
+const matchMapImage = ref("");
 const miniMapCenter = ref({ x: 0, y: 0 });
 const miniMapRadius = ref(0);
 
@@ -401,6 +401,13 @@ onMounted(() => {
     }
     if (Number.isFinite(payload.radius)) {
       miniMapRadius.value = Math.max(0, Math.round(payload.radius));
+    }
+  });
+
+  socket.on("match-map-frame", (data) => {
+    const payload = data || {};
+    if (typeof payload.image === "string") {
+      matchMapImage.value = payload.image || "";
     }
   });
 

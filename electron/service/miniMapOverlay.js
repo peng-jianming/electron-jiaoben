@@ -90,10 +90,9 @@ class MiniMapOverlayService {
       const w = Math.max(1, Math.round(dw));
       const h = Math.max(1, Math.round(dh));
 
+      // 直接使用未缩放的原始截取区域，保证像素尺寸与屏幕实际尺寸一致
       const cropped = source.thumbnail.crop({ x, y, width: w, height: h });
-      const previewSize = 360;
-      const resized = cropped.resize({ width: previewSize, height: previewSize, quality: 'good' });
-      const dataUrl = resized.toDataURL();
+      const dataUrl = cropped.toDataURL();
       if (!dataUrl) return;
 
       const socketServer = getSocketServer();
