@@ -25,7 +25,9 @@
           />
 
           <div v-if="hasImage" class="image-area">
-            <div class="preview-title">上传/输入图片（先点按钮选择起点/终点，再点击地图）</div>
+            <div class="preview-title">
+              上传/输入图片（先点按钮选择起点/终点，再点击地图）
+            </div>
             <div
               class="edit-container"
               :class="{ 'is-selecting-point': !!selectionMode }"
@@ -47,72 +49,123 @@
             </div>
           </div>
           <div v-else class="empty-tip">请先上传图片，或使用洪水填充后的图片。</div>
+
+          <div style="display: flex; gap: 10px; width: 100%">
+            <div class="result-card">
+              <div class="preview-title">
+                <div>骨干网</div>
+                <el-button
+                  size="small"
+                  :disabled="!hasImage || pathFindingStore.isGettingSkeleton"
+                  :loading="pathFindingStore.isGettingSkeleton"
+                  @click="handleGetSkeleton"
+                >
+                  获取骨干网
+                </el-button>
+              </div>
+              <div class="result-container">
+                <img v-if="skeletonImage" :src="skeletonImage" class="result-image" />
+                <div v-else class="result-placeholder">暂无骨干网结果</div>
+              </div>
+            </div>
+
+            <div class="result-card">
+              <div class="preview-title">
+                <div>路线图</div>
+                <el-button
+                  type="success"
+                  size="small"
+                  :disabled="
+                    !hasImage || !hasStart || !hasEnd || pathFindingStore.isFinding
+                  "
+                  :loading="pathFindingStore.isFinding"
+                  @click="handleStartFinding"
+                >
+                  规划路线
+                </el-button>
+              </div>
+              <div class="result-container">
+                <img v-if="resultImage" :src="resultImage" class="result-image" />
+                <div v-else class="result-placeholder">暂无路线结果</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px">
+                <el-input size="small" :model-value="startInputText" :readonly="true">
+                  <template #append>
+                    <el-button
+                      size="small"
+                      :disabled="!canSelectPoints"
+                      @click="selectStart"
+                    >
+                      起点
+                    </el-button>
+                  </template>
+                </el-input>
+                <el-input size="small" :model-value="endInputText" :readonly="true">
+                  <template #append>
+                    <el-button
+                      size="small"
+                      :disabled="!canSelectPoints"
+                      @click="selectEnd"
+                    >
+                      终点
+                    </el-button>
+                  </template>
+                </el-input>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="right-pane">
-          <div class="result-card">
-            <div class="preview-title">
-              <div>骨干网</div>
-              <el-button
-                size="small"
-                :disabled="!hasImage || pathFindingStore.isGettingSkeleton"
-                :loading="pathFindingStore.isGettingSkeleton"
-                @click="handleGetSkeleton"
-              >
-                获取骨干网
-              </el-button>
+          <div style="display: flex; gap: 10px; width: 100%">
+            <div class="result-card" style="flex: 1">
+              <div class="preview-title">
+                <div>小地图实时显示</div>
+                <el-button size="small" @click="handleGetMiniMap">获取小地图</el-button>
+              </div>
+              <div class="result-container">
+                <img v-if="miniMapImage" :src="miniMapImage" class="result-image" />
+                <div v-else class="result-placeholder">暂无小地图结果</div>
+              </div>
+              <div>
+                <span>中心坐标: xx,yy</span>
+                <span>正方形半径: xx</span>
+              </div>
             </div>
-            <div class="result-container">
-              <img v-if="skeletonImage" :src="skeletonImage" class="result-image" />
-              <div v-else class="result-placeholder">暂无骨干网结果</div>
+            <div class="result-card" style="flex: 1">
+              <div class="preview-title">
+                <div>匹配地图实时显示</div>
+                <el-button size="small" @click="handleGetMatchMap">开始匹配</el-button>
+              </div>
+              <div class="result-container">
+                <img v-if="matchMapImage" :src="matchMapImage" class="result-image" />
+                <div v-else class="result-placeholder">暂无匹配地图结果</div>
+              </div>
             </div>
           </div>
-
           <div class="result-card">
             <div class="preview-title">
-              <div>路线图</div>
-             
-               
+              <div>寻路实况</div>
+              <el-button size="small">开始寻路</el-button>
             </div>
             <div class="result-container">
-              <img v-if="resultImage" :src="resultImage" class="result-image" />
-              <div v-else class="result-placeholder">暂无路线结果</div>
+              <img v-if="miniMapImage" :src="miniMapImage" class="result-image" />
+              <div v-else class="result-placeholder">暂无寻路结果</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <el-input size="small" :model-value="startInputText" :readonly="true">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <el-input size="small" :readonly="true">
                 <template #append>
-                  <el-button
-                    size="small"
-                    :disabled="!canSelectPoints"
-                    @click="selectStart"
-                  >
-                    选择起点
-                  </el-button>
+                  <el-button size="small"> 角色中心坐标点 </el-button>
                 </template>
               </el-input>
-              <el-input size="small" :model-value="endInputText" :readonly="true">
+              <el-input size="small" placeholder="请输入半径范围" :readonly="true">
+                <template #prepend> 半径范围 </template>
+              </el-input>
+              <el-input size="small" :readonly="true">
                 <template #append>
-                  <el-button
-                    size="small"
-                    :disabled="!canSelectPoints"
-                    @click="selectEnd"
-                  >
-                    选择终点
-                  </el-button>
+                  <el-button size="small"> 终点 </el-button>
                 </template>
               </el-input>
-             
-              <el-button
-                type="success"
-                size="small"
-                :disabled="
-                  !hasImage || !hasStart || !hasEnd || pathFindingStore.isFinding
-                "
-                :loading="pathFindingStore.isFinding"
-                @click="handleStartFinding"
-              >
-                规划路线
-              </el-button>
             </div>
           </div>
         </div>
@@ -146,7 +199,9 @@ const hasImage = computed(() => pathFindingStore.hasImage);
 const hasStart = computed(() => pathFindingStore.hasStart);
 const hasEnd = computed(() => pathFindingStore.hasEnd);
 const canSelectPoints = computed(() => hasImage.value && naturalReady.value);
-const isSelectingPoint = computed(() => selectionMode.value === "start" || selectionMode.value === "end");
+const isSelectingPoint = computed(
+  () => selectionMode.value === "start" || selectionMode.value === "end"
+);
 const startInputText = computed(() => {
   if (!hasStart.value) return "";
   return `(${startPoint.value.x}, ${startPoint.value.y})`;
@@ -339,7 +394,7 @@ watch(
 }
 
 .left-pane {
-  flex: 2;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -459,16 +514,18 @@ watch(
   flex-direction: column;
   gap: 8px;
   min-height: 0;
+  flex: 1;
 }
 
 .result-container {
   background: #0f172a;
   border-radius: 8px;
   overflow: hidden;
-  min-height: 220px;
+  min-height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
 }
 
 .result-image {
