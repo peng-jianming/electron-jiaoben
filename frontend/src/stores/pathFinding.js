@@ -58,11 +58,23 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
     startPoint.value = { x: null, y: null };
     endPoint.value = { x: null, y: null };
 
-    sendToBackend("寻路上传缓存", { 图片路径: path });
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    pendingUploadResolvers.value[requestId] = () => {};
+    sendToBackend("寻路上传缓存", { 图片路径: path, requestId });
   };
 
   const handlePathImageUploaded = (payload) => {
     const data = payload || {};
+    const requestId = data.requestId;
+    const hasRequestId = typeof requestId === "string" && !!requestId;
+    const hasPendingRequest =
+      hasRequestId &&
+      !!pendingUploadResolvers.value &&
+      Object.prototype.hasOwnProperty.call(pendingUploadResolvers.value, requestId);
+
+    // 忽略不属于当前寻路模块发起的上传回包，避免和其他页面/功能串数据
+    if (hasRequestId && !hasPendingRequest) return;
+
     if (typeof data.imageId === "string") {
       inputImage.value = { source: "path", id: data.imageId };
     }
@@ -70,10 +82,12 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
       inputPreview.value = data.preview;
     }
 
-    const requestId = data.requestId;
-    if (requestId && pendingUploadResolvers.value?.[requestId]) {
+    if (requestId && hasPendingRequest) {
       try {
-        pendingUploadResolvers.value[requestId]({ imageId: data.imageId, preview: data.preview });
+        const resolver = pendingUploadResolvers.value[requestId];
+        if (typeof resolver === "function") {
+          resolver({ imageId: data.imageId, preview: data.preview });
+        }
       } finally {
         delete pendingUploadResolvers.value[requestId];
       }

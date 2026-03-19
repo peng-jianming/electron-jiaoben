@@ -3,54 +3,110 @@
     <div class="panel-body">
       <div class="layout">
         <div class="left-pane">
-          <div class="toolbar">
-            <el-button type="primary" size="small" @click="triggerUpload"
-              >上传图片</el-button
-            >
-            <el-button
-              size="small"
-              :disabled="!canUseFloodFillResult"
-              @click="useFloodFillResult"
-            >
-              使用洪水填充结果
-            </el-button>
-          </div>
+          <div class="left-pane-row">
+            <div class="result-card">
+              <div class="preview-title">
+                <div>规划图</div>
+                <div class="toolbar">
+                  <el-button type="primary" size="small" @click="triggerUpload"
+                    >上传图片</el-button
+                  >
+                  <el-button
+                    size="small"
+                    :disabled="!canUseFloodFillResult"
+                    @click="useFloodFillResult"
+                  >
+                    洪水填充结果
+                  </el-button>
+                </div>
 
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="onFileChange"
-          />
-
-          <div v-if="hasImage" class="image-area">
-            <div class="preview-title">
-              上传/输入图片（先点按钮选择起点/终点，再点击地图）
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  accept="image/*"
+                  style="display: none"
+                  @change="onFileChange"
+                />
+              </div>
+              <div class="result-container">
+                <div v-if="hasImage" class="image-area">
+                  <div
+                    class="edit-container"
+                    :class="{ 'is-selecting-point': !!selectionMode }"
+                    @click="onCanvasClick"
+                    @mousedown="onCanvasMouseDown"
+                  >
+                    <canvas
+                      ref="canvasRef"
+                      class="edit-canvas"
+                      :style="canvasTransformStyle"
+                    ></canvas>
+                    <div
+                      v-if="hasStart && naturalReady"
+                      class="pt start"
+                      :style="startStyle"
+                    ></div>
+                    <div
+                      v-if="hasEnd && naturalReady"
+                      class="pt end"
+                      :style="endStyle"
+                    ></div>
+                    <div v-if="!naturalReady" class="image-placeholder">
+                      正在加载图片...
+                    </div>
+                  </div>
+                  <div class="tips">
+                    <div v-if="pathFindingStore.lastErrorMessage" class="err">
+                      {{ pathFindingStore.lastErrorMessage }}
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="result-placeholder">
+                  请先上传图片，或使用洪水填充后的图片。
+                </div>
+              </div>
             </div>
-            <div
-              class="edit-container"
-              :class="{ 'is-selecting-point': !!selectionMode }"
-              @click="onCanvasClick"
-            >
-              <canvas ref="canvasRef" class="edit-canvas"></canvas>
-              <div
-                v-if="hasStart && naturalReady"
-                class="pt start"
-                :style="startStyle"
-              ></div>
-              <div v-if="hasEnd && naturalReady" class="pt end" :style="endStyle"></div>
-              <div v-if="!naturalReady" class="image-placeholder">正在加载图片...</div>
-            </div>
-            <div class="tips">
-              <div v-if="pathFindingStore.lastErrorMessage" class="err">
-                {{ pathFindingStore.lastErrorMessage }}
+            <div class="result-card">
+              <div class="preview-title">
+                <div>原始地图</div>
+                <div class="toolbar">
+                  <el-button
+                    size="small"
+                    :loading="originalMapUploading"
+                    :disabled="originalMapUploading"
+                    @click="triggerOriginalMapUpload"
+                  >
+                    上传原始地图
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :loading="originalMapUploading"
+                    :disabled="!canUseImageProcessingResult || originalMapUploading"
+                    @click="useImageProcessingResult"
+                  >
+                    图片处理结果
+                  </el-button>
+                  <input
+                    ref="originalMapFileInputRef"
+                    type="file"
+                    accept="image/*"
+                    style="display: none"
+                    @change="onOriginalMapFileChange"
+                  />
+                </div>
+              </div>
+              <div class="result-container">
+                <img
+                  v-if="originalMapDisplayImage"
+                  :src="originalMapDisplayImage"
+                  class="result-image"
+                />
+                <div v-else class="result-placeholder">暂无原始地图</div>
               </div>
             </div>
           </div>
-          <div v-else class="empty-tip">请先上传图片，或使用洪水填充后的图片。</div>
 
-          <div style="display: flex; gap: 10px; width: 100%">
+          <div class="left-pane-row">
             <div class="result-card">
               <div class="preview-title">
                 <div>骨干网</div>
@@ -130,13 +186,30 @@
                 <div v-else class="result-placeholder">暂无小地图结果</div>
               </div>
               <div>
-                <span style="display: inline-flex; align-items: center; gap: 6px; margin-right: 10px">
+                <span
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    margin-right: 10px;
+                  "
+                >
                   中心坐标:
-                  <el-input size="small" :model-value="miniMapCenterText" readonly style="width: 160px" />
+                  <el-input
+                    size="small"
+                    :model-value="miniMapCenterText"
+                    readonly
+                    style="width: 160px"
+                  />
                 </span>
                 <span style="display: inline-flex; align-items: center; gap: 6px">
                   正方形半径:
-                  <el-input size="small" :model-value="miniMapRadiusText" readonly style="width: 120px" />
+                  <el-input
+                    size="small"
+                    :model-value="miniMapRadiusText"
+                    readonly
+                    style="width: 120px"
+                  />
                 </span>
               </div>
             </div>
@@ -183,24 +256,31 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
 import { useFloodFillStore } from "@/stores/floodFill";
 import { usePathFindingStore } from "@/stores/pathFinding";
+import { useImageProcessingStore } from "@/stores/imageProcessing";
 import { getMatchSocket } from "@/utils/matchSocket";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 
 const floodFillStore = useFloodFillStore();
 const pathFindingStore = usePathFindingStore();
+const imageProcessingStore = useImageProcessingStore();
 
 const { startPoint, endPoint } = storeToRefs(pathFindingStore);
 
 const fileInputRef = ref(null);
+const originalMapFileInputRef = ref(null);
 const canvasRef = ref(null);
 const naturalReady = ref(false);
 const selectionMode = ref(null); // 'start' | 'end' | null
+const originalMapImage = ref("");
+const originalMapUploadRequestId = ref("");
+const originalMapUploading = ref(false);
+const originalMapUploadTimeout = ref(null);
 
 const inputSrc = computed(() => pathFindingStore.inputDisplayImageSrc);
 const skeletonImage = computed(() => pathFindingStore.skeletonImage);
@@ -210,8 +290,25 @@ const miniMapImage = ref("");
 const miniMapCenter = ref({ x: 0, y: 0 });
 const miniMapRadius = ref(0);
 
-const miniMapCenterText = computed(() => `(${miniMapCenter.value.x}, ${miniMapCenter.value.y})`);
+const miniMapCenterText = computed(
+  () => `(${miniMapCenter.value.x}, ${miniMapCenter.value.y})`
+);
 const miniMapRadiusText = computed(() => String(miniMapRadius.value || 0));
+
+// 规划图平移相关状态（按住 Ctrl 或空格拖动）
+const panOffset = ref({ x: 0, y: 0 });
+const isPanning = ref(false);
+const lastPanPoint = ref(null);
+const isPanKeyPressed = ref(false);
+
+const canvasTransformStyle = computed(() => {
+  const x = panOffset.value.x || 0;
+  const y = panOffset.value.y || 0;
+  if (!x && !y) return {};
+  return {
+    transform: `translate(${x}px, ${y}px)`,
+  };
+});
 
 const hasImage = computed(() => pathFindingStore.hasImage);
 const hasStart = computed(() => pathFindingStore.hasStart);
@@ -229,8 +326,41 @@ const endInputText = computed(() => {
   return `(${endPoint.value.x}, ${endPoint.value.y})`;
 });
 const canUseFloodFillResult = computed(() => !!floodFillStore.resultDisplayImageSrc);
+const canUseImageProcessingResult = computed(
+  () => !!imageProcessingStore.displayImageSrc
+);
+const originalMapDisplayImage = computed(() => originalMapImage.value || "");
+
+// 处理 Ctrl / 空格键状态
+const updatePanKey = (event, pressed) => {
+  const key = event.key;
+  if (key === "Control" || event.ctrlKey) {
+    isPanKeyPressed.value = pressed;
+    if (!pressed) {
+      stopPanning();
+    }
+    return;
+  }
+  if (key === " " || key === "Spacebar" || event.code === "Space") {
+    isPanKeyPressed.value = pressed;
+    if (!pressed) {
+      stopPanning();
+    }
+  }
+};
+
+const handleKeyDown = (event) => {
+  updatePanKey(event, true);
+};
+
+const handleKeyUp = (event) => {
+  updatePanKey(event, false);
+};
 
 onMounted(() => {
+  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("keyup", handleKeyUp);
+
   const socket = getMatchSocket() || window.matchSocket;
   if (!socket) return;
 
@@ -239,8 +369,15 @@ onMounted(() => {
     if (typeof payload.image === "string") {
       miniMapImage.value = payload.image || "";
     }
-    if (payload.center && Number.isFinite(payload.center.x) && Number.isFinite(payload.center.y)) {
-      miniMapCenter.value = { x: Math.round(payload.center.x), y: Math.round(payload.center.y) };
+    if (
+      payload.center &&
+      Number.isFinite(payload.center.x) &&
+      Number.isFinite(payload.center.y)
+    ) {
+      miniMapCenter.value = {
+        x: Math.round(payload.center.x),
+        y: Math.round(payload.center.y),
+      };
     }
     if (Number.isFinite(payload.radius)) {
       miniMapRadius.value = Math.max(0, Math.round(payload.radius));
@@ -252,13 +389,36 @@ onMounted(() => {
     if (!payload.bounds) {
       return;
     }
-    if (payload.center && Number.isFinite(payload.center.x) && Number.isFinite(payload.center.y)) {
-      miniMapCenter.value = { x: Math.round(payload.center.x), y: Math.round(payload.center.y) };
+    if (
+      payload.center &&
+      Number.isFinite(payload.center.x) &&
+      Number.isFinite(payload.center.y)
+    ) {
+      miniMapCenter.value = {
+        x: Math.round(payload.center.x),
+        y: Math.round(payload.center.y),
+      };
     }
     if (Number.isFinite(payload.radius)) {
       miniMapRadius.value = Math.max(0, Math.round(payload.radius));
     }
   });
+
+  socket.on("path-image-uploaded", (data) => {
+    const payload = data || {};
+    if (!originalMapUploadRequestId.value) return;
+    if (payload.requestId !== originalMapUploadRequestId.value) return;
+    if (typeof payload.preview === "string") {
+      originalMapImage.value = payload.preview || "";
+    }
+    clearOriginalMapUploading();
+  });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleKeyDown);
+  window.removeEventListener("keyup", handleKeyUp);
+  stopPanning();
 });
 
 const triggerUpload = () => fileInputRef.value && fileInputRef.value.click();
@@ -276,6 +436,67 @@ const onFileChange = (event) => {
   };
   reader.readAsDataURL(file);
   event.target.value = "";
+};
+
+const triggerOriginalMapUpload = () =>
+  originalMapFileInputRef.value && originalMapFileInputRef.value.click();
+
+const clearOriginalMapUploading = () => {
+  originalMapUploadRequestId.value = "";
+  originalMapUploading.value = false;
+  if (originalMapUploadTimeout.value) {
+    clearTimeout(originalMapUploadTimeout.value);
+    originalMapUploadTimeout.value = null;
+  }
+};
+
+const uploadOriginalMapByPayload = async (payload = {}, useBase64 = false) => {
+  const requestId = `original-map-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  originalMapUploadRequestId.value = requestId;
+  originalMapUploading.value = true;
+  if (originalMapUploadTimeout.value) {
+    clearTimeout(originalMapUploadTimeout.value);
+  }
+  originalMapUploadTimeout.value = setTimeout(() => {
+    if (originalMapUploadRequestId.value === requestId) {
+      clearOriginalMapUploading();
+      ElMessage.warning("原始地图上传超时，请重试");
+    }
+  }, 10000);
+  const 类型 = useBase64 ? "寻路上传base64缓存" : "寻路上传缓存";
+  try {
+    await ipc.invoke(ipcApiRoute.发送到后端, {
+      类型,
+      ...payload,
+      requestId,
+    });
+  } catch (e) {
+    clearOriginalMapUploading();
+    ElMessage.error("发送原始地图到后端失败");
+  }
+};
+
+const onOriginalMapFileChange = (event) => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (!file.path) {
+    ElMessage.warning("未获取到文件路径，无法上传到后端");
+    event.target.value = "";
+    return;
+  }
+  uploadOriginalMapByPayload({ 图片路径: file.path }, false);
+  event.target.value = "";
+};
+
+const useImageProcessingResult = () => {
+  if (!canUseImageProcessingResult.value) {
+    ElMessage.warning("当前没有图片处理结果可用");
+    return;
+  }
+  uploadOriginalMapByPayload(
+    { dataUrl: imageProcessingStore.displayImageSrc || "" },
+    true
+  );
 };
 
 const useFloodFillResult = async () => {
@@ -323,6 +544,8 @@ const getCanvasPointFromClient = (clientX, clientY) => {
 
 const onCanvasClick = (event) => {
   if (!naturalReady.value) return;
+  // 按住平移快捷键拖动时，不进行起终点选择
+  if (isPanning.value || isPanKeyPressed.value || event.ctrlKey) return;
   if (!selectionMode.value) return;
   const p = getCanvasPointFromClient(event.clientX, event.clientY);
   if (!p) return;
@@ -333,6 +556,43 @@ const onCanvasClick = (event) => {
     y: p.y,
   });
   selectionMode.value = null;
+};
+
+const onCanvasMouseDown = (event) => {
+  if (!naturalReady.value) return;
+  // 仅在按住 Ctrl 或空格时启用拖动
+  const shouldPan = isPanKeyPressed.value || event.ctrlKey;
+  if (!shouldPan || event.button !== 0) return;
+
+  isPanning.value = true;
+  lastPanPoint.value = { x: event.clientX, y: event.clientY };
+
+  window.addEventListener("mousemove", onCanvasMouseMove);
+  window.addEventListener("mouseup", onCanvasMouseUp);
+  event.preventDefault();
+};
+
+const onCanvasMouseMove = (event) => {
+  if (!isPanning.value || !lastPanPoint.value) return;
+  const dx = event.clientX - lastPanPoint.value.x;
+  const dy = event.clientY - lastPanPoint.value.y;
+  panOffset.value = {
+    x: (panOffset.value.x || 0) + dx,
+    y: (panOffset.value.y || 0) + dy,
+  };
+  lastPanPoint.value = { x: event.clientX, y: event.clientY };
+};
+
+const stopPanning = () => {
+  if (!isPanning.value) return;
+  isPanning.value = false;
+  lastPanPoint.value = null;
+  window.removeEventListener("mousemove", onCanvasMouseMove);
+  window.removeEventListener("mouseup", onCanvasMouseUp);
+};
+
+const onCanvasMouseUp = () => {
+  stopPanning();
 };
 
 const selectStart = () => {
@@ -354,6 +614,10 @@ const selectEnd = () => {
 };
 
 const getMarkerStyle = (pt) => {
+  // 依赖 panOffset，使平移时重新计算标记位置
+  const _ox = panOffset.value.x;
+  const _oy = panOffset.value.y;
+
   const canvas = canvasRef.value;
   if (!canvas) return {};
 
@@ -423,7 +687,7 @@ watch(
 );
 
 const startMiniMapCapture = async () => {
-    await ipc.invoke(ipcApiRoute.打开小地图截屏框, { size: 240 });
+  await ipc.invoke(ipcApiRoute.打开小地图截屏框, { size: 240 });
 };
 </script>
 
@@ -452,6 +716,14 @@ const startMiniMapCapture = async () => {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+}
+
+.left-pane-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .right-pane {
@@ -579,6 +851,10 @@ const startMiniMapCapture = async () => {
   align-items: center;
   justify-content: center;
   flex: 1;
+}
+
+.left-pane .result-container {
+  min-height: 0;
 }
 
 .result-image {
