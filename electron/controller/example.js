@@ -8,6 +8,7 @@ const crossSpawn = require('cross-spawn');
 const {
   getMainWindow
 } = require('ee-core/electron/window');
+const { miniMapOverlayService } = require('../service/miniMapOverlay');
 class ExampleController {
 
   /**
@@ -108,6 +109,24 @@ class ExampleController {
       win.setPosition(Math.round(x), Math.round(y));
     }
   }
+
+  // ===== 小地图实时截屏悬浮框 =====
+  async 打开小地图截屏框(args, event) {
+    return await miniMapOverlayService.openOverlay(args || {});
+  }
+
+  关闭小地图截屏框(args, event) {
+    return miniMapOverlayService.closeOverlay();
+  }
+
+  设置小地图截屏框正方形范围(args, event) {
+    return miniMapOverlayService.setOverlayBoundsSquare(args || {});
+  }
+
+  获取小地图截屏框信息(args, event) {
+    return miniMapOverlayService.getMeta();
+  }
+
 }
 ExampleController.toString = () => '[class ExampleController]';
 

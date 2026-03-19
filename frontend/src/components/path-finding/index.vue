@@ -121,15 +121,23 @@
             <div class="result-card" style="flex: 1">
               <div class="preview-title">
                 <div>小地图实时显示</div>
-                <el-button size="small" @click="handleGetMiniMap">获取小地图</el-button>
+                <el-button size="small" type="primary" @click="startMiniMapCapture"
+                  >截屏获取</el-button
+                >
               </div>
               <div class="result-container">
                 <img v-if="miniMapImage" :src="miniMapImage" class="result-image" />
                 <div v-else class="result-placeholder">暂无小地图结果</div>
               </div>
               <div>
-                <span>中心坐标: xx,yy</span>
-                <span>正方形半径: xx</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; margin-right: 10px">
+                  中心坐标:
+                  <el-input size="small" :model-value="miniMapCenterText" readonly style="width: 160px" />
+                </span>
+                <span style="display: inline-flex; align-items: center; gap: 6px">
+                  正方形半径:
+                  <el-input size="small" :model-value="miniMapRadiusText" readonly style="width: 120px" />
+                </span>
               </div>
             </div>
             <div class="result-card" style="flex: 1">
@@ -149,7 +157,7 @@
               <el-button size="small">开始寻路</el-button>
             </div>
             <div class="result-container">
-              <img v-if="miniMapImage" :src="miniMapImage" class="result-image" />
+              <img v-if="aaa" :src="aaa" class="result-image" />
               <div v-else class="result-placeholder">暂无寻路结果</div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px">
@@ -175,11 +183,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
 import { useFloodFillStore } from "@/stores/floodFill";
 import { usePathFindingStore } from "@/stores/pathFinding";
+import { getMatchSocket } from "@/utils/matchSocket";
+import { ipc } from "@/utils/ipcRenderer";
+import { ipcApiRoute } from "@/api";
 
 const floodFillStore = useFloodFillStore();
 const pathFindingStore = usePathFindingStore();
@@ -194,6 +205,13 @@ const selectionMode = ref(null); // 'start' | 'end' | null
 const inputSrc = computed(() => pathFindingStore.inputDisplayImageSrc);
 const skeletonImage = computed(() => pathFindingStore.skeletonImage);
 const resultImage = computed(() => pathFindingStore.resultImage);
+
+const miniMapImage = ref("");
+const miniMapCenter = ref({ x: 0, y: 0 });
+const miniMapRadius = ref(0);
+
+const miniMapCenterText = computed(() => `(${miniMapCenter.value.x}, ${miniMapCenter.value.y})`);
+const miniMapRadiusText = computed(() => String(miniMapRadius.value || 0));
 
 const hasImage = computed(() => pathFindingStore.hasImage);
 const hasStart = computed(() => pathFindingStore.hasStart);
@@ -211,6 +229,37 @@ const endInputText = computed(() => {
   return `(${endPoint.value.x}, ${endPoint.value.y})`;
 });
 const canUseFloodFillResult = computed(() => !!floodFillStore.resultDisplayImageSrc);
+
+onMounted(() => {
+  const socket = getMatchSocket() || window.matchSocket;
+  if (!socket) return;
+
+  socket.on("mini-map-frame", (data) => {
+    const payload = data || {};
+    if (typeof payload.image === "string") {
+      miniMapImage.value = payload.image || "";
+    }
+    if (payload.center && Number.isFinite(payload.center.x) && Number.isFinite(payload.center.y)) {
+      miniMapCenter.value = { x: Math.round(payload.center.x), y: Math.round(payload.center.y) };
+    }
+    if (Number.isFinite(payload.radius)) {
+      miniMapRadius.value = Math.max(0, Math.round(payload.radius));
+    }
+  });
+
+  socket.on("mini-map-meta", (data) => {
+    const payload = data || {};
+    if (!payload.bounds) {
+      return;
+    }
+    if (payload.center && Number.isFinite(payload.center.x) && Number.isFinite(payload.center.y)) {
+      miniMapCenter.value = { x: Math.round(payload.center.x), y: Math.round(payload.center.y) };
+    }
+    if (Number.isFinite(payload.radius)) {
+      miniMapRadius.value = Math.max(0, Math.round(payload.radius));
+    }
+  });
+});
 
 const triggerUpload = () => fileInputRef.value && fileInputRef.value.click();
 
@@ -372,6 +421,10 @@ watch(
   },
   { immediate: true }
 );
+
+const startMiniMapCapture = async () => {
+    await ipc.invoke(ipcApiRoute.打开小地图截屏框, { size: 240 });
+};
 </script>
 
 <style scoped lang="less">
@@ -531,6 +584,7 @@ watch(
 .result-image {
   max-width: 100%;
   max-height: 100%;
+  object-fit: contain;
   user-select: none;
 }
 

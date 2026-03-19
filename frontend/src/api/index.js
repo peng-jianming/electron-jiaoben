@@ -9,6 +9,7 @@ const ipcApiRoute = {
   操作主窗口: 'controller/example/操作主窗口',
   获取主窗口位置: 'controller/example/获取主窗口位置',
   设置主窗口位置: 'controller/example/设置主窗口位置',
+  打开小地图截屏框: 'controller/example/打开小地图截屏框',
 }
 
 export {

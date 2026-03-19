@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mini-map-overlay</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      .box {
+        position: absolute;
+        inset: 0;
+        border: 2px solid rgba(59, 130, 246, 0.95);
+        background: rgba(59, 130, 246, 0.08);
+        box-sizing: border-box;
+        border-radius: 2px;
+        -webkit-app-region: drag;
+      }
+
+      .hint {
+        position: absolute;
+        left: 8px;
+        top: 6px;
+        padding: 4px 6px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 6px;
+        -webkit-app-region: no-drag;
+        pointer-events: none;
+      }
+
+      .close-btn {
+        position: absolute;
+        right: 6px;
+        top: 6px;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        color: #e5e7eb;
+        font-size: 14px;
+        line-height: 18px;
+        text-align: center;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+      .close-btn:hover {
+        background: rgba(15, 23, 42, 0.92);
+      }
+
+      .handle {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        right: 2px;
+        bottom: 2px;
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(226, 232, 240, 0.65);
+        border-radius: 3px;
+        cursor: nwse-resize;
+        -webkit-app-region: no-drag;
+      }
+      .handle::after {
+        content: '';
+        position: absolute;
+        inset: 3px;
+        border-right: 2px solid rgba(226, 232, 240, 0.8);
+        border-bottom: 2px solid rgba(226, 232, 240, 0.8);
+        opacity: 0.9;
+      }
+
+      .center-mark {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 18px;
+        height: 18px;
+        pointer-events: none;
+        -webkit-app-region: no-drag;
+      }
+
+      .center-mark::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(239, 68, 68, 0.95);
+        box-shadow:
+          0 0 0 2px rgba(15, 23, 42, 0.65),
+          0 0 10px rgba(239, 68, 68, 0.55);
+      }
+
+      .center-mark .h,
+      .center-mark .v {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        background: rgba(239, 68, 68, 0.9);
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.55);
+      }
+      .center-mark .h {
+        width: 18px;
+        height: 2px;
+        transform: translate(-50%, -50%);
+      }
+      .center-mark .v {
+        width: 2px;
+        height: 18px;
+        transform: translate(-50%, -50%);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="box">
+      <div class="hint">拖动移动｜右下角拖动缩放｜关闭=停止</div>
+      <div class="close-btn" id="close-btn">×</div>
+      <div class="center-mark" aria-hidden="true">
+        <div class="h"></div>
+        <div class="v"></div>
+      </div>
+      <div class="handle" id="handle"></div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require('electron');
+
+      const handle = document.getElementById('handle');
+      const closeBtn = document.getElementById('close-btn');
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          ipcRenderer.invoke('controller/example/关闭小地图截屏框');
+        });
+      }
+
+      let resizing = false;
+      let startMouse = { x: 0, y: 0 };
+      let startSize = 0;
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        resizing = true;
+        startMouse = { x: e.screenX, y: e.screenY };
+        startSize = Math.min(window.innerWidth, window.innerHeight);
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!resizing) return;
+        const dx = e.screenX - startMouse.x;
+        const dy = e.screenY - startMouse.y;
+        const delta = Math.max(dx, dy);
+        const next = Math.max(80, Math.round(startSize + delta));
+        ipcRenderer.invoke('controller/example/设置小地图截屏框正方形范围', { size: next });
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!resizing) return;
+        resizing = false;
+      });
+    </script>
+  </body>
+</html>
+

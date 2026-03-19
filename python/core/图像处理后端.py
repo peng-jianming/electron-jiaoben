@@ -386,6 +386,106 @@ class 图像处理后端类:
         except Exception as e:
             print(f"图像处理流水线异常: {e}")
 
+    def _读取已保存的流水线参数(self):
+        """
+        从图像处理参数配置文件中读取最近一次保存的流水线步骤。
+        """
+        if not os.path.exists(图像处理参数配置路径):
+            return []
+        try:
+            with open(图像处理参数配置路径, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return []
+        steps = data.get("steps") or []
+        if not isinstance(steps, list):
+            return []
+        return steps
+
+    def 处理小地图图像(self, 数据):
+        """
+        小地图实时截屏处理：
+        - 类型：图像处理小地图
+        - 参数：{ dataUrl }
+        - 行为：按当前图像处理流水线配置，对单帧 dataUrl 做同样处理
+        - 返回事件：mini-map-frame { image: dataUrl }
+        """
+        try:
+            payload = 数据 or {}
+            data_url = payload.get("dataUrl") or payload.get("data_url") or payload.get("image")
+            if not data_url:
+                raise ValueError("图像处理小地图缺少 dataUrl")
+
+            img_bytes = self._dataurl_to_bytes(data_url)
+            pil_img = Image.open(BytesIO(img_bytes)).convert("RGB")
+            img_rgb = np.array(pil_img)
+            img = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+            步骤列表 = self._读取已保存的流水线参数()
+
+            for step in 步骤列表:
+                if not isinstance(step, dict):
+                    continue
+                step_type = step.get("type")
+                params = step.get("params") or {}
+
+                if step_type == "二值化":
+                    threshold = params.get("threshold", 127)
+                    try:
+                        threshold = int(threshold)
+                    except Exception:
+                        threshold = 127
+                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    _, img = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+                elif step_type == "颜色过滤":
+                    list = params.get("list") or []
+                    img = 应用颜色过滤(img, list)
+                elif step_type in ("膨胀", "腐蚀"):
+                    kernel_size = params.get("kernelSize", 3)
+                    iterations = params.get("iterations", 1)
+                    kernel_shape = params.get("kernelShape", "rect")
+
+                    try:
+                        kernel_size = int(kernel_size)
+                    except Exception:
+                        kernel_size = 3
+                    try:
+                        iterations = int(iterations)
+                    except Exception:
+                        iterations = 1
+
+                    if kernel_size < 1:
+                        kernel_size = 1
+                    if kernel_size % 2 == 0:
+                        kernel_size += 1
+                    if iterations < 1:
+                        iterations = 1
+
+                    if step_type == "膨胀":
+                        img = 对图像应用膨胀(
+                            img,
+                            kernel_size=kernel_size,
+                            iterations=iterations,
+                            kernel_shape=kernel_shape,
+                        )
+                    else:
+                        img = 对图像应用腐蚀(
+                            img,
+                            kernel_size=kernel_size,
+                            iterations=iterations,
+                            kernel_shape=kernel_shape,
+                        )
+                else:
+                    # 小地图忽略未知步骤，避免中断实时流
+                    continue
+
+            result_dataurl = self._cv2_to_dataurl(img)
+            self._通信管理器.发送到Electron(
+                "mini-map-frame", {"image": result_dataurl}
+            )
+        except Exception as e:
+            print(f"图像处理小地图异常: {e}")
+
     def _保存流水线参数到文件(self, 步骤列表):
         """
         将当前流水线参数保存到 <仓库根>/data/lineParams.json 中
