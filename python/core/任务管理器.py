@@ -3,8 +3,8 @@ import sys
 import json
 import time
 import random
-import threading
 import importlib
+import subprocess
 import numpy as np
 from PIL import Image
 
@@ -296,6 +296,9 @@ class 任务管理器类:
 
 
 class 任务界面状态机类:
+    # 类级别：跨所有任务共享的“按界面名”的公共处理器
+    _全局界面公共处理器集合 = {}
+
     def __init__(self, 环境):
         self.控制器 = 环境.控制器
         self.界面识别缓存 = 环境.界面识别缓存
@@ -304,6 +307,8 @@ class 任务界面状态机类:
         self.更新数据 = 环境.更新数据
         self.参数配置 = 环境.参数配置
         self.注册界面集合 = {}
+        # 当前任务实例内：对“所有界面”都生效的公共逻辑
+        self._当前任务所有界面公共处理器 = []
         self.任务未完成 = True
         self.上下文 = {}
         self._任务超时时间 = None
@@ -312,6 +317,49 @@ class 任务界面状态机类:
         """装饰器：注册界面处理函数"""
         def 装饰器(函数):
             self.注册界面集合[界面名称] = 函数
+        return 装饰器
+
+    @classmethod
+    def 注册全局界面(cls, 界面名称):
+        """
+        类级装饰器：在所有任务中，对同名界面执行相同公共逻辑。
+        例如：
+            @任务界面状态机类.注册全局界面("主界面")
+            def _(上下文, 界面):
+                ...
+        无论是 三界奇缘 / 趣闻鉴赏 等任务，只要进入“主界面”，都会先执行这里。
+        """
+        def 装饰器(函数):
+            if 界面名称 not in cls._全局界面公共处理器集合:
+                cls._全局界面公共处理器集合[界面名称] = []
+            cls._全局界面公共处理器集合[界面名称].append(函数)
+            return 函数
+        return 装饰器
+
+    def _执行界面处理链(self, 界面名称):
+        """按固定顺序执行：跨任务公共处理 -> 本任务所有界面公共 -> 当前界面处理。"""
+        界面对象 = self.界面集合[界面名称]
+
+        # 1) 跨任务共享的类级公共逻辑
+        for 公共处理函数 in self._全局界面公共处理器集合.get(界面名称, []):
+            公共处理函数(self.上下文, 界面对象)
+
+        # 2) 当前任务实例内：所有界面公共逻辑
+        # @任务界面状态机.注册公共界面()
+        # def _(上下文, 界面):
+        #     # 进入任何已识别界面前都会先执行
+        #     pass
+        for 公共处理函数 in self._当前任务所有界面公共处理器:
+            公共处理函数(self.上下文, 界面对象)
+
+        # 3) 当前界面专属任务逻辑
+        self.注册界面集合[界面名称](self.上下文, 界面对象)
+
+    def 注册公共界面(self):
+        """装饰器：注册当前任务实例内“所有界面”的公共处理逻辑。"""
+        def 装饰器(函数):
+            self._当前任务所有界面公共处理器.append(函数)
+            return 函数
         return 装饰器
 
     def 设置超时时间(self, 秒):
@@ -368,24 +416,34 @@ class 任务界面状态机类:
         """播放提示音乐"""
         try:
             if os.path.exists(音乐文件路径):
-                def 播放():
+                try:
+                    # 优先使用 playsound（阻塞直到播放结束）
                     try:
                         from playsound import playsound
                         playsound(音乐文件路径)
                     except ImportError:
+                        # 根据系统选择阻塞式播放方式
                         import platform
-                        if platform.system() == "Windows":
-                            os.system(f'start "" "{音乐文件路径}"')
-                        elif platform.system() == "Darwin":
-                            os.system(f'afplay "{音乐文件路径}" &')
+                        系统 = platform.system()
+                        if 系统 == "Windows":
+                            # 等待播放器进程退出：只有关闭播放器后才继续执行
+                            安全路径 = 音乐文件路径.replace("'", "''")
+                            命令 = (
+                                "Start-Process -FilePath "
+                                f"'{安全路径}' "
+                                "-Wait"
+                            )
+                            subprocess.run(
+                                ["powershell", "-NoProfile", "-Command", 命令],
+                                check=False,
+                            )
+                        elif 系统 == "Darwin":
+                            os.system(f'afplay "{音乐文件路径}"')
                         else:
-                            os.system(f'mpg123 "{音乐文件路径}" &')
-                    except Exception:
-                        self.更新数据("日志", "播放音乐失败")
-
-                线程 = threading.Thread(target=播放, daemon=True)
-                线程.start()
-                self.更新数据("日志", "正在播放提示音乐...")
+                            os.system(f'mpg123 "{音乐文件路径}"')
+                    self.更新数据("日志", "提示音乐播放结束")
+                except Exception:
+                    self.更新数据("日志", "播放音乐失败")
             else:
                 self.更新数据("日志", f"音乐文件不存在: {音乐文件路径}")
         except Exception as e:
@@ -422,7 +480,7 @@ class 任务界面状态机类:
                     if 未知开始时间 is not None:
                         self.更新数据("故障", False)
                     未知开始时间 = None
-                    self.注册界面集合[界面名称](self.上下文, self.界面集合[界面名称])
+                    self._执行界面处理链(界面名称)
                     break
 
             if not 已找到:
