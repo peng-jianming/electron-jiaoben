@@ -321,12 +321,201 @@ class 图像拼接后端类:
 
     def __init__(self, 通信管理器):
         self._通信管理器 = 通信管理器
+        # 增量拼接会话：用于“累计结果 + 新截图”的逐帧拼接
+        # sessionId -> { canvas, x_min, y_min, last_bin, last_global_x, last_global_y, frame_count }
+        self._incremental_sessions = {}
 
     def _ensure_dir(self, dir_path):
         try:
             os.makedirs(dir_path, exist_ok=True)
         except Exception:
             pass
+
+    def _发送进度(self, request_id: str, progress: int, stage: str, message: str):
+        try:
+            self._通信管理器.发送到Electron(
+                "image-stitching-progress",
+                {
+                    "requestId": request_id,
+                    "progress": min(100, max(0, int(progress))),
+                    "stage": stage,
+                    "message": message,
+                },
+            )
+        except Exception:
+            pass
+
+    def _处理非增量拼接(self, inputs, request_id: str, loader_fn):
+        """
+        通用的“链式互相关匹配 + 拼接画布生成”逻辑。
+        通过 loader_fn 决定 inputs 是“路径”还是“截屏 dataUrl”。
+        """
+        total = len(inputs)
+        bin_list = []
+        offsets = [(0, 0)]
+        global_x = 0
+        global_y = 0
+        prev_bin = None
+
+        b0 = loader_fn(inputs[0])
+        bin_list.append(b0)
+        prev_bin = b0
+
+        for idx in range(1, total):
+            b = loader_fn(inputs[idx])
+            bin_list.append(b)
+
+            dx, dy, conf = find_offset_by_correlation(prev_bin, b)
+            print(f"匹配偏移: dx={dx}, dy={dy}, conf={conf:.4f}")
+            global_x += dx
+            global_y += dy
+            offsets.append((global_x, global_y))
+
+            prev_bin = b
+
+            progress = int(((idx + 1) / total) * 70)
+            self._发送进度(
+                request_id,
+                progress=progress,
+                stage="matching",
+                message=f"匹配中：{idx + 1}/{total} (conf={conf:.3f})",
+            )
+
+        canvas = _stitch_binary_by_offsets(bin_list, offsets)
+        self._发送进度(request_id, progress=80, stage="stitching", message="开始拼接…")
+
+        vis = (canvas * 255).astype(np.uint8)
+        dataurl = _cv2_gray_or_bgr_to_dataurl(vis)
+
+        # 同时保存一份到磁盘，便于调试与复查
+        try:
+            out_dir = os.path.join(缓存图片目录, "image-stitching")
+            self._ensure_dir(out_dir)
+            out_full_path = os.path.join(out_dir, f"{request_id}.png")
+            cv2.imwrite(out_full_path, (canvas * 255).astype(np.uint8))
+        except Exception:
+            pass
+
+        self._通信管理器.发送到Electron(
+            "image-stitching-result",
+            {"requestId": request_id, "image": dataurl},
+        )
+
+    def _处理非增量拼接_上传图片(self, image_paths, request_id: str, pipeline_steps):
+        def loader_fn(p):
+            return load_binary_map(p, pipeline_steps=pipeline_steps)
+
+        return self._处理非增量拼接(image_paths, request_id, loader_fn=loader_fn)
+
+    def _处理非增量拼接_截屏dataUrl(self, image_data_urls, request_id: str, pipeline_steps, skip_pipeline_steps: bool):
+        def loader_fn(d):
+            return load_binary_map_from_dataurl(
+                d,
+                pipeline_steps=pipeline_steps,
+                skip_pipeline_steps=skip_pipeline_steps,
+            )
+
+        return self._处理非增量拼接(image_data_urls, request_id, loader_fn=loader_fn)
+
+    def _处理增量拼接_截屏dataUrl(
+        self,
+        request_id: str,
+        session_id: str,
+        incremental_operation: str,
+        image_data_urls,
+        pipeline_steps,
+        skip_pipeline_steps: bool,
+    ):
+        if str(incremental_operation) == "end":
+            if session_id in self._incremental_sessions:
+                del self._incremental_sessions[session_id]
+            return
+
+        if not isinstance(image_data_urls, list) or len(image_data_urls) < 1:
+            raise ValueError("增量拼接需要至少 1 帧 dataUrl")
+
+        img_item = image_data_urls[0]
+        b_new = load_binary_map_from_dataurl(
+            img_item,
+            pipeline_steps=pipeline_steps,
+            skip_pipeline_steps=skip_pipeline_steps,
+        )
+
+        if str(incremental_operation) == "init":
+            self._incremental_sessions[session_id] = {
+                "canvas": b_new.astype(np.uint8),
+                "x_min": 0,
+                "y_min": 0,
+                "last_bin": b_new.astype(np.uint8),
+                "last_global_x": 0,
+                "last_global_y": 0,
+                "frame_count": 1,
+            }
+        elif str(incremental_operation) == "step":
+            sess = self._incremental_sessions.get(session_id)
+            if not sess:
+                raise ValueError(f"增量会话不存在: sessionId={session_id}")
+
+            canvas = sess["canvas"]
+            x_min = int(sess["x_min"])
+            y_min = int(sess["y_min"])
+            last_bin = sess["last_bin"]
+            last_global_x = int(sess["last_global_x"])
+            last_global_y = int(sess["last_global_y"])
+
+            dx, dy, _conf = find_offset_by_correlation(last_bin, b_new)
+            new_global_x = last_global_x + dx
+            new_global_y = last_global_y + dy
+
+            # 扩展 canvas 以容纳新帧
+            canvas_h, canvas_w = canvas.shape[:2]
+            frame_h, frame_w = b_new.shape[:2]
+
+            desired_x_min = min(x_min, new_global_x)
+            desired_y_min = min(y_min, new_global_y)
+            desired_x_max = max(x_min + canvas_w, new_global_x + frame_w)
+            desired_y_max = max(y_min + canvas_h, new_global_y + frame_h)
+
+            if (
+                desired_x_min != x_min
+                or desired_y_min != y_min
+                or desired_x_max != x_min + canvas_w
+                or desired_y_max != y_min + canvas_h
+            ):
+                new_canvas_w = max(1, int(desired_x_max - desired_x_min))
+                new_canvas_h = max(1, int(desired_y_max - desired_y_min))
+                new_canvas = np.zeros((new_canvas_h, new_canvas_w), dtype=np.uint8)
+                x_shift = x_min - desired_x_min
+                y_shift = y_min - desired_y_min
+                new_canvas[y_shift : y_shift + canvas_h, x_shift : x_shift + canvas_w] = canvas
+                canvas = new_canvas
+                x_min = int(desired_x_min)
+                y_min = int(desired_y_min)
+
+            x0 = new_global_x - x_min
+            y0 = new_global_y - y_min
+
+            # 写入/覆盖：后图覆盖前图
+            canvas[y0 : y0 + frame_h, x0 : x0 + frame_w] = b_new
+
+            # 更新会话状态
+            sess["canvas"] = canvas
+            sess["x_min"] = x_min
+            sess["y_min"] = y_min
+            sess["last_bin"] = b_new
+            sess["last_global_x"] = new_global_x
+            sess["last_global_y"] = new_global_y
+            sess["frame_count"] = int(sess.get("frame_count") or 0) + 1
+        else:
+            raise ValueError(f"未知增量操作: {incremental_operation}")
+
+        canvas_out = self._incremental_sessions[session_id]["canvas"]
+        vis = (canvas_out * 255).astype(np.uint8)
+        dataurl = _cv2_gray_or_bgr_to_dataurl(vis)
+        self._通信管理器.发送到Electron(
+            "image-stitching-result",
+            {"requestId": request_id, "image": dataurl},
+        )
 
     def 处理图像拼接(self, 数据):
         """
@@ -354,107 +543,56 @@ class 图像拼接后端类:
 
             if isinstance(image_data_urls, list):
                 inputs = [d for d in image_data_urls if isinstance(d, str) and d.startswith("data:")]
-                use_data_urls = len(inputs) >= 2
+                # 增量拼接 init/step 只需要 1 帧，因此 dataUrl 只要 >=1 就算可用
+                use_data_urls = len(inputs) >= 1
 
             if not use_data_urls:
                 if not isinstance(image_paths, list):
                     raise ValueError("至少需要提供图片路径列表或 dataUrl 列表")
                 inputs = [p for p in image_paths if isinstance(p, str) and p]
 
-            if not isinstance(inputs, list) or len(inputs) < 2:
-                raise ValueError("至少需要 2 张图片进行拼接")
+            模式 = payload.get("模式") or payload.get("mode") or payload.get("stitchMode") or ""
+            session_id = payload.get("sessionId") or payload.get("stitchSessionId") or payload.get("拼接会话id") or ""
+            增量操作 = payload.get("增量操作") or payload.get("incrementalOperation") or payload.get("operation") or ""
 
             skip_pipeline_steps = bool(payload.get("跳过流水线") or payload.get("skipPipeline") or False)
+
+            is_incremental = str(模式) == "incremental" and isinstance(session_id, str) and session_id
+
+            # 增量模式：init/step 需要 >=1 帧，end 不需要
+            if is_incremental:
+                if str(增量操作) != "end" and (not isinstance(inputs, list) or len(inputs) < 1):
+                    raise ValueError("增量拼接需要至少 1 帧 dataUrl")
+            else:
+                if not isinstance(inputs, list) or len(inputs) < 2:
+                    raise ValueError("至少需要 2 张图片进行拼接")
+
             pipeline_steps = _读取已保存的流水线参数()
 
-            # 第一张图已加载，开始匹配从第二张开始
-
-            # 进度：加载/匹配（0~70），拼接（70~100）
-            total = len(inputs)
-            bin_list = []
-            offsets = [(0, 0)]
-            global_x = 0
-            global_y = 0
-            prev_bin = None
-
-            # 预先探测第一张图尺寸（用于后续二值图拼接）
-            b0 = (
-                load_binary_map_from_dataurl(
-                    inputs[0],
+            # ===== 输入来源分发：上传路径 vs 截屏 dataUrl =====
+            # 目标：不要让“截屏”和“上传”复用同一个处理分支函数。
+            if is_incremental:
+                return self._处理增量拼接_截屏dataUrl(
+                    request_id=request_id,
+                    session_id=session_id,
+                    incremental_operation=增量操作,
+                    image_data_urls=inputs,
                     pipeline_steps=pipeline_steps,
                     skip_pipeline_steps=skip_pipeline_steps,
                 )
-                if use_data_urls
-                else load_binary_map(inputs[0], pipeline_steps=pipeline_steps)
-            )
-            bin_list.append(b0)
-            prev_bin = b0
 
-            for idx in range(1, total):
-                b = (
-                    load_binary_map_from_dataurl(
-                        inputs[idx],
-                        pipeline_steps=pipeline_steps,
-                        skip_pipeline_steps=skip_pipeline_steps,
-                    )
-                    if use_data_urls
-                    else load_binary_map(inputs[idx], pipeline_steps=pipeline_steps)
+            if use_data_urls:
+                return self._处理非增量拼接_截屏dataUrl(
+                    image_data_urls=inputs,
+                    request_id=request_id,
+                    pipeline_steps=pipeline_steps,
+                    skip_pipeline_steps=skip_pipeline_steps,
                 )
-                bin_list.append(b)
 
-                dx, dy, conf = find_offset_by_correlation(prev_bin, b)
-                print(f"匹配偏移: dx={dx}, dy={dy}, conf={conf:.4f}")
-                global_x += dx
-                global_y += dy
-                offsets.append((global_x, global_y))
-
-                prev_bin = b
-
-                progress = int(((idx + 1) / total) * 70)
-                try:
-                    self._通信管理器.发送到Electron(
-                        "image-stitching-progress",
-                        {
-                            "requestId": request_id,
-                            "progress": min(100, max(0, progress)),
-                            "stage": "matching",
-                            "message": f"匹配中：{idx + 1}/{total} (conf={conf:.3f})",
-                        },
-                    )
-                except Exception:
-                    pass
-
-            # 拼接
-            canvas = _stitch_binary_by_offsets(bin_list, offsets)
-            progress = 80
-            try:
-                self._通信管理器.发送到Electron(
-                    "image-stitching-progress",
-                    {"requestId": request_id, "progress": progress, "stage": "stitching", "message": "开始拼接…"},
-                )
-            except Exception:
-                pass
-
-            vis = (canvas * 255).astype(np.uint8)
-            # 不进行任何输出缩放（不限制边长）
-
-            dataurl = _cv2_gray_or_bgr_to_dataurl(vis)
-
-            # 同时保存一份到磁盘，便于调试与复查
-            try:
-                out_dir = os.path.join(缓存图片目录, "image-stitching")
-                self._ensure_dir(out_dir)
-                out_full_path = os.path.join(out_dir, f"{request_id}.png")
-                cv2.imwrite(out_full_path, (canvas * 255).astype(np.uint8))
-            except Exception:
-                pass
-
-            self._通信管理器.发送到Electron(
-                "image-stitching-result",
-                {
-                    "requestId": request_id,
-                    "image": dataurl,
-                },
+            return self._处理非增量拼接_上传图片(
+                image_paths=inputs,
+                request_id=request_id,
+                pipeline_steps=pipeline_steps,
             )
         except Exception as e:
             print(f"图像拼接异常: {e}")

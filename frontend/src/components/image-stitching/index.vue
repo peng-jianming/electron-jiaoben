@@ -91,9 +91,9 @@
             <div class="tips">
               <div v-if="captureMode" class="progress-msg">
                 {{
-                  capturedFrames.length === 0
+                  capturedFrameCount === 0
                     ? "已打开截屏框：请在弹框点击“开始”后再截屏"
-                    : `截屏中：已获取 ${capturedFrames.length} 帧（>=2 帧后持续拼接）`
+                    : `截屏中：已获取 ${capturedFrameCount} 帧（增量拼接）`
                 }}
               </div>
               <div v-if="stitchStore.progressMessage" class="progress-msg">
@@ -122,8 +122,8 @@
               <div v-else class="result-placeholder">
                 {{
                   captureMode
-                    ? capturedFrames.length < 2
-                      ? "截屏模式：至少需要2帧"
+                    ? capturedFrameCount < 1
+                      ? "截屏模式：等待第一帧截屏…"
                       : "等待拼接结果…"
                     : images.length < 2
                       ? "上传至少两张图片"
@@ -149,9 +149,14 @@ const fileInputRef = ref(null);
 const images = ref([]); // {id, filePath, name, size}
 
 const captureMode = ref(false);
-const capturedFrames = ref([]); // dataUrl[]
-const lastStitchedFrameCount = ref(0);
+const capturedFrameCount = ref(0); // 纯计数（只用于展示，不保存所有帧，避免内存增长）
 let miniMapCapturer = null;
+let stitchSessionId = "";
+let pendingLatestFrame = null; // 始终只保留“最新一帧”，避免越积越多
+let initRequested = false;
+let baseReady = false;
+let shouldEndSession = false;
+let lastIncrementalOp = null; // 'init' | 'step' | null
 
 const canStart = computed(() => !captureMode.value && images.value.length >= 2 && stitchStore.canStart);
 
@@ -221,27 +226,17 @@ const startStitching = () => {
   stitchStore.startStitching(paths);
 };
 
-const tryStartStitchFromCapturedFrames = () => {
-  if (!captureMode.value) return;
-  if (!stitchStore.canStart) return;
-  if (stitchStore.isStitching) return;
-
-  const list = capturedFrames.value || [];
-  if (list.length < 2) return;
-
-  // 避免每帧都重复触发同一长度的拼接请求
-  if (list.length <= lastStitchedFrameCount.value) return;
-
-  lastStitchedFrameCount.value = list.length;
-  stitchStore.startStitchingByDataUrls(list, { skipPipeline: true });
-};
-
 const startCaptureAndStitch = async () => {
   if (captureMode.value) return;
 
   captureMode.value = true;
-  capturedFrames.value = [];
-  lastStitchedFrameCount.value = 0;
+  capturedFrameCount.value = 0;
+  stitchSessionId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  pendingLatestFrame = null;
+  initRequested = false;
+  baseReady = false;
+  shouldEndSession = false;
+  lastIncrementalOp = null;
   stitchStore.reset();
 
   miniMapCapturer = createMiniMapFrameCapturer({
@@ -254,8 +249,28 @@ const startCaptureAndStitch = async () => {
       const image = payload?.image;
       if (typeof image !== "string" || !image) return;
 
-      capturedFrames.value = capturedFrames.value.concat(image);
-      tryStartStitchFromCapturedFrames();
+      capturedFrameCount.value += 1;
+
+      if (!initRequested) {
+        initRequested = true;
+        lastIncrementalOp = "init";
+        stitchStore.startIncrementalStitchInitByDataUrl(image, stitchSessionId, {
+          skipPipeline: true,
+        });
+        return;
+      }
+
+      // 串行拼接：如果当前后端在处理，就只缓存“最新帧”；等本次完成再继续处理最新帧。
+      pendingLatestFrame = image;
+
+      if (baseReady && !stitchStore.isStitching) {
+        const next = pendingLatestFrame;
+        pendingLatestFrame = null;
+        lastIncrementalOp = "step";
+        stitchStore.startIncrementalStitchStepByDataUrl(next, stitchSessionId, {
+          skipPipeline: true,
+        });
+      }
     },
   });
 
@@ -270,6 +285,8 @@ const startCaptureAndStitch = async () => {
 
 const stopCaptureAndStitch = async () => {
   captureMode.value = false;
+  shouldEndSession = true;
+  pendingLatestFrame = null;
   if (miniMapCapturer) {
     try {
       await miniMapCapturer.stop();
@@ -278,14 +295,44 @@ const stopCaptureAndStitch = async () => {
     }
   }
   miniMapCapturer = null;
+
+  if (!stitchStore.isStitching && stitchSessionId) {
+    stitchStore.endIncrementalStitchSession(stitchSessionId);
+    stitchSessionId = "";
+    shouldEndSession = false;
+  }
 };
 
 watch(
   () => stitchStore.isStitching,
   (now, prev) => {
-    // 当前拼接完成后，如果截屏帧数已增加则继续触发下一次拼接
-    if (prev && !now) {
-      tryStartStitchFromCapturedFrames();
+    // 当前拼接完成后，继续处理“最新一帧”
+    if (!prev || now) return;
+
+    if (lastIncrementalOp === "init") {
+      baseReady = true;
+    }
+
+    if (shouldEndSession) {
+      if (stitchSessionId) {
+        stitchStore.endIncrementalStitchSession(stitchSessionId);
+      }
+      stitchSessionId = "";
+      shouldEndSession = false;
+      pendingLatestFrame = null;
+      lastIncrementalOp = null;
+      initRequested = false;
+      baseReady = false;
+      return;
+    }
+
+    if (captureMode.value && baseReady && pendingLatestFrame && !stitchStore.isStitching) {
+      const next = pendingLatestFrame;
+      pendingLatestFrame = null;
+      lastIncrementalOp = "step";
+      stitchStore.startIncrementalStitchStepByDataUrl(next, stitchSessionId, {
+        skipPipeline: true,
+      });
     }
   }
 );
@@ -293,6 +340,10 @@ watch(
 onBeforeUnmount(() => {
   // 防止页面切走后仍在截屏
   if (miniMapCapturer) miniMapCapturer.stop();
+  if (stitchSessionId && !stitchStore.isStitching) {
+    stitchStore.endIncrementalStitchSession(stitchSessionId);
+    stitchSessionId = "";
+  }
 });
 </script>
 

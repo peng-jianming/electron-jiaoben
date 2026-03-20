@@ -100,6 +100,99 @@ export const useImageStitchingStore = defineStore("imageStitching", () => {
     return requestId;
   };
 
+  const startIncrementalStitchInitByDataUrl = (dataUrl, sessionId, options = {}) => {
+    if (!isBackendReady.value) {
+      lastErrorMessage.value = "后端未就绪，无法开始拼接";
+      return null;
+    }
+    if (isStitching.value) return currentRequestId.value || null;
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+      lastErrorMessage.value = "init 需要有效 dataUrl";
+      return null;
+    }
+    if (!sessionId || typeof sessionId !== "string") {
+      lastErrorMessage.value = "缺少 sessionId";
+      return null;
+    }
+
+    const skipPipelineSteps = options?.skipPipeline === true;
+    lastErrorMessage.value = "";
+    resultImageSrc.value = "";
+    progress.value = 0;
+    stage.value = "";
+    progressMessage.value = "";
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    currentRequestId.value = requestId;
+    isStitching.value = true;
+
+    sendToBackend("图像拼接", {
+      requestId,
+      模式: "incremental",
+      sessionId,
+      增量操作: "init",
+      图片dataUrl列表: [dataUrl],
+      跳过流水线: skipPipelineSteps,
+    });
+
+    return requestId;
+  };
+
+  const startIncrementalStitchStepByDataUrl = (dataUrl, sessionId, options = {}) => {
+    if (!isBackendReady.value) {
+      lastErrorMessage.value = "后端未就绪，无法开始拼接";
+      return null;
+    }
+    if (isStitching.value) return currentRequestId.value || null;
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+      lastErrorMessage.value = "step 需要有效 dataUrl";
+      return null;
+    }
+    if (!sessionId || typeof sessionId !== "string") {
+      lastErrorMessage.value = "缺少 sessionId";
+      return null;
+    }
+
+    const skipPipelineSteps = options?.skipPipeline === true;
+    lastErrorMessage.value = "";
+    resultImageSrc.value = "";
+    progress.value = 0;
+    stage.value = "";
+    progressMessage.value = "";
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    currentRequestId.value = requestId;
+    isStitching.value = true;
+
+    sendToBackend("图像拼接", {
+      requestId,
+      模式: "incremental",
+      sessionId,
+      增量操作: "step",
+      图片dataUrl列表: [dataUrl],
+      跳过流水线: skipPipelineSteps,
+    });
+
+    return requestId;
+  };
+
+  const endIncrementalStitchSession = (sessionId) => {
+    if (!isBackendReady.value) return null;
+    if (!sessionId || typeof sessionId !== "string") return null;
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    // 不改变 store 的 isStitching 状态：只做释放资源
+    sendToBackend("图像拼接", {
+      requestId,
+      模式: "incremental",
+      sessionId,
+      增量操作: "end",
+      图片dataUrl列表: [],
+      跳过流水线: true,
+    });
+    return requestId;
+  };
+
   const handleProgress = (data = {}) => {
     if (!data || typeof data !== "object") return;
     const { requestId } = data;
@@ -162,6 +255,9 @@ export const useImageStitchingStore = defineStore("imageStitching", () => {
     reset,
     startStitching,
     startStitchingByDataUrls,
+    startIncrementalStitchInitByDataUrl,
+    startIncrementalStitchStepByDataUrl,
+    endIncrementalStitchSession,
   };
 });
 
