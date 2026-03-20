@@ -60,7 +60,7 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
 
     const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     pendingUploadResolvers.value[requestId] = () => {};
-    sendToBackend("寻路上传缓存", { 图片路径: path, requestId });
+    sendToBackend("路线规划上传缓存", { 图片路径: path, requestId });
   };
 
   const handlePathImageUploaded = (payload) => {
@@ -101,7 +101,7 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
       pendingUploadResolvers.value[requestId] = resolve;
     });
 
-    sendToBackend("寻路上传base64缓存", { dataUrl, requestId });
+    sendToBackend("路线规划上传base64缓存", { dataUrl, requestId });
     const res = await p;
     if (res?.imageId) inputImage.value = { source: "path", id: res.imageId };
     return res?.imageId || null;
@@ -143,7 +143,7 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
     isGettingSkeleton.value = true;
     skeletonImage.value = "";
     lastErrorMessage.value = "";
-    sendToBackend("获取骨干网", {
+    sendToBackend("路线规划获取骨干网", {
       imageId,
       imageSource: inputImage.value.source || "path",
     });
@@ -164,7 +164,7 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
     resultImage.value = "";
     lastErrorMessage.value = "";
 
-    sendToBackend("寻路计算", {
+    sendToBackend("路线规划计算", {
       imageId,
       imageSource: inputImage.value.source || "path",
       start: { x: startPoint.value.x, y: startPoint.value.y },
@@ -186,10 +186,10 @@ export const usePathFindingStore = defineStore("pathFinding", () => {
   };
 
   const socket = getMatchSocket();
-  socket.on("path-image-uploaded", (data) => handlePathImageUploaded(data || {}));
-  socket.on("skeleton-result", (data) => handleSkeletonResult(data || {}));
-  socket.on("path-finding-result", (data) => handleFindingResult(data || {}));
-  socket.on("path-finding-error", (data) => handleError(data || {}));
+  socket.on("route-path-image-uploaded", (data) => handlePathImageUploaded(data || {}));
+  socket.on("route-skeleton-result", (data) => handleSkeletonResult(data || {}));
+  socket.on("route-finding-result", (data) => handleFindingResult(data || {}));
+  socket.on("route-finding-error", (data) => handleError(data || {}));
 
   return {
     // state

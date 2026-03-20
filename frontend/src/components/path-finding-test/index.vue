@@ -41,6 +41,9 @@
                 />
                 <div v-else class="result-placeholder">暂无原始地图</div>
               </div>
+              <div v-if="pathFindingTestStore.lastErrorMessage" class="err">
+                {{ pathFindingTestStore.lastErrorMessage }}
+              </div>
             </div>
             <div class="result-card" style="flex: 1">
               <div class="preview-title">
@@ -112,24 +115,24 @@ import { getMatchSocket } from "@/utils/matchSocket";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { useImageProcessingStore } from "@/stores/imageProcessing";
+import { usePathFindingTestStore } from "@/stores/pathFindingTest";
 
 const imageProcessingStore = useImageProcessingStore();
+const pathFindingTestStore = usePathFindingTestStore();
 
 const originalMapFileInputRef = ref(null);
-const originalMapImage = ref("");
-const originalMapUploadRequestId = ref("");
-const originalMapUploading = ref(false);
-const originalMapUploadTimeout = ref(null);
-
 const miniMapImage = ref("");
-const matchMapImage = ref("");
 const miniMapCenter = ref({ x: 0, y: 0 });
 const miniMapRadius = ref(0);
+
+// store states
+const originalMapDisplayImage = computed(() => pathFindingTestStore.originalMapDisplayImageSrc || "");
+const originalMapUploading = computed(() => pathFindingTestStore.originalMapUploading);
+const matchMapImage = computed(() => pathFindingTestStore.matchMapImageSrc || "");
 
 const canUseImageProcessingResult = computed(
   () => !!imageProcessingStore.displayImageSrc
 );
-const originalMapDisplayImage = computed(() => originalMapImage.value || "");
 const miniMapCenterText = computed(
   () => `(${miniMapCenter.value.x}, ${miniMapCenter.value.y})`
 );
@@ -180,75 +183,17 @@ onMounted(() => {
       miniMapRadius.value = Math.max(0, Math.round(payload.radius));
     }
   });
-
-  socket.on("match-map-frame", (data) => {
-    const payload = data || {};
-    if (typeof payload.image === "string") {
-      matchMapImage.value = payload.image || "";
-    }
-  });
-
-  socket.on("path-image-uploaded", (data) => {
-    const payload = data || {};
-    if (!originalMapUploadRequestId.value) return;
-    if (payload.requestId !== originalMapUploadRequestId.value) return;
-    if (typeof payload.preview === "string") {
-      originalMapImage.value = payload.preview || "";
-    }
-    clearOriginalMapUploading();
-  });
 });
 
 onBeforeUnmount(() => {
   if (socket && typeof socket.off === "function") {
     socket.off("mini-map-frame");
     socket.off("mini-map-meta");
-    socket.off("match-map-frame");
-    socket.off("path-image-uploaded");
-  }
-  if (originalMapUploadTimeout.value) {
-    clearTimeout(originalMapUploadTimeout.value);
-    originalMapUploadTimeout.value = null;
   }
 });
 
 const triggerOriginalMapUpload = () =>
   originalMapFileInputRef.value && originalMapFileInputRef.value.click();
-
-const clearOriginalMapUploading = () => {
-  originalMapUploadRequestId.value = "";
-  originalMapUploading.value = false;
-  if (originalMapUploadTimeout.value) {
-    clearTimeout(originalMapUploadTimeout.value);
-    originalMapUploadTimeout.value = null;
-  }
-};
-
-const uploadOriginalMapByPayload = async (payload = {}, useBase64 = false) => {
-  const requestId = `original-map-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  originalMapUploadRequestId.value = requestId;
-  originalMapUploading.value = true;
-  if (originalMapUploadTimeout.value) {
-    clearTimeout(originalMapUploadTimeout.value);
-  }
-  originalMapUploadTimeout.value = setTimeout(() => {
-    if (originalMapUploadRequestId.value === requestId) {
-      clearOriginalMapUploading();
-      ElMessage.warning("原始地图上传超时，请重试");
-    }
-  }, 10000);
-  const 类型 = useBase64 ? "寻路上传base64缓存" : "寻路上传缓存";
-  try {
-    await ipc.invoke(ipcApiRoute.发送到后端, {
-      类型,
-      ...payload,
-      requestId,
-    });
-  } catch (e) {
-    clearOriginalMapUploading();
-    ElMessage.error("发送原始地图到后端失败");
-  }
-};
 
 const onOriginalMapFileChange = (event) => {
   const file = event.target.files && event.target.files[0];
@@ -258,7 +203,7 @@ const onOriginalMapFileChange = (event) => {
     event.target.value = "";
     return;
   }
-  uploadOriginalMapByPayload({ 图片路径: file.path }, false);
+  pathFindingTestStore.uploadOriginalMapByFile(file.path);
   event.target.value = "";
 };
 
@@ -267,10 +212,7 @@ const useImageProcessingResult = () => {
     ElMessage.warning("当前没有图片处理结果可用");
     return;
   }
-  uploadOriginalMapByPayload(
-    { dataUrl: imageProcessingStore.displayImageSrc || "" },
-    true
-  );
+  pathFindingTestStore.useImageProcessingResultAsOriginalMap();
 };
 
 const startMiniMapCapture = async () => {
@@ -353,5 +295,12 @@ const startMiniMapCapture = async () => {
 .result-placeholder {
   color: #94a3b8;
   font-size: 13px;
+}
+
+.err {
+  margin-top: 4px;
+  color: #ef4444;
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from 设置 import 寻路缓存图片目录
+from 设置 import 路线规划缓存图片目录
 from .图像处理后端 import 图像处理后端类
 
 
@@ -280,7 +280,7 @@ def _find_nearest_white_point(thinned_255, loc_xy):
     white_xy = white_points[:, [1, 0]].astype(np.int32)
     target = np.array([x, y], dtype=np.int32)
     delta = white_xy - target
-    sq = np.sum(delta ** 2, axis=1)
+    sq = np.sum(delta**2, axis=1)
     idx = int(np.argmin(sq))
     loc2 = list(white_xy[idx])
     return [int(loc2[0]), int(loc2[1])]
@@ -294,44 +294,44 @@ def _draw_path_on_image(img_bgr, path_xy, color=(0, 0, 255), thickness=1):
     out = img_bgr.copy()
     # 逐点画，避免 polyline 对重复点/断点的奇怪表现
     for x, y in path_xy:
-        cv2.circle(out, (int(x), int(y)), radius=max(1, thickness), color=color, thickness=-1)
+        cv2.circle(
+            out,
+            (int(x), int(y)),
+            radius=max(1, thickness),
+            color=color,
+            thickness=-1,
+        )
     return out
 
 
-class 寻路处理后端类:
+class 路线规划后端类:
     def __init__(self, 通信管理器, 图像处理后端实例: 图像处理后端类):
         self._通信管理器 = 通信管理器
         self._图像处理后端 = 图像处理后端实例
-        # 记录当前用于寻路/匹配的原始地图 imageId
-        self._current_image_id = None
 
     def _cv2_to_dataurl(self, img):
         return self._图像处理后端._cv2_to_dataurl(img)
 
     def _save_image_bytes(self, img_bytes):
-        _ensure_dir(寻路缓存图片目录)
+        _ensure_dir(路线规划缓存图片目录)
         image_id = uuid.uuid4().hex
-        file_path = os.path.join(寻路缓存图片目录, f"{image_id}.png")
+        file_path = os.path.join(路线规划缓存图片目录, f"{image_id}.png")
         pil_img = Image.open(BytesIO(img_bytes)).convert("RGB")
         pil_img.save(file_path, format="PNG")
         return image_id
 
     def _load_image_by_id(self, image_id, image_source="path"):
         if not image_id:
-            raise ValueError("缺少 image_id")
+            raise ValueError("缺少 imageId")
 
+        # 若来源是图像处理模块的 imageId，则交由图像处理后端加载
         if image_source == "processing":
             return self._图像处理后端._load_image_by_id(image_id)
 
-        if image_source == "flood":
-            # 洪水填充缓存目录由洪水填充后端管理；这里不直接耦合其目录，前端如果要用洪水填充结果，
-            # 会通过 寻路上传base64缓存 生成寻路专用 imageId
-            pass
-
-        _ensure_dir(寻路缓存图片目录)
-        file_path = os.path.join(寻路缓存图片目录, f"{image_id}.png")
+        _ensure_dir(路线规划缓存图片目录)
+        file_path = os.path.join(路线规划缓存图片目录, f"{image_id}.png")
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"寻路缓存图片不存在: image_id={image_id} path={file_path}")
+            raise FileNotFoundError(f"路线规划缓存图片不存在: imageId={image_id} path={file_path}")
 
         pil_img = Image.open(file_path).convert("RGB")
         img_rgb = np.array(pil_img)
@@ -341,9 +341,9 @@ class 寻路处理后端类:
     # ===== 对前端暴露：上传 =====
     def 处理上传图片(self, 数据):
         """
-        - 类型：寻路上传缓存
+        - 类型：路线规划上传缓存
         - 参数：{ 图片路径, requestId? }
-        - 返回事件：path-image-uploaded { imageId, preview, requestId? }
+        - 返回事件：route-path-image-uploaded { imageId, preview, requestId? }
         """
         try:
             payload = 数据 or {}
@@ -358,26 +358,24 @@ class 寻路处理后端类:
             buf = BytesIO()
             pil_img.save(buf, format="PNG")
             image_id = self._save_image_bytes(buf.getvalue())
-            # 记录当前原始地图 id，供后续匹配使用
-            self._current_image_id = image_id
 
             img_rgb = np.array(pil_img)
             img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
             preview_dataurl = self._cv2_to_dataurl(img_bgr)
 
             self._通信管理器.发送到Electron(
-                "path-image-uploaded",
+                "route-path-image-uploaded",
                 {"imageId": image_id, "preview": preview_dataurl, "requestId": request_id},
             )
         except Exception as e:
-            print(f"处理寻路上传图片异常: {e}")
+            print(f"处理路线规划上传图片异常: {e}")
             traceback.print_exc()
 
     def 处理上传base64图片(self, 数据):
         """
-        - 类型：寻路上传base64缓存
+        - 类型：路线规划上传base64缓存
         - 参数：{ dataUrl, requestId? }
-        - 返回事件：path-image-uploaded { imageId, preview, requestId? }
+        - 返回事件：route-path-image-uploaded { imageId, preview, requestId? }
         """
         try:
             payload = 数据 or {}
@@ -392,30 +390,28 @@ class 寻路处理后端类:
                 b64 = data_url
             img_bytes = base64.b64decode(b64, validate=False)
             image_id = self._save_image_bytes(img_bytes)
-            img_bgr = self._load_image_by_id(image_id)
+
+            img_bgr = self._load_image_by_id(image_id, image_source="path")
             preview_dataurl = self._cv2_to_dataurl(img_bgr)
 
-            # 记录当前原始地图 id，供后续匹配使用
-            self._current_image_id = image_id
-
             self._通信管理器.发送到Electron(
-                "path-image-uploaded",
+                "route-path-image-uploaded",
                 {"imageId": image_id, "preview": preview_dataurl, "requestId": request_id},
             )
         except Exception as e:
-            print(f"处理寻路上传base64图片异常: {e}")
+            print(f"处理路线规划上传base64图片异常: {e}")
             traceback.print_exc()
 
     # ===== 对前端暴露：骨干网 =====
     def 处理获取骨干网(self, 数据):
         """
-        - 类型：获取骨干网
+        - 类型：路线规划获取骨干网
         - 参数：{ imageId, imageSource? }
-        - 返回事件：skeleton-result { image: dataUrl }
+        - 返回事件：route-skeleton-result { image: dataUrl }
         """
         try:
             payload = 数据 or {}
-            image_id = payload.get("imageId")
+            image_id = payload.get("imageId") or payload.get("image_id")
             image_source = payload.get("imageSource") or payload.get("image_source") or "path"
             if not image_id:
                 raise ValueError("获取骨干网缺少 imageId")
@@ -423,28 +419,29 @@ class 寻路处理后端类:
             img = self._load_image_by_id(image_id, image_source=image_source)
             binary = _to_gray_binary(img)
             thinned = _thinning(binary)
-            # 返回可视化：白骨架+黑背景
+
             dataurl = self._cv2_to_dataurl(thinned)
-            self._通信管理器.发送到Electron("skeleton-result", {"image": dataurl})
+            self._通信管理器.发送到Electron("route-skeleton-result", {"image": dataurl})
         except Exception as e:
             print(f"获取骨干网异常: {e}")
             traceback.print_exc()
             try:
-                self._通信管理器.发送到Electron("path-finding-error", {"message": str(e)})
+                self._通信管理器.发送到Electron("route-finding-error", {"message": str(e)})
             except Exception:
                 pass
 
     # ===== 对前端暴露：寻路 =====
     def 处理寻路(self, 数据):
         """
-        - 类型：寻路计算
+        - 类型：路线规划计算
         - 参数：{ imageId, imageSource?, start:{x,y}, end:{x,y} }
-        - 返回事件：path-finding-result { image: dataUrl, path: [ [x,y], ... ] }
+        - 返回事件：route-finding-result { image: dataUrl, path: [ [x,y], ... ] }
         """
         try:
             payload = 数据 or {}
-            image_id = payload.get("imageId")
+            image_id = payload.get("imageId") or payload.get("image_id")
             image_source = payload.get("imageSource") or payload.get("image_source") or "path"
+
             start = payload.get("start") or {}
             end = payload.get("end") or {}
             sx = start.get("x")
@@ -472,6 +469,7 @@ class 寻路处理后端类:
             result1 = 补充直线([start_loc, start_loc2])
             result2 = ax.a_star(thinned, start_loc2, end_loc2) or []
             result3 = 补充直线([end_loc2, end_loc])
+
             path = []
             for seg in (result1, result2, result3):
                 for p in seg:
@@ -489,7 +487,7 @@ class 寻路处理后端类:
 
             dataurl = self._cv2_to_dataurl(vis)
             self._通信管理器.发送到Electron(
-                "path-finding-result",
+                "route-finding-result",
                 {
                     "image": dataurl,
                     "path": [[int(x), int(y)] for (x, y) in path],
@@ -498,94 +496,10 @@ class 寻路处理后端类:
                 },
             )
         except Exception as e:
-            print(f"寻路计算异常: {e}")
+            print(f"路线规划寻路计算异常: {e}")
             traceback.print_exc()
             try:
-                self._通信管理器.发送到Electron("path-finding-error", {"message": str(e)})
+                self._通信管理器.发送到Electron("route-finding-error", {"message": str(e)})
             except Exception:
                 pass
-
-    # ===== 对前端 / 小地图处理暴露：原始地图模板匹配 =====
-    def 处理小地图匹配(self, 数据):
-        """
-        小地图与原始地图进行模板匹配：
-        - 被动从 socket 收到小地图帧（同 图像处理小地图 的数据结构）：{ dataUrl | image }
-        - 使用当前记录的原始地图 imageId 作为大图，在其上用小地图做模板匹配
-        - 返回事件：match-map-frame { image: dataUrl, score: float, topLeft: [x,y], center: [x,y], size: [w,h] }
-        """
-        try:
-            if not self._current_image_id:
-                return
-            payload = 数据 or {}
-            data_url = (
-                payload.get("dataUrl")
-                or payload.get("data_url")
-                or payload.get("image")
-                or ""
-            )
-            if not data_url or not isinstance(data_url, str):
-                return
-            # 解析 dataUrl 为 OpenCV BGR 图像
-            try:
-                if "," in data_url:
-                    _, b64 = data_url.split(",", 1)
-                else:
-                    b64 = data_url
-                img_bytes = base64.b64decode(b64, validate=False)
-                pil_img = Image.open(BytesIO(img_bytes)).convert("RGB")
-                mini_rgb = np.array(pil_img)
-                mini_bgr = cv2.cvtColor(mini_rgb, cv2.COLOR_RGB2BGR)
-            except Exception:
-                return
-            big_bgr = self._load_image_by_id(self._current_image_id, image_source="path")
-            if big_bgr is None or mini_bgr is None:
-                return
-            big_h, big_w = big_bgr.shape[:2]
-            mini_h, mini_w = mini_bgr.shape[:2]
-            if big_h <= 0 or big_w <= 0 or mini_h <= 0 or mini_w <= 0:
-                return
-            if mini_h > big_h or mini_w > big_w:
-                return
-            big_gray = cv2.cvtColor(big_bgr, cv2.COLOR_BGR2GRAY)
-            mini_gray = cv2.cvtColor(mini_bgr, cv2.COLOR_BGR2GRAY)
-
-            res = cv2.matchTemplate(big_gray, mini_gray, cv2.TM_CCOEFF_NORMED)
-            _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(res)
-            # 相似度过低则忽略
-            if max_val < 0.3:
-                return
-
-            top_left = max_loc
-            bottom_right = (top_left[0] + mini_w, top_left[1] + mini_h)
-            center = (top_left[0] + mini_w // 2, top_left[1] + mini_h // 2)
-
-            vis = big_bgr.copy()
-            cv2.rectangle(vis, top_left, bottom_right, (0, 0, 255), 2)
-            cv2.circle(vis, center, 4, (0, 255, 255), -1)
-
-            dataurl = self._cv2_to_dataurl(vis)
-            self._通信管理器.发送到Electron(
-                "match-map-frame",
-                {
-                    "image": dataurl,
-                    "score": float(max_val),
-                    "topLeft": [int(top_left[0]), int(top_left[1])],
-                    "center": [int(center[0]), int(center[1])],
-                    "size": [int(mini_w), int(mini_h)],
-                },
-            )
-        except Exception as e:
-            print(f"小地图模板匹配异常: {e}")
-            traceback.print_exc()
-
-
-
-
-# 原始地图 + 截屏小地图 -> 得到当前小地图在原始地图的位置 -> 这个位置也是在规划图的位置 -> 也就是得到寻路的起始点坐标
-
-# 规划图(得到骨干图)  + 终点(固定位置 -> 固定的寻路坐标列表
-
-#  起始点(当前小地图位置) + 固定的寻路坐标列表 -> 循环获取固定的寻路坐标列表往终点方向可走的最远的直线的坐标点, 根据二点之间的方位,进行屏幕点击(角色屏幕中心点+半径范围)
-
-
 
