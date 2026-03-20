@@ -127,6 +127,11 @@ class ExampleController {
     return miniMapOverlayService.getMeta();
   }
 
+  // ===== 小地图实时截屏悬浮框：手动开始 =====
+  async 开始小地图截屏(args, event) {
+    return miniMapOverlayService.startCapture();
+  }
+
 }
 ExampleController.toString = () => '[class ExampleController]';
 

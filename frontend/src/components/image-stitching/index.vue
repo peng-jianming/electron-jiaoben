@@ -11,17 +11,33 @@
                   type="primary"
                   size="small"
                   @click="triggerUpload"
-                  :disabled="stitchStore.isStitching"
+                  :disabled="stitchStore.isStitching || captureMode"
                 >
                   上传多张图片
                 </el-button>
                 <el-button
                   size="small"
                   type="danger"
-                  :disabled="!images.length || stitchStore.isStitching"
+                  :disabled="!images.length || stitchStore.isStitching || captureMode"
                   @click="clearImages"
                 >
                   清空
+                </el-button>
+                <el-button
+                  size="small"
+                  type="success"
+                  :disabled="stitchStore.isStitching || captureMode"
+                  @click="startCaptureAndStitch"
+                >
+                  不断截屏并拼接
+                </el-button>
+                <el-button
+                  size="small"
+                  type="warning"
+                  :disabled="!captureMode"
+                  @click="stopCaptureAndStitch"
+                >
+                  停止截屏
                 </el-button>
               </div>
             </div>
@@ -46,7 +62,7 @@
                     size="small"
                     type="danger"
                     text
-                    :disabled="stitchStore.isStitching"
+                    :disabled="stitchStore.isStitching || captureMode"
                     @click="removeImage(img.id)"
                   >
                     删除
@@ -73,6 +89,13 @@
             </div>
 
             <div class="tips">
+              <div v-if="captureMode" class="progress-msg">
+                {{
+                  capturedFrames.length === 0
+                    ? "已打开截屏框：请在弹框点击“开始”后再截屏"
+                    : `截屏中：已获取 ${capturedFrames.length} 帧（>=2 帧后持续拼接）`
+                }}
+              </div>
               <div v-if="stitchStore.progressMessage" class="progress-msg">
                 {{ stitchStore.progressMessage }}
               </div>
@@ -97,7 +120,15 @@
                 class="result-image"
               />
               <div v-else class="result-placeholder">
-                {{ images.length < 2 ? "上传至少两张图片" : "点击「开始拼接」生成结果" }}
+                {{
+                  captureMode
+                    ? capturedFrames.length < 2
+                      ? "截屏模式：至少需要2帧"
+                      : "等待拼接结果…"
+                    : images.length < 2
+                      ? "上传至少两张图片"
+                      : "点击「开始拼接」生成结果"
+                }}
               </div>
             </div>
           </div>
@@ -108,15 +139,21 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch, onBeforeUnmount } from "vue";
 import { useImageStitchingStore } from "@/stores/imageStitching";
+import { createMiniMapFrameCapturer } from "@/utils/miniMapCapture";
 
 const stitchStore = useImageStitchingStore();
 
 const fileInputRef = ref(null);
 const images = ref([]); // {id, filePath, name, size}
 
-const canStart = computed(() => images.value.length >= 2 && stitchStore.canStart);
+const captureMode = ref(false);
+const capturedFrames = ref([]); // dataUrl[]
+const lastStitchedFrameCount = ref(0);
+let miniMapCapturer = null;
+
+const canStart = computed(() => !captureMode.value && images.value.length >= 2 && stitchStore.canStart);
 
 const triggerUpload = () => {
   fileInputRef.value && fileInputRef.value.click();
@@ -183,6 +220,80 @@ const startStitching = () => {
   const paths = images.value.map((i) => i.filePath).filter(Boolean);
   stitchStore.startStitching(paths);
 };
+
+const tryStartStitchFromCapturedFrames = () => {
+  if (!captureMode.value) return;
+  if (!stitchStore.canStart) return;
+  if (stitchStore.isStitching) return;
+
+  const list = capturedFrames.value || [];
+  if (list.length < 2) return;
+
+  // 避免每帧都重复触发同一长度的拼接请求
+  if (list.length <= lastStitchedFrameCount.value) return;
+
+  lastStitchedFrameCount.value = list.length;
+  stitchStore.startStitchingByDataUrls(list, { skipPipeline: true });
+};
+
+const startCaptureAndStitch = async () => {
+  if (captureMode.value) return;
+
+  captureMode.value = true;
+  capturedFrames.value = [];
+  lastStitchedFrameCount.value = 0;
+  stitchStore.reset();
+
+  miniMapCapturer = createMiniMapFrameCapturer({
+    size: 240,
+    onFrame: (payload) => {
+      // Electron 会先发“原始帧”(带 meta)，Python 再发“处理后帧”(只包含 image)。
+      // 截图拼接模式只收处理后帧，避免 pipeline 被重复应用。
+      if (payload?.center || payload?.radius || payload?.bounds || payload?.display) return;
+
+      const image = payload?.image;
+      if (typeof image !== "string" || !image) return;
+
+      capturedFrames.value = capturedFrames.value.concat(image);
+      tryStartStitchFromCapturedFrames();
+    },
+  });
+
+  try {
+    await miniMapCapturer.start();
+  } catch (e) {
+    captureMode.value = false;
+    miniMapCapturer = null;
+    stitchStore.lastErrorMessage = typeof e?.message === "string" ? e.message : "截屏启动失败";
+  }
+};
+
+const stopCaptureAndStitch = async () => {
+  captureMode.value = false;
+  if (miniMapCapturer) {
+    try {
+      await miniMapCapturer.stop();
+    } catch (e) {
+      // ignore
+    }
+  }
+  miniMapCapturer = null;
+};
+
+watch(
+  () => stitchStore.isStitching,
+  (now, prev) => {
+    // 当前拼接完成后，如果截屏帧数已增加则继续触发下一次拼接
+    if (prev && !now) {
+      tryStartStitchFromCapturedFrames();
+    }
+  }
+);
+
+onBeforeUnmount(() => {
+  // 防止页面切走后仍在截屏
+  if (miniMapCapturer) miniMapCapturer.stop();
+});
 </script>
 
 <style scoped lang="less">

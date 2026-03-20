@@ -44,6 +44,25 @@
         pointer-events: none;
       }
 
+      .start-btn {
+        position: absolute;
+        left: 8px;
+        top: 40px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.95);
+        background: rgba(59, 130, 246, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+        user-select: none;
+      }
+
+      .start-btn:hover {
+        background: rgba(59, 130, 246, 0.98);
+      }
+
       .close-btn {
         position: absolute;
         right: 6px;
@@ -134,7 +153,8 @@
 
   <body>
     <div class="box">
-      <div class="hint">拖动移动｜右下角拖动缩放｜关闭=停止</div>
+      <div class="hint">拖动移动｜右下角拖动缩放｜开始=截屏｜关闭=停止</div>
+      <div class="start-btn" id="start-btn">开始</div>
       <div class="close-btn" id="close-btn">×</div>
       <div class="center-mark" aria-hidden="true">
         <div class="h"></div>
@@ -148,10 +168,27 @@
 
       const handle = document.getElementById('handle');
       const closeBtn = document.getElementById('close-btn');
+      const startBtn = document.getElementById('start-btn');
 
       if (closeBtn) {
         closeBtn.addEventListener('click', () => {
           ipcRenderer.invoke('controller/example/关闭小地图截屏框');
+        });
+      }
+
+      let started = false;
+      if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+          if (started) return;
+          started = true;
+          try {
+            await ipcRenderer.invoke('controller/example/开始小地图截屏');
+            startBtn.textContent = '已开始';
+            startBtn.style.opacity = 0.9;
+          } catch (e) {
+            started = false;
+            startBtn.textContent = '开始';
+          }
         });
       }
 

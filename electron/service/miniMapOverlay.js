@@ -168,7 +168,6 @@ class MiniMapOverlayService {
       this._win.show();
       this._win.focus();
       this._emitMeta();
-      this._startCaptureLoop();
       return { success: true };
     }
 
@@ -223,6 +222,14 @@ class MiniMapOverlayService {
     this._win.on('resize', emitIfChanged);
 
     this._emitMeta();
+    return { success: true };
+  }
+
+  startCapture() {
+    // overlay 打开后由前端点击“开始”按钮触发，避免一弹出就立刻截屏
+    if (!this._win || this._win.isDestroyed()) {
+      return { success: false, message: 'overlay not ready' };
+    }
     this._startCaptureLoop();
     return { success: true };
   }

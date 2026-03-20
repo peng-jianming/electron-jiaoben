@@ -49,7 +49,7 @@
               <div class="preview-title">
                 <div>小地图实时显示</div>
                 <el-button size="small" type="primary" @click="startMiniMapCapture">
-                  截屏获取
+                  打开截屏框（点开始）
                 </el-button>
               </div>
               <div class="result-container">

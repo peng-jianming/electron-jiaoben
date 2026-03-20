@@ -38,6 +38,10 @@ export const useImageStitchingStore = defineStore("imageStitching", () => {
       lastErrorMessage.value = "至少选择 2 张图片";
       return null;
     }
+    if (!isBackendReady.value) {
+      lastErrorMessage.value = "后端未就绪，无法开始拼接";
+      return null;
+    }
     if (isStitching.value) return currentRequestId.value || null;
 
     lastErrorMessage.value = "";
@@ -53,6 +57,44 @@ export const useImageStitchingStore = defineStore("imageStitching", () => {
     sendToBackend("图像拼接", {
       requestId,
       图片路径列表: imagePaths,
+    });
+
+    return requestId;
+  };
+
+  const startStitchingByDataUrls = (imageDataUrls, options = {}) => {
+    if (!Array.isArray(imageDataUrls) || imageDataUrls.length < 2) {
+      lastErrorMessage.value = "至少需要 2 帧 dataUrl（可开始截屏模式后获取）";
+      return null;
+    }
+    if (!isBackendReady.value) {
+      lastErrorMessage.value = "后端未就绪，无法开始拼接";
+      return null;
+    }
+    if (isStitching.value) return currentRequestId.value || null;
+
+    const list = imageDataUrls.filter((d) => typeof d === "string" && d.startsWith("data:"));
+    if (list.length < 2) {
+      lastErrorMessage.value = "dataUrl 列表无效";
+      return null;
+    }
+
+    const skipPipelineSteps = options?.skipPipeline === true;
+
+    lastErrorMessage.value = "";
+    resultImageSrc.value = "";
+    progress.value = 0;
+    stage.value = "";
+    progressMessage.value = "";
+
+    const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    currentRequestId.value = requestId;
+    isStitching.value = true;
+
+    sendToBackend("图像拼接", {
+      requestId,
+      图片dataUrl列表: list,
+      跳过流水线: skipPipelineSteps,
     });
 
     return requestId;
@@ -119,6 +161,7 @@ export const useImageStitchingStore = defineStore("imageStitching", () => {
     // actions
     reset,
     startStitching,
+    startStitchingByDataUrls,
   };
 });
 

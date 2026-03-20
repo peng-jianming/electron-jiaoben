@@ -4,6 +4,7 @@ import os
 import re
 import uuid
 import traceback
+from io import BytesIO
 from urllib.parse import unquote, urlparse
 
 import cv2
@@ -199,6 +200,47 @@ def load_binary_map(img_path: str, pipeline_steps):
     return binary.astype(np.uint8)
 
 
+def _dataurl_to_bgr(img_data_url: str) -> np.ndarray:
+    """
+    将 dataUrl（PNG/JPEG 等）解码为 OpenCV BGR ndarray。
+    """
+    if not isinstance(img_data_url, str) or "," not in img_data_url:
+        raise ValueError("无效的 dataUrl")
+    _, b64 = img_data_url.split(",", 1)
+    img_bytes = base64.b64decode(b64, validate=False)
+
+    pil_img = Image.open(BytesIO(img_bytes)).convert("RGB")
+    img_rgb = np.array(pil_img, dtype=np.uint8)
+    return cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+
+
+def load_binary_map_from_dataurl(img_data_url: str, pipeline_steps, skip_pipeline_steps: bool = False):
+    """
+    读取 dataUrl 并转换为二值矩阵（0/1 uint8）。
+
+    - skip_pipeline_steps=True：跳过“图像处理流水线步骤”，适用于 dataUrl 已被流水线处理过的场景。
+    - skip_pipeline_steps=False：会先执行流水线步骤，再二值化。
+    """
+    if not img_data_url or not isinstance(img_data_url, str):
+        raise ValueError("img_data_url 必须为字符串")
+
+    img = _dataurl_to_bgr(img_data_url)
+    processed = img
+    if not skip_pipeline_steps:
+        processed = _应用流水线(img, pipeline_steps or [])
+        if processed is None:
+            raise ValueError("流水线处理失败")
+
+    gray = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY) if len(processed.shape) == 3 else processed
+    has_binary_step = any(isinstance(step, dict) and step.get("type") == "二值化" for step in (pipeline_steps or []))
+    if has_binary_step:
+        binary = (gray > 0).astype(np.uint8)
+    else:
+        _, binary = cv2.threshold(gray, 127, 1, cv2.THRESH_BINARY)
+
+    return binary.astype(np.uint8)
+
+
 def find_offset_by_correlation(img1: np.ndarray, img2: np.ndarray):
     """
     使用归一化互相关找到 img2 相对于 img1 的最佳平移偏移 (dx, dy)。
@@ -299,19 +341,36 @@ class 图像拼接后端类:
             request_id = payload.get("requestId") or payload.get("request_id") or uuid.uuid4().hex
 
             image_paths = payload.get("图片路径列表") or payload.get("imagePaths") or payload.get("image_paths") or []
-            if not isinstance(image_paths, list) or len(image_paths) < 2:
+            image_data_urls = (
+                payload.get("图片dataUrl列表")
+                or payload.get("imageDataUrls")
+                or payload.get("dataUrl列表")
+                or payload.get("data_urls")
+                or []
+            )
+
+            inputs = []
+            use_data_urls = False
+
+            if isinstance(image_data_urls, list):
+                inputs = [d for d in image_data_urls if isinstance(d, str) and d.startswith("data:")]
+                use_data_urls = len(inputs) >= 2
+
+            if not use_data_urls:
+                if not isinstance(image_paths, list):
+                    raise ValueError("至少需要提供图片路径列表或 dataUrl 列表")
+                inputs = [p for p in image_paths if isinstance(p, str) and p]
+
+            if not isinstance(inputs, list) or len(inputs) < 2:
                 raise ValueError("至少需要 2 张图片进行拼接")
 
-            image_paths = [p for p in image_paths if isinstance(p, str) and p]
-            if len(image_paths) < 2:
-                raise ValueError("图片路径列表为空或无效")
-
+            skip_pipeline_steps = bool(payload.get("跳过流水线") or payload.get("skipPipeline") or False)
             pipeline_steps = _读取已保存的流水线参数()
 
             # 第一张图已加载，开始匹配从第二张开始
 
             # 进度：加载/匹配（0~70），拼接（70~100）
-            total = len(image_paths)
+            total = len(inputs)
             bin_list = []
             offsets = [(0, 0)]
             global_x = 0
@@ -319,18 +378,27 @@ class 图像拼接后端类:
             prev_bin = None
 
             # 预先探测第一张图尺寸（用于后续二值图拼接）
-            b0 = load_binary_map(
-                image_paths[0],
-                pipeline_steps=pipeline_steps,
+            b0 = (
+                load_binary_map_from_dataurl(
+                    inputs[0],
+                    pipeline_steps=pipeline_steps,
+                    skip_pipeline_steps=skip_pipeline_steps,
+                )
+                if use_data_urls
+                else load_binary_map(inputs[0], pipeline_steps=pipeline_steps)
             )
             bin_list.append(b0)
             prev_bin = b0
 
             for idx in range(1, total):
-                img_path = image_paths[idx]
-                b = load_binary_map(
-                    img_path,
-                    pipeline_steps=pipeline_steps,
+                b = (
+                    load_binary_map_from_dataurl(
+                        inputs[idx],
+                        pipeline_steps=pipeline_steps,
+                        skip_pipeline_steps=skip_pipeline_steps,
+                    )
+                    if use_data_urls
+                    else load_binary_map(inputs[idx], pipeline_steps=pipeline_steps)
                 )
                 bin_list.append(b)
 
