@@ -66,44 +66,6 @@
                 </div>
               </div>
             </div>
-            <div class="result-card">
-              <div class="preview-title">
-                <div>原始地图</div>
-                <div class="toolbar">
-                  <el-button
-                    size="small"
-                    :loading="originalMapUploading"
-                    :disabled="originalMapUploading"
-                    @click="triggerOriginalMapUpload"
-                  >
-                    上传原始地图
-                  </el-button>
-                  <el-button
-                    size="small"
-                    :loading="originalMapUploading"
-                    :disabled="!canUseImageProcessingResult || originalMapUploading"
-                    @click="useImageProcessingResult"
-                  >
-                    图片处理结果
-                  </el-button>
-                  <input
-                    ref="originalMapFileInputRef"
-                    type="file"
-                    accept="image/*"
-                    style="display: none"
-                    @change="onOriginalMapFileChange"
-                  />
-                </div>
-              </div>
-              <div class="result-container">
-                <img
-                  v-if="originalMapDisplayImage"
-                  :src="originalMapDisplayImage"
-                  class="result-image"
-                />
-                <div v-else class="result-placeholder">暂无原始地图</div>
-              </div>
-            </div>
           </div>
 
           <div class="left-pane-row">
@@ -171,84 +133,6 @@
             </div>
           </div>
         </div>
-
-        <div class="right-pane">
-          <div style="display: flex; gap: 10px; width: 100%">
-            <div class="result-card" style="flex: 1">
-              <div class="preview-title">
-                <div>小地图实时显示</div>
-                <el-button size="small" type="primary" @click="startMiniMapCapture"
-                  >截屏获取</el-button
-                >
-              </div>
-              <div class="result-container">
-                <img v-if="miniMapImage" :src="miniMapImage" class="result-image" />
-                <div v-else class="result-placeholder">暂无小地图结果</div>
-              </div>
-              <div>
-                <span
-                  style="
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                    margin-right: 10px;
-                  "
-                >
-                  中心坐标:
-                  <el-input
-                    size="small"
-                    :model-value="miniMapCenterText"
-                    readonly
-                    style="width: 160px"
-                  />
-                </span>
-                <span style="display: inline-flex; align-items: center; gap: 6px">
-                  正方形半径:
-                  <el-input
-                    size="small"
-                    :model-value="miniMapRadiusText"
-                    readonly
-                    style="width: 120px"
-                  />
-                </span>
-              </div>
-            </div>
-            <div class="result-card" style="flex: 1">
-              <div class="preview-title">
-                <div>匹配地图实时显示</div>
-              </div>
-              <div class="result-container">
-                <img v-if="matchMapImage" :src="matchMapImage" class="result-image" />
-                <div v-else class="result-placeholder">暂无匹配地图结果</div>
-              </div>
-            </div>
-          </div>
-          <div class="result-card">
-            <div class="preview-title">
-              <div>寻路实况</div>
-              <el-button size="small">开始寻路</el-button>
-            </div>
-            <div class="result-container">
-              <img v-if="aaa" :src="aaa" class="result-image" />
-              <div v-else class="result-placeholder">暂无寻路结果</div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 10px">
-              <el-input size="small" :readonly="true">
-                <template #append>
-                  <el-button size="small"> 角色中心坐标点 </el-button>
-                </template>
-              </el-input>
-              <el-input size="small" placeholder="请输入半径范围" :readonly="true">
-                <template #prepend> 半径范围 </template>
-              </el-input>
-              <el-input size="small" :readonly="true">
-                <template #append>
-                  <el-button size="small"> 终点 </el-button>
-                </template>
-              </el-input>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -260,40 +144,20 @@ import { ElMessage } from "element-plus";
 import { storeToRefs } from "pinia";
 import { useFloodFillStore } from "@/stores/floodFill";
 import { usePathFindingStore } from "@/stores/pathFinding";
-import { useImageProcessingStore } from "@/stores/imageProcessing";
-import { getMatchSocket } from "@/utils/matchSocket";
-import { ipc } from "@/utils/ipcRenderer";
-import { ipcApiRoute } from "@/api";
 
 const floodFillStore = useFloodFillStore();
 const pathFindingStore = usePathFindingStore();
-const imageProcessingStore = useImageProcessingStore();
 
 const { startPoint, endPoint } = storeToRefs(pathFindingStore);
 
 const fileInputRef = ref(null);
-const originalMapFileInputRef = ref(null);
 const canvasRef = ref(null);
 const naturalReady = ref(false);
 const selectionMode = ref(null); // 'start' | 'end' | null
-const originalMapImage = ref("");
-const originalMapUploadRequestId = ref("");
-const originalMapUploading = ref(false);
-const originalMapUploadTimeout = ref(null);
 
 const inputSrc = computed(() => pathFindingStore.inputDisplayImageSrc);
 const skeletonImage = computed(() => pathFindingStore.skeletonImage);
 const resultImage = computed(() => pathFindingStore.resultImage);
-
-const miniMapImage = ref("");
-const matchMapImage = ref("");
-const miniMapCenter = ref({ x: 0, y: 0 });
-const miniMapRadius = ref(0);
-
-const miniMapCenterText = computed(
-  () => `(${miniMapCenter.value.x}, ${miniMapCenter.value.y})`
-);
-const miniMapRadiusText = computed(() => String(miniMapRadius.value || 0));
 
 // 规划图平移相关状态（按住 Ctrl 或空格拖动）
 const panOffset = ref({ x: 0, y: 0 });
@@ -326,10 +190,6 @@ const endInputText = computed(() => {
   return `(${endPoint.value.x}, ${endPoint.value.y})`;
 });
 const canUseFloodFillResult = computed(() => !!floodFillStore.resultDisplayImageSrc);
-const canUseImageProcessingResult = computed(
-  () => !!imageProcessingStore.displayImageSrc
-);
-const originalMapDisplayImage = computed(() => originalMapImage.value || "");
 
 // 处理 Ctrl / 空格键状态
 const updatePanKey = (event, pressed) => {
@@ -360,66 +220,6 @@ const handleKeyUp = (event) => {
 onMounted(() => {
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("keyup", handleKeyUp);
-
-  const socket = getMatchSocket() || window.matchSocket;
-  if (!socket) return;
-
-  socket.on("mini-map-frame", (data) => {
-    const payload = data || {};
-    if (typeof payload.image === "string") {
-      miniMapImage.value = payload.image || "";
-    }
-    if (
-      payload.center &&
-      Number.isFinite(payload.center.x) &&
-      Number.isFinite(payload.center.y)
-    ) {
-      miniMapCenter.value = {
-        x: Math.round(payload.center.x),
-        y: Math.round(payload.center.y),
-      };
-    }
-    if (Number.isFinite(payload.radius)) {
-      miniMapRadius.value = Math.max(0, Math.round(payload.radius));
-    }
-  });
-
-  socket.on("mini-map-meta", (data) => {
-    const payload = data || {};
-    if (!payload.bounds) {
-      return;
-    }
-    if (
-      payload.center &&
-      Number.isFinite(payload.center.x) &&
-      Number.isFinite(payload.center.y)
-    ) {
-      miniMapCenter.value = {
-        x: Math.round(payload.center.x),
-        y: Math.round(payload.center.y),
-      };
-    }
-    if (Number.isFinite(payload.radius)) {
-      miniMapRadius.value = Math.max(0, Math.round(payload.radius));
-    }
-  });
-
-  socket.on("match-map-frame", (data) => {
-    const payload = data || {};
-    if (typeof payload.image === "string") {
-      matchMapImage.value = payload.image || "";
-    }
-  });
-
-  socket.on("path-image-uploaded", (data) => {
-    const payload = data || {};
-    if (!originalMapUploadRequestId.value) return;
-    if (payload.requestId !== originalMapUploadRequestId.value) return;
-    if (typeof payload.preview === "string") {
-      originalMapImage.value = payload.preview || "";
-    }
-    clearOriginalMapUploading();
-  });
 });
 
 onBeforeUnmount(() => {
@@ -443,67 +243,6 @@ const onFileChange = (event) => {
   };
   reader.readAsDataURL(file);
   event.target.value = "";
-};
-
-const triggerOriginalMapUpload = () =>
-  originalMapFileInputRef.value && originalMapFileInputRef.value.click();
-
-const clearOriginalMapUploading = () => {
-  originalMapUploadRequestId.value = "";
-  originalMapUploading.value = false;
-  if (originalMapUploadTimeout.value) {
-    clearTimeout(originalMapUploadTimeout.value);
-    originalMapUploadTimeout.value = null;
-  }
-};
-
-const uploadOriginalMapByPayload = async (payload = {}, useBase64 = false) => {
-  const requestId = `original-map-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  originalMapUploadRequestId.value = requestId;
-  originalMapUploading.value = true;
-  if (originalMapUploadTimeout.value) {
-    clearTimeout(originalMapUploadTimeout.value);
-  }
-  originalMapUploadTimeout.value = setTimeout(() => {
-    if (originalMapUploadRequestId.value === requestId) {
-      clearOriginalMapUploading();
-      ElMessage.warning("原始地图上传超时，请重试");
-    }
-  }, 10000);
-  const 类型 = useBase64 ? "寻路上传base64缓存" : "寻路上传缓存";
-  try {
-    await ipc.invoke(ipcApiRoute.发送到后端, {
-      类型,
-      ...payload,
-      requestId,
-    });
-  } catch (e) {
-    clearOriginalMapUploading();
-    ElMessage.error("发送原始地图到后端失败");
-  }
-};
-
-const onOriginalMapFileChange = (event) => {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-  if (!file.path) {
-    ElMessage.warning("未获取到文件路径，无法上传到后端");
-    event.target.value = "";
-    return;
-  }
-  uploadOriginalMapByPayload({ 图片路径: file.path }, false);
-  event.target.value = "";
-};
-
-const useImageProcessingResult = () => {
-  if (!canUseImageProcessingResult.value) {
-    ElMessage.warning("当前没有图片处理结果可用");
-    return;
-  }
-  uploadOriginalMapByPayload(
-    { dataUrl: imageProcessingStore.displayImageSrc || "" },
-    true
-  );
 };
 
 const useFloodFillResult = async () => {
@@ -693,9 +432,6 @@ watch(
   { immediate: true }
 );
 
-const startMiniMapCapture = async () => {
-  await ipc.invoke(ipcApiRoute.打开小地图截屏框, { size: 240 });
-};
 </script>
 
 <style scoped lang="less">
