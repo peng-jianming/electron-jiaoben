@@ -517,7 +517,7 @@ class 任务界面状态机类:
                     self.更新数据("故障", True)
                     # 为避免每轮循环反复触发，只播一次后清空超时配置
                     self._任务超时时间 = None
-
+            
             time.sleep(0.1)
 
     def 结束(self):

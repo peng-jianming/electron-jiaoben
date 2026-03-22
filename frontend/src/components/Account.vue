@@ -40,12 +40,11 @@
 
         <el-table-column type="index" label="序号" width="50" align="center" />
         <el-table-column prop="账号" label="账号" min-width="30" show-overflow-tooltip />
-        <el-table-column label="名字" min-width="30" show-overflow-tooltip>
-          <template #default="scope">
-            {{ scope.row.名字 || scope.row.角色名 || '-' }}
-          </template>
-        </el-table-column>
-
+        <el-table-column prop="区服" label="区服" min-width="30" show-overflow-tooltip />
+        <el-table-column prop="名字" label="名字" min-width="30" show-overflow-tooltip />
+        <el-table-column prop="等级" label="等级" min-width="30" show-overflow-tooltip />
+        <el-table-column prop="门派" label="门派" min-width="30" show-overflow-tooltip />
+        <el-table-column prop="金币" label="金币" min-width="30" show-overflow-tooltip />
         <el-table-column label="设备ID" width="110" show-overflow-tooltip>
           <template #default="scope">
             <span v-if="scope.row.状态 === '等待设备'" class="waiting-device">
