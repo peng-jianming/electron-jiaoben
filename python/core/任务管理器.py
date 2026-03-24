@@ -374,10 +374,20 @@ class 任务界面状态机类:
     def _尝试执行误触(self, 区域 = None):
         if not 区域:
             return False
+
+        # 随机延时
+        num = random.random()
+        if num > 0.05:
+            time.sleep(random.uniform(0.5, 1.5))
+        elif num > 0.3:
+            time.sleep(random.uniform(1.5, 3))
+        elif num > 0.7:    
+            time.sleep(random.uniform(3, 6))
+
         # 根据概率决定是否触发误触
         if random.random() > 0.05:
             return False
-        
+
         # 随机选择误触类型
         误触类型 = random.choices(
             ['点击', '滑动', '等待'],
@@ -390,8 +400,7 @@ class 任务界面状态机类:
             self.控制器.随机点击(区域)
         elif 误触类型 == '滑动':
             pass
-        else:  # 等待
-            time.sleep(random.uniform(0.3, 1.5))
+            
         
         return True
 

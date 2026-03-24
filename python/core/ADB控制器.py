@@ -120,6 +120,32 @@ class ADB控制器类:
             print(f"截图失败: {e}")
             return None
 
+    def 截图到内存_快速原始(self):
+        """
+        使用非 PNG 模式截图（raw RGBA），通常比 -p 更快。
+
+        返回:
+            原始字节数据（包含 12 字节头 + 像素数据），失败返回 None
+        """
+        try:
+            命令 = [ADB路径]
+            if self.设备ID:
+                命令.extend(["-s", self.设备ID])
+            命令.extend(["exec-out", "screencap"])
+
+            结果 = subprocess.run(
+                命令,
+                shell=False,
+                capture_output=True,
+                timeout=10
+            )
+            if 结果.returncode == 0:
+                return 结果.stdout
+            return None
+        except Exception as e:
+            print(f"快速截图失败: {e}")
+            return None
+
     def 点击(self, x, y):
         """点击屏幕指定坐标"""
         成功, 输出 = self._执行命令(

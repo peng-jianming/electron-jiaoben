@@ -4,7 +4,8 @@
 
 import os
 import random
-import time
+import struct
+import numpy as np
 import socketio
 from PIL import Image
 from io import BytesIO
@@ -24,7 +25,7 @@ class 设备控制器类:
             设备ID: 设备ID
         """
         self.设备ID = 设备ID
-        self.adb = ADB控制器类(设备ID) 
+        self.adb = ADB控制器类(设备ID)
 
     def 截图到内存(self):
         """
@@ -34,11 +35,26 @@ class 设备控制器类:
             PIL Image 对象，失败返回 None
         """
         try:
+            # 优先尝试 raw 模式（通常比 PNG 更快），失败自动回退 PNG。
+            raw字节 = self.adb.截图到内存_快速原始()
+            if raw字节 and len(raw字节) > 12:
+                try:
+                    宽, 高, _ = struct.unpack("<III", raw字节[:12])
+                    预期长度 = 宽 * 高 * 4
+                    像素字节 = raw字节[12:12 + 预期长度]
+                    if 宽 > 0 and 高 > 0 and len(像素字节) >= 预期长度:
+                        像素数组 = np.frombuffer(像素字节, dtype=np.uint8).reshape((高, 宽, 4))
+                        图像RGBA = Image.fromarray(像素数组, mode="RGBA")
+                        return 图像RGBA.convert("RGB")
+                except Exception:
+                    pass
+
             图像字节 = self.adb.截图到内存()
             if 图像字节 is None:
                 return None
 
             图像 = Image.open(BytesIO(图像字节))
+            图像.load()
             return 图像.convert("RGB")
         except Exception:
             print("内存截图失败")
