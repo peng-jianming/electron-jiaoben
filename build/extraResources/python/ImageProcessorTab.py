@@ -3,6 +3,7 @@ import time
 import base64
 import traceback
 import tempfile
+import socket
 import subprocess
 
 import cv2
@@ -683,6 +684,8 @@ class ADBController:
     def __init__(self, device_id=None):
         self.device_id = device_id
         self._adb_prefix = self._build_adb_prefix()
+        self._adb_host = "127.0.0.1"
+        self._adb_port = 5037
 
     def _build_adb_prefix(self):
         adb_path = r"C:\platform-tools\adb.exe"
@@ -690,9 +693,131 @@ class ADBController:
             return f'"{adb_path}" -s {self.device_id}'
         return f'"{adb_path}"'
 
-    def 截图到内存(self):
-        """截图并直接返回 PNG 图像数据，失败返回 None。"""
+    # ====================== ADB Socket 协议（与 index.py 同步） ======================
+    def _adb_socket_connect(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect((self._adb_host, self._adb_port))
+        return sock
+
+    def _adb_send(self, sock, cmd: str):
+        payload = cmd.encode("utf-8")
+        sock.sendall(f"{len(payload):04x}".encode("utf-8") + payload)
+
+    def _adb_read_status(self, sock):
+        status = sock.recv(4)
+        if status == b"OKAY":
+            return True, ""
+        if status == b"FAIL":
+            length = int(sock.recv(4), 16)
+            return False, sock.recv(length).decode("utf-8", errors="replace")
+        return False, f"未知状态: {status!r}"
+
+    def _adb_recv_all(self, sock):
+        chunks = []
+        while True:
+            try:
+                data = sock.recv(65536)
+                if not data:
+                    break
+                chunks.append(data)
+            except socket.timeout:
+                break
+        return b"".join(chunks)
+
+    def _raw字节转png(self, raw_bytes):
+        """将 screencap raw RGBA 字节转为 PNG 字节"""
+        if not raw_bytes or len(raw_bytes) <= 12:
+            return None
         try:
+            width, height, _ = np.frombuffer(raw_bytes[:12], dtype="<u4")
+            expected_len = int(width) * int(height) * 4
+            pixel_bytes = raw_bytes[12:12 + expected_len]
+            if width <= 0 or height <= 0 or len(pixel_bytes) < expected_len:
+                return None
+
+            rgba = np.frombuffer(pixel_bytes, dtype=np.uint8).reshape((int(height), int(width), 4))
+            bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
+            ok, buffer = cv2.imencode(".png", bgr, [cv2.IMWRITE_PNG_COMPRESSION, 1])
+            if ok:
+                return buffer.tobytes()
+            return None
+        except Exception:
+            return None
+
+    def 截图到内存_socket(self):
+        """通过 ADB socket 协议获取 raw RGBA 截图（12 字节头 + 像素数据）。"""
+        sock = None
+        try:
+            sock = self._adb_socket_connect()
+
+            if self.device_id:
+                self._adb_send(sock, f"host:transport:{self.device_id}")
+            else:
+                self._adb_send(sock, "host:transport-any")
+            ok, _ = self._adb_read_status(sock)
+            if not ok:
+                return None
+
+            self._adb_send(sock, "exec:screencap")
+            ok, _ = self._adb_read_status(sock)
+            if not ok:
+                return None
+
+            data = self._adb_recv_all(sock)
+            if data and len(data) > 12:
+                return data
+            return None
+        except Exception:
+            return None
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+    def 截图到内存_快速原始(self):
+        """使用 subprocess + raw screencap（无 -p）获取原始截图数据。"""
+        try:
+            adb_path = r"C:\platform-tools\adb.exe"
+            cmd = [adb_path]
+            if self.device_id:
+                cmd.extend(["-s", self.device_id])
+            cmd.extend(["exec-out", "screencap"])
+
+            result = subprocess.run(
+                cmd,
+                shell=False,
+                capture_output=True,
+                timeout=10,
+            )
+            if result.returncode == 0 and result.stdout and len(result.stdout) > 12:
+                return result.stdout
+            return None
+        except Exception:
+            return None
+
+    def 截图到内存(self):
+        """
+        截图并直接返回 PNG 图像数据，失败返回 None。
+        优先级: socket raw → subprocess raw → subprocess PNG
+        """
+        try:
+            # 1) 最快: socket raw
+            raw_bytes = self.截图到内存_socket()
+            img_bytes = self._raw字节转png(raw_bytes)
+            if img_bytes:
+                print("1111111")
+                return img_bytes
+
+            # 2) 次快: subprocess raw
+            raw_bytes = self.截图到内存_快速原始()
+            img_bytes = self._raw字节转png(raw_bytes)
+            if img_bytes:
+                return img_bytes
+
+            # 3) 最慢: subprocess PNG（兜底）
             result = subprocess.run(
                 f"{self._adb_prefix} exec-out screencap -p",
                 shell=True,

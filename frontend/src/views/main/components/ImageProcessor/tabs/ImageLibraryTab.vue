@@ -306,6 +306,7 @@ async function handleSelectNpz() {
       return;
     }
 
+    isSyncingFromFile.value = true;
     npzPath.value = dialogResult.filePath;
     imageList.value = [];
     previewUrl.value = null;
@@ -315,6 +316,7 @@ async function handleSelectNpz() {
   } catch (error) {
     console.error("选择图片库失败:", error);
     ElMessage.error("选择图片库失败: " + (error.message || "未知错误"));
+    isSyncingFromFile.value = false;
   } finally {
     fileLoading.value = false;
   }
@@ -402,7 +404,8 @@ function handleImageLibraryResult(data) {
     }
     imageList.value = [];
     previewUrl.value = null;
-    isSyncingFromFile.value = false;
+    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+    setTimeout(() => { isSyncingFromFile.value = false; }, 800);
     return;
   }
 
@@ -412,7 +415,8 @@ function handleImageLibraryResult(data) {
   if (!items.length) {
     imageList.value = [];
     previewUrl.value = null;
-    isSyncingFromFile.value = false;
+    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+    setTimeout(() => { isSyncingFromFile.value = false; }, 800);
     return;
   }
 
@@ -440,10 +444,11 @@ function handleImageLibraryResult(data) {
     ElMessage.success(`已加载 ${imageList.value.length} 张图片`);
   }
 
-  // 加载完成后短暂延迟再允许同步，避免初始化时触发写回
+  // 清除 watcher 可能已排队的旧同步任务，然后延迟超过防抖时间(500ms)再解除保护
+  if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
   setTimeout(() => {
     isSyncingFromFile.value = false;
-  }, 0);
+  }, 800);
 }
 
 function handleShow(row) {
@@ -473,6 +478,10 @@ async function handleDelete(row) {
     ElMessage.success("已删除");
     if (previewUrl.value === row.fullUrl) {
       previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
+    }
+    // watcher 不会自动同步空列表，所以删除最后一项时需要显式同步
+    if (imageList.value.length === 0) {
+      syncImageLibraryToNpz();
     }
   }
 }
@@ -726,8 +735,11 @@ async function syncImageLibraryToNpz(val) {
         (row.fullUrl && row.fullUrl.includes(",") ? row.fullUrl.split(",")[1] : ""),
     })).filter((item) => item.image);
 
-    if (!items.length) {
-      // 表格为空也允许写回，等价于清空 npz
+    // 列表非空但所有图片数据无效 → 数据异常，中止保存防止清空 npz
+    if (items.length === 0 && (source || []).length > 0) {
+      console.error("同步到 npz 被中止：列表不为空但所有图片数据无效");
+      ElMessage.error("同步失败：图片数据无效，已中止保存以防止数据丢失");
+      return;
     }
 
     // 检查同名：存在同名时提示是否覆盖，取消则不保存
@@ -767,6 +779,8 @@ watch(
   (val) => {
     if (!npzPath.value) return;
     if (isSyncingFromFile.value) return;
+    // 空列表不自动同步，防止竞态条件清空 npz（显式删除最后一项会单独处理）
+    if (!val || val.length === 0) return;
 
     if (syncTimer) {
       clearTimeout(syncTimer);
