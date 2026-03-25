@@ -2450,12 +2450,12 @@ onUnmounted(() => {
 
 <style scoped>
 /* ===== 固定尺寸 ===== */
-/* 1440 x 960 窗口, 标题栏40px + 导航栏38px = 78px, 内容区 882px */
+/* 1440 x 960 窗口, 标题栏40px, 内容区 920px */
 /* 左220px | 中760px | 右460px = 1440px */
 
 .image-processor-tab {
   width: 1440px;
-  height: 882px;
+  height: 920px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -2463,7 +2463,7 @@ onUnmounted(() => {
 .processor-layout {
   display: flex;
   width: 1440px;
-  height: 882px;
+  height: 920px;
   overflow: hidden;
 }
 
@@ -2472,7 +2472,7 @@ onUnmounted(() => {
   width: 220px;
   min-width: 220px;
   max-width: 220px;
-  height: 882px;
+  height: 920px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -2482,7 +2482,7 @@ onUnmounted(() => {
   width: 760px;
   min-width: 760px;
   max-width: 760px;
-  height: 882px;
+  height: 920px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2497,7 +2497,7 @@ onUnmounted(() => {
   width: 460px;
   min-width: 460px;
   max-width: 460px;
-  height: 882px;
+  height: 920px;
   overflow: hidden;
   box-sizing: border-box;
 }

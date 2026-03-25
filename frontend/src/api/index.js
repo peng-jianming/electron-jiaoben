@@ -26,14 +26,6 @@ const ipcApiRoute = {
   startCapturing: 'controller/example/startCapturing',
   stopCapturing: 'controller/example/stopCapturing',
   getCaptureStatus: 'controller/example/getCaptureStatus',
-  // 路径规划功能
-  loadPathfindingMap: 'controller/example/loadPathfindingMap',
-  setStartPoint: 'controller/example/setStartPoint',
-  setEndPoint: 'controller/example/setEndPoint',
-  setSelectPointMode: 'controller/example/setSelectPointMode',
-  planPath: 'controller/example/planPath',
-  clearPath: 'controller/example/clearPath',
-  getPathfindingStatus: 'controller/example/getPathfindingStatus',
   // 路径配置存储功能
   savePaths: 'controller/example/savePaths',
   getPaths: 'controller/example/getPaths',

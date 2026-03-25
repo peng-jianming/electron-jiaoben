@@ -5,26 +5,7 @@
     
     <!-- 主内容区域 -->
     <div class="main-wrapper">
-      <!-- Tab 导航栏 -->
-      <div class="tab-nav">
-        <div 
-          v-for="tab in tabs" 
-          :key="tab.name"
-          class="tab-item"
-          :class="{ active: activeTab === tab.name }"
-          @click="activeTab = tab.name"
-        >
-          <component :is="tab.icon" class="tab-icon" />
-          <span class="tab-label-text">{{ tab.label }}</span>
-        </div>
-        <!-- 状态指示器 -->
-        <div class="status-indicator" :class="{ processing: isProcessing }">
-          <span class="status-dot"></span>
-          <span class="status-text">{{ isProcessing ? '处理中' : '就绪' }}</span>
-        </div>
-      </div>
-      
-      <!-- 路由内容区域 -->
+      <!-- 内容区域 -->
       <div class="router-view-container">
         <router-view v-slot="{ Component }">
           <component 
@@ -50,46 +31,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, watchEffect, onUnmounted, h } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { ref, watch, watchEffect, onUnmounted } from "vue";
+import { useRoute } from "vue-router";
 import TitleBar from "@/components/TitleBar.vue";
 
 const route = useRoute();
-const router = useRouter();
-
-// 导航图标组件
-const IconImage = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
-  h('path', { d: 'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z' })
-]);
-
-const IconPalette = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
-  h('path', { d: 'M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z' })
-]);
-
-const IconRoute = () => h('svg', { viewBox: '0 0 24 24', fill: 'currentColor', class: 'tab-icon-svg' }, [
-  h('path', { d: 'M9.78 11.16l-1.42 1.42a7.282 7.282 0 01-1.79-2.94l1.94-.49c.32.89.77 1.5 1.27 2.01zM11 6L7 2 3 6h3.02c.02.81.08 1.54.19 2.17l1.94-.49C8.08 7.2 8.03 6.63 8.02 6H11zm10 0l-4-4-4 4h2.99c-.1 3.68-1.28 4.75-2.54 5.88-.5.44-1.01.92-1.45 1.55-.34-.49-.73-.88-1.13-1.24L9.46 13.6c.93.85 1.54 1.54 1.54 3.4v5h2v-5c0-2.02.71-2.66 1.79-3.63 1.38-1.24 3.08-2.78 3.2-7.37H21z' })
-]);
-
-// Tab配置
-const tabs = [
-  { name: 'image-processor', label: '图片处理', icon: IconImage },
-  { name: 'coloring', label: '调色面板', icon: IconPalette },
-  { name: 'pathfinding', label: '寻路测试', icon: IconRoute }
-];
-
-// Tab 切换 - 从路由获取当前激活的 tab
-const activeTab = computed({
-  get: () => {
-    const routeName = route.name;
-    if (routeName === 'Coloring') return 'coloring';
-    if (routeName === 'Pathfinding') return 'pathfinding';
-    return 'image-processor';
-  },
-  set: (value) => {
-    const routeName = value === 'image-processor' ? 'ImageProcessor' : value === 'coloring' ? 'Coloring' : 'Pathfinding';
-    router.push({ name: routeName });
-  }
-});
 
 // 处理状态
 const isProcessing = ref(false);
@@ -174,8 +120,7 @@ onUnmounted(() => {
 @app-width: 1440px;
 @app-height: 960px;
 @title-bar-height: 40px;
-@tab-nav-height: 38px;
-@content-height: @app-height - @title-bar-height - @tab-nav-height;
+@content-height: @app-height - @title-bar-height;
 
 /* ===== 容器 ===== */
 .app-container {
@@ -203,121 +148,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* ===== Tab 导航栏 ===== */
-.tab-nav {
-  height: @tab-nav-height;
-  min-height: @tab-nav-height;
-  max-height: @tab-nav-height;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  padding: 0 16px;
-  background: linear-gradient(180deg, @bg-content 0%, #fafbfc 100%);
-  border-bottom: 1px solid @border;
-  box-sizing: border-box;
-  box-shadow: @shadow-sm;
-  position: relative;
-  z-index: 5;
-}
-
-.tab-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 20px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  color: @text-muted;
-  transition: all 0.2s ease;
-  user-select: none;
-  position: relative;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-
-  &:hover {
-    color: @text-primary;
-    background: rgba(99, 102, 241, 0.03);
-  }
-
-  &.active {
-    color: @primary;
-    border-bottom-color: @primary;
-    font-weight: 600;
-
-    .tab-icon-svg {
-      color: @primary;
-    }
-
-    .tab-label-text {
-      color: @primary;
-    }
-  }
-}
-
-.tab-label-text {
-  transition: color 0.2s ease;
-}
-
-.tab-icon-svg {
-  width: 15px;
-  height: 15px;
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-.tab-item.active .tab-icon-svg {
-  opacity: 1;
-}
-
-/* 状态指示器 */
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  margin-left: auto;
-  align-self: center;
-  background: fade(@success, 6%);
-  border: 1px solid fade(@success, 12%);
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 500;
-  color: @success;
-  transition: all 0.3s ease;
-
-  &.processing {
-    background: fade(@primary, 6%);
-    border-color: fade(@primary, 12%);
-    color: @primary;
-
-    .status-dot {
-      background: @primary;
-      box-shadow: 0 0 6px fade(@primary, 40%);
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-  }
-}
-
-.status-text {
-  font-weight: 600;
-  letter-spacing: 0.3px;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  background: @success;
-  border-radius: 50%;
-  box-shadow: 0 0 4px fade(@success, 30%);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
-}
-
-/* ===== 路由内容容器 ===== */
+/* ===== 内容容器 ===== */
 .router-view-container {
   height: @content-height;
   max-height: @content-height;

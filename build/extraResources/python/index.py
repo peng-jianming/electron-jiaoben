@@ -20,7 +20,6 @@ _current_processed_image = None  # 当前处理后的图像（用于步骤链）
 _step_images = {}  # 每个步骤完成后的图像，key为步骤索引
 
 # 洪水填充控制标志
-_flood_fill_running = False
 _flood_fill_stop_event = threading.Event()
 
 # 步骤处理控制
@@ -451,145 +450,6 @@ def 保存图片(data):
         send_save_result(error=str(e))
 
 
-def 洪水填充动画(data):
-    """在新窗口中显示洪水填充动画"""
-    global _flood_fill_running
-    
-    try:
-        step_index = data.get("stepIndex", 0)
-        params = data.get("params", {})
-        x = params.get("x", 0)
-        y = params.get("y", 0)
-        
-        # 获取该步骤开始前的图像
-        if step_index in _step_images:
-            base_img = _step_images[step_index].copy()
-        elif step_index == 0 and _current_image is not None:
-            base_img = _current_image.copy()
-        else:
-            print(f"未找到步骤 {step_index} 的基础图像")
-            return
-        
-        # 确保图像是BGR格式
-        if len(base_img.shape) == 2:
-            base_img = cv2.cvtColor(base_img, cv2.COLOR_GRAY2BGR)
-        
-        print(f"开始洪水填充动画，步骤: {step_index}, 起点: ({x}, {y})")
-        
-        # 停止之前的洪水填充
-        _flood_fill_stop_event.set()
-        time.sleep(0.1)
-        _flood_fill_stop_event.clear()
-        _flood_fill_running = True
-        
-        # 在新线程中运行动画
-        def run_animation():
-            global _flood_fill_running
-            try:
-                h, w = base_img.shape[:2]
-                
-                if not (0 <= x < w and 0 <= y < h):
-                    print("起始点超出图像范围")
-                    _flood_fill_running = False
-                    return
-                
-                result = base_img.copy()
-                seed_color = base_img[y, x].copy()
-                fill_color = np.array([255, 255, 255], dtype=np.uint8)
-                
-                if np.array_equal(seed_color, fill_color):
-                    print("起始点颜色与填充颜色相同")
-                    _flood_fill_running = False
-                    return
-                
-                queue = deque([(x, y)])
-                visited = np.zeros((h, w), dtype=bool)
-                visited[y, x] = True
-                filled_count = 0
-                batch_size = 100
-                directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-                
-                # 创建窗口
-                window_name = f"洪水填充动画 - 步骤 {step_index + 1}"
-                cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-                
-                # 设置窗口置顶
-                cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
-                
-                # 计算窗口大小（限制最大尺寸）
-                max_size = 800
-                scale = min(max_size / w, max_size / h, 1.0)
-                win_w, win_h = int(w * scale), int(h * scale)
-                cv2.resizeWindow(window_name, win_w, win_h)
-                
-                def is_window_closed():
-                    """检测窗口是否被用户关闭"""
-                    try:
-                        return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
-                    except:
-                        return True
-                
-                while queue:
-                    if _flood_fill_stop_event.is_set() or is_window_closed():
-                        print("洪水填充动画已中断")
-                        _flood_fill_stop_event.set()
-                        break
-                    
-                    px, py = queue.popleft()
-                    
-                    if np.array_equal(result[py, px], seed_color):
-                        result[py, px] = fill_color
-                        filled_count += 1
-                        
-                        for dx, dy in directions:
-                            nx, ny = px + dx, py + dy
-                            if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx]:
-                                if np.array_equal(result[ny, nx], seed_color):
-                                    visited[ny, nx] = True
-                                    queue.append((nx, ny))
-                        
-                        if filled_count % batch_size == 0:
-                            cv2.imshow(window_name, result)
-                            key = cv2.waitKey(1)
-                            if key == 27 or key == ord('q') or is_window_closed():  # ESC、Q 或关闭窗口
-                                _flood_fill_stop_event.set()
-                                break
-                
-                # 显示最终结果
-                if not _flood_fill_stop_event.is_set() and not is_window_closed():
-                    cv2.imshow(window_name, result)
-                    print(f"洪水填充动画完成，共填充 {filled_count} 个像素")
-                    print("按任意键关闭窗口...")
-                    while True:
-                        key = cv2.waitKey(100)
-                        if key != -1 or is_window_closed():
-                            break
-                
-                # 安全关闭窗口
-                try:
-                    cv2.destroyWindow(window_name)
-                except:
-                    pass  # 窗口可能已被用户关闭
-                _flood_fill_running = False
-                
-            except Exception as e:
-                traceback.print_exc()
-                # 安全关闭窗口
-                try:
-                    cv2.destroyWindow(window_name)
-                except:
-                    pass
-                _flood_fill_running = False
-        
-        # 启动动画线程
-        animation_thread = threading.Thread(target=run_animation, daemon=True)
-        animation_thread.start()
-        
-    except Exception as e:
-        traceback.print_exc()
-        _flood_fill_running = False
-
-
 def send_save_result(success=False, path=None, error=None):
     """发送保存结果到 Electron"""
     message = {"success": success}
@@ -655,21 +515,15 @@ def init_client(url="http://127.0.0.1:7070"):
                 "save_image": 保存图片,
 
                 "process_steps": 处理步骤列表,
-                "standalone_flood_fill_animation": 独立洪水填充动画,
-                "standalone_flood_fill": 独立洪水填充,
-                "flood_fill_animation": 洪水填充动画,
                 "stitch_image": 拼接当前图片,
                 "clear_stitch": 清空拼接,
                 "batch_stitch": 批量拼接图片,
-
 
                 "get_devices": 获取设备列表,
                 "set_device": 设置当前设备,
                 "capture_screenshot": 截图当前设备,
                 "font_library_match": 字库匹配,
                 "font_library_ocr": 字库识字,
-
-
 
                 "load_image_library": 加载图片库,
                 "image_library_match": 图片库模板匹配,
@@ -1478,186 +1332,6 @@ def 字库识字(data):
     except Exception as e:
         traceback.print_exc()
         发送字库识字结果(error=str(e))
-
-
-# ==================== 独立洪水填充模块 ====================
-
-# 独立洪水填充模块使用的图片（与管线处理分离）
-_flood_fill_custom_image = None
-
-
-def 独立洪水填充(data):
-    """独立洪水填充：对指定图片执行填充"""
-    source = data.get("source", "custom")
-    x = data.get("x", 0)
-    y = data.get("y", 0)
-
-    if source == "processed":
-        img = _current_processed_image
-    elif source == "stitched":
-        if _stitched_image is not None:
-            img = (_stitched_image * 255).astype(np.uint8)
-        else:
-            img = None
-    else:
-        img = _flood_fill_custom_image
-
-    if img is None:
-        send_to_electron(
-            prop="flood-fill-result",
-            message={"success": False, "error": "无法获取图片，请先加载"},
-            wait_response=False,
-        )
-        return
-
-    img = img.copy()
-    if len(img.shape) == 2:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-
-    # 独立填充前清除停止标志，避免被之前的管线/动画残留状态误判为“已中断”
-    _flood_fill_stop_event.clear()
-    _steps_stop_event.clear()
-
-    print(f"独立洪水填充: 起点({x}, {y}), 来源={source}")
-
-    result = 逐步洪水填充算法(img, (x, y), send_progress=False)
-    if result is None:
-        send_to_electron(
-            prop="flood-fill-result",
-            message={"success": False, "error": "洪水填充失败"},
-            wait_response=False,
-        )
-        return
-
-    _, buffer = cv2.imencode(".png", result, [cv2.IMWRITE_PNG_COMPRESSION, 1])
-    send_to_electron(
-        prop="flood-fill-result",
-        message={
-            "success": True,
-            "image": base64.b64encode(buffer).decode("utf-8"),
-        },
-        wait_response=True,
-    )
-
-
-def 独立洪水填充动画(data):
-    """独立洪水填充的 cv2 窗口动画"""
-    global _flood_fill_running
-
-    source = data.get("source", "custom")
-    x = data.get("x", 0)
-    y = data.get("y", 0)
-
-    if source == "processed":
-        img = _current_processed_image
-    elif source == "stitched":
-        if _stitched_image is not None:
-            img = (_stitched_image * 255).astype(np.uint8)
-        else:
-            img = None
-    else:
-        img = _flood_fill_custom_image
-
-    if img is None:
-        print("独立洪水填充动画: 无法获取图片")
-        return
-
-    base_img = img.copy()
-    if len(base_img.shape) == 2:
-        base_img = cv2.cvtColor(base_img, cv2.COLOR_GRAY2BGR)
-
-    _flood_fill_stop_event.set()
-    time.sleep(0.1)
-    _flood_fill_stop_event.clear()
-    _flood_fill_running = True
-
-    def run_animation():
-        global _flood_fill_running
-        try:
-            h, w = base_img.shape[:2]
-            if not (0 <= x < w and 0 <= y < h):
-                print("起始点超出图像范围")
-                _flood_fill_running = False
-                return
-
-            result = base_img.copy()
-            seed_color = base_img[y, x].copy()
-            fill_color = np.array([255, 255, 255], dtype=np.uint8)
-
-            if np.array_equal(seed_color, fill_color):
-                print("起始点颜色与填充颜色相同")
-                _flood_fill_running = False
-                return
-
-            queue = deque([(x, y)])
-            visited = np.zeros((h, w), dtype=bool)
-            visited[y, x] = True
-            filled_count = 0
-            batch_size = 100
-            directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-            window_name = "洪水填充动画（独立）"
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-            cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
-
-            max_size = 800
-            scale = min(max_size / w, max_size / h, 1.0)
-            win_w, win_h = int(w * scale), int(h * scale)
-            cv2.resizeWindow(window_name, win_w, win_h)
-
-            def is_window_closed():
-                try:
-                    return cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1
-                except:
-                    return True
-
-            while queue:
-                if _flood_fill_stop_event.is_set() or is_window_closed():
-                    break
-
-                px, py = queue.popleft()
-                if np.array_equal(result[py, px], seed_color):
-                    result[py, px] = fill_color
-                    filled_count += 1
-
-                    for dx, dy in directions:
-                        nx, ny = px + dx, py + dy
-                        if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx]:
-                            if np.array_equal(result[ny, nx], seed_color):
-                                visited[ny, nx] = True
-                                queue.append((nx, ny))
-
-                    if filled_count % batch_size == 0:
-                        cv2.imshow(window_name, result)
-                        key = cv2.waitKey(1)
-                        if key == 27 or key == ord('q') or is_window_closed():
-                            _flood_fill_stop_event.set()
-                            break
-
-            if not _flood_fill_stop_event.is_set() and not is_window_closed():
-                cv2.imshow(window_name, result)
-                print(f"洪水填充动画完成，共填充 {filled_count} 个像素")
-                while True:
-                    key = cv2.waitKey(100)
-                    if key != -1 or is_window_closed():
-                        break
-
-            try:
-                cv2.destroyWindow(window_name)
-            except:
-                pass
-            _flood_fill_running = False
-
-        except Exception as e:
-            traceback.print_exc()
-            try:
-                cv2.destroyWindow(window_name)
-            except:
-                pass
-            _flood_fill_running = False
-
-    animation_thread = threading.Thread(target=run_animation, daemon=True)
-    animation_thread.start()
 
 
 # ==================== 拼接功能 ====================

@@ -104,15 +104,6 @@ class ExampleController {
         return { success: true, message: '图片库结果已发送' };
       }
 
-      // 独立洪水填充结果
-      if (prop === 'flood-fill-result') {
-        const socketServer = getSocketServer();
-        if (socketServer) {
-          socketServer.io.emit('flood-fill-result', imageData);
-        }
-        return { success: true, message: '洪水填充结果已发送' };
-      }
-      
       // 根据 prop 类型分发事件
       if (prop === 'image-saved') {
         // 保存结果事件
@@ -416,109 +407,6 @@ class ExampleController {
       return exampleService.getCaptureStatus();
     } catch (error) {
       console.error('获取截图状态错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  // ==================== 路径规划功能 ====================
-
-  /**
-   * 载入路径规划地图
-   */
-  async loadPathfindingMap(args, event) {
-    try {
-      return await exampleService.loadPathfindingMap();
-    } catch (error) {
-      console.error('载入地图错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 设置起点
-   */
-  setStartPoint(args, event) {
-    try {
-      return exampleService.setStartPoint(args);
-    } catch (error) {
-      console.error('设置起点错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 设置终点
-   */
-  setEndPoint(args, event) {
-    try {
-      return exampleService.setEndPoint(args);
-    } catch (error) {
-      console.error('设置终点错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 设置选点模式
-   */
-  setSelectPointMode(args, event) {
-    try {
-      return exampleService.setSelectPointMode(args.type);
-    } catch (error) {
-      console.error('设置选点模式错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 处理地图点击事件
-   */
-  handleMapPointClick(args, event) {
-    try {
-      return exampleService.handleMapPointClick(args);
-    } catch (error) {
-      console.error('处理地图点击错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 路径规划
-   */
-  planPath(args, event) {
-    try {
-      // 确保参数是纯对象
-      const start = { x: Number(args.start.x), y: Number(args.start.y) };
-      const end = { x: Number(args.end.x), y: Number(args.end.y) };
-      const result = exampleService.planPath(start, end);
-      // 确保返回值可序列化
-      return JSON.parse(JSON.stringify(result));
-    } catch (error) {
-      console.error('路径规划错误:', error);
-      return { success: false, message: String(error.message || error) };
-    }
-  }
-
-  /**
-   * 清除路径
-   */
-  clearPath(args, event) {
-    try {
-      return exampleService.clearPath();
-    } catch (error) {
-      console.error('清除路径错误:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
-  /**
-   * 获取路径规划状态
-   */
-  getPathfindingStatus(args, event) {
-    try {
-      return exampleService.getPathfindingStatus();
-    } catch (error) {
-      console.error('获取路径规划状态错误:', error);
       return { success: false, message: error.message };
     }
   }
