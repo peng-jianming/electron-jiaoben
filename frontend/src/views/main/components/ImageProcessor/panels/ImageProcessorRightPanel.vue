@@ -440,13 +440,15 @@ onUnmounted(() => {
 
 // 处理从 ConfigTab 发起的“图片测试”：用图片库中与 testFontLibraryName 同名的图片打开模板匹配测试
 const handleOpenImageTest = ({ name, similarity, region } = {}) => {
-  activeTab.value = "image-library";
-  nextTick(() => {
-    imageLibraryTabRef.value?.openTestByImageName?.(name, {
-      similarity,
-      region,
-    });
+  // 只有在确实找到同名图片时，才切换到“图片库”tab
+  // 未找到时由 ImageLibraryTab 内部弹消息（不做 tab 跳转）
+  const opened = imageLibraryTabRef.value?.openTestByImageName?.(name, {
+    similarity,
+    region,
   });
+  if (opened === true) {
+    activeTab.value = "image-library";
+  }
 };
 
 // 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）

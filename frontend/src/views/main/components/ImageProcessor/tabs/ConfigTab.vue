@@ -23,6 +23,30 @@
         <template #renderNodeValue="{ node, defaultValue }">
           <span v-if="node.key == '类型'">{{ node.content }}</span>
           <el-input
+            v-else-if="node.key == '偏移点击区域'"
+              style=" width: 90%"
+              v-model="node.content"
+              size="small"
+              @blur="handleBlur(node)"
+          >
+            <template #append>
+              <el-button
+                :type="
+                  isFontClickOffsetAreaSelectionActiveForNode(node)
+                    ? 'warning'
+                    : 'primary'
+                "
+                :disabled="!hasSelectionRect"
+                size="small"
+                @click="toggleFontClickOffsetAreaSelectionForNode(node)"
+              >
+                {{
+                  isFontClickOffsetAreaSelectionActiveForNode(node) ? "取消" : "圈选"
+                }}
+              </el-button>
+            </template>
+          </el-input>
+          <el-input
             v-else
               style="display: inline-block; width: 90%"
               v-model="node.content"
@@ -240,12 +264,18 @@
                   >
                     <template #append>
                       <el-button
-                        :type="fontClickOffsetAreaSelectionEnabled ? 'warning' : 'primary'"
+                        :type="
+                          isDrawerFontClickOffsetAreaSelectionActive
+                            ? 'warning'
+                            : 'primary'
+                        "
                         :disabled="!hasSelectionRect"
                         size="small"
                         @click="toggleFontClickOffsetAreaSelection"
                       >
-                        {{ fontClickOffsetAreaSelectionEnabled ? "取消" : "圈选" }}
+                        {{
+                          isDrawerFontClickOffsetAreaSelectionActive ? "取消" : "圈选"
+                        }}
                       </el-button>
                     </template>
                   </el-input>
@@ -515,6 +545,19 @@ const fontClickOffsetAreaInput = ref("");
 // 偏移点击区域圈选状态
 const fontClickOffsetAreaSelectionEnabled = ref(false);
 
+// 偏移点击区域圈选目标：
+// - drawer：写回 `fontClickOffsetAreaInput`（抽屉里添加点阵）
+// - json：写回 vue-json-pretty 对应节点的 `node.content`（通过 node.path 精确定位）
+const offsetAreaSelectionTargetMode = ref("drawer"); // "drawer" | "json"
+const offsetAreaSelectionTargetNodePath = ref("");
+
+const isDrawerFontClickOffsetAreaSelectionActive = computed(() => {
+  return (
+    fontClickOffsetAreaSelectionEnabled.value &&
+    offsetAreaSelectionTargetMode.value === "drawer"
+  );
+});
+
 // 是否存在左侧圈选范围（用于偏移点击区域的基准）
 const hasSelectionRect = computed(() => {
   return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
@@ -523,6 +566,7 @@ const hasSelectionRect = computed(() => {
 
 const handleBlur = (node) => {
   const keys = getPathKeys(node.path);
+
   if (!keys.length) return;
 
   // 找到当前字段的原始值
@@ -819,6 +863,7 @@ const handleAddItem = (node) => {
             按钮: {},
             滑动区域: {},
             识字区域: {},
+            误触区域: ""
           };
         } else if (type.value === "固定区域") {
           itemNode[key] = {
@@ -829,6 +874,7 @@ const handleAddItem = (node) => {
           itemNode[key] = {
             类型: type.value,
             查找区域: "",
+            偏移点击区域: "",
             相似度: 0.9,
           };
         }
@@ -839,7 +885,7 @@ const handleAddItem = (node) => {
 // 获取当前节点
 const getCurrentNode = (node) => {
   const keys = getPathKeys(node.path);
-
+  
   if (keys.length == 1) {
     return data.value[keys[0]];
   }
@@ -892,16 +938,74 @@ const toggleFontClickOffsetAreaSelection = () => {
     return;
   }
 
-  if (fontClickOffsetAreaSelectionEnabled.value) {
+  // 当前选择目标就是抽屉输入框：取消
+  if (isDrawerFontClickOffsetAreaSelectionActive.value) {
     fontClickOffsetAreaSelectionEnabled.value = false;
+    offsetAreaSelectionTargetMode.value = "drawer";
+    offsetAreaSelectionTargetNodePath.value = "";
     emit("stop-code-generator-selection");
     ElMessage.info("已取消圈选模式");
   } else {
+    // 若已开启但目标在 json：切换为抽屉目标（继续圈选）
+    if (fontClickOffsetAreaSelectionEnabled.value) {
+      offsetAreaSelectionTargetMode.value = "drawer";
+      offsetAreaSelectionTargetNodePath.value = "";
+      ElMessage.info("已切换偏移点击区域圈选目标");
+      return;
+    }
+
+    // 未开启：开始圈选
     fontClickOffsetAreaSelectionEnabled.value = true;
+    offsetAreaSelectionTargetMode.value = "drawer";
+    offsetAreaSelectionTargetNodePath.value = "";
     // 使用单独的类型标识，区分与颜色 Tab 的偏移点击区域
     emit("start-code-generator-selection", "configFontClickOffsetArea");
     ElMessage.info("请在图片上圈选偏移点击区域");
   }
+};
+
+const isFontClickOffsetAreaSelectionActiveForNode = (node) => {
+  return (
+    fontClickOffsetAreaSelectionEnabled.value &&
+    offsetAreaSelectionTargetMode.value === "json" &&
+    offsetAreaSelectionTargetNodePath.value === node?.path
+  );
+};
+
+// 给 vue-json-pretty 中“偏移点击区域”节点用：点击“圈选”后在图片上拖拽获取偏移值
+const toggleFontClickOffsetAreaSelectionForNode = (node) => {
+  if (!hasSelectionRect.value) {
+    ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
+    return;
+  }
+  if (!node?.path) return;
+
+  const targetIsActive = isFontClickOffsetAreaSelectionActiveForNode(node);
+
+  // 已开启且点击当前节点：取消
+  if (targetIsActive) {
+    fontClickOffsetAreaSelectionEnabled.value = false;
+    offsetAreaSelectionTargetMode.value = "drawer";
+    offsetAreaSelectionTargetNodePath.value = "";
+    emit("stop-code-generator-selection");
+    ElMessage.info("已取消圈选模式");
+    return;
+  }
+
+  // 若已开启但目标不是当前节点：切换目标（继续圈选）
+  if (fontClickOffsetAreaSelectionEnabled.value) {
+    offsetAreaSelectionTargetMode.value = "json";
+    offsetAreaSelectionTargetNodePath.value = node.path;
+    ElMessage.info("已切换偏移点击区域圈选目标");
+    return;
+  }
+
+  // 未开启：开始圈选
+  fontClickOffsetAreaSelectionEnabled.value = true;
+  offsetAreaSelectionTargetMode.value = "json";
+  offsetAreaSelectionTargetNodePath.value = node.path;
+  emit("start-code-generator-selection", "configFontClickOffsetArea");
+  ElMessage.info("请在图片上圈选偏移点击区域");
 };
 
 // ========== 偏色管理 ==========
@@ -1229,18 +1333,54 @@ const setFontClickOffsetAreaFromSelection = (rect) => {
   const offsetX = rect.x - props.selectionRect.x;
   const offsetY = rect.y - props.selectionRect.y;
   const areaStr = `${offsetX},${offsetY},${rect.w},${rect.h}`;
-  fontClickOffsetAreaInput.value = areaStr;
+
+  if (offsetAreaSelectionTargetMode.value === "drawer") {
+    fontClickOffsetAreaInput.value = areaStr;
+  } else {
+    // 写回到 vue-json-pretty 对应节点的 `data.value` 上
+    const keys = getPathKeys(offsetAreaSelectionTargetNodePath.value);
+    if (!keys.length) {
+      ElMessage.warning("无法定位偏移点击区域节点，已生成偏移值但未写回");
+    } else {
+      let target = data.value;
+      for (let i = 0; i < keys.length - 1; i++) {
+        target = target?.[keys[i]];
+      }
+      const lastKey = keys[keys.length - 1];
+      if (target && Object.prototype.hasOwnProperty.call(target, lastKey)) {
+        target[lastKey] = areaStr;
+      } else {
+        // 兜底：尝试写入
+        try {
+          target[lastKey] = areaStr;
+        } catch (e) {
+          ElMessage.warning("无法写回偏移点击区域节点值");
+        }
+      }
+    }
+  }
   ElMessage.success("已获取偏移点击区域范围（已计算偏移值）");
 
   // 自动取消圈选模式
   fontClickOffsetAreaSelectionEnabled.value = false;
   emit("stop-code-generator-selection");
+  offsetAreaSelectionTargetMode.value = "drawer";
+  offsetAreaSelectionTargetNodePath.value = "";
 };
 
 /** 从 node.path 解析出键路径，如 "主界面"."按钮"."某名称" -> ['主界面','按钮','某名称'] */
+// root.abc["123"].ddd.ccc['nihao'], ['abc', '123', 'ddd', 'ccc', 'nihao']
 const getPathKeys = (path) => {
   if (!path || typeof path !== "string") return [];
-  return path.match(/"([^"]+)"/g)?.map((s) => s.replace(/"/g, "")) ?? [];
+  // 支持点语法与括号(单引号/双引号)
+  const keys = path
+    .replace(/\[(["'`])([^\1]+?)\1\]/g, '.$2') // 把[...](单双引号)转为.内容
+    .split('.')
+    .map(s => s.trim().replace(/^["'`]|["'`]$/g, '')) // 移除两端引号
+    .filter(s => s.length > 0 && s !== '');
+
+  // 如果第一个是root则丢掉
+  return keys[0] === 'root' ? keys.slice(1) : keys;
 };
 
 /** 点击测试：点阵则弹出找字测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
@@ -1327,30 +1467,6 @@ const handleDelete = (node) => {
     .catch(() => {});
 };
 
-const handleAdd = () => {
-  if (selectedCascader.value[0] === "界面") {
-    data.value[selectedName.value] = {
-      查找区域: "",
-      相似度: 0.9,
-      状态: {},
-      按钮: {},
-      滑动区域: {},
-      识字区域: {}
-    };
-  } else if (selectedCascader.value[0] === "按钮(固定区域)") {
-    data.value[selectedCascader.value[1]]["按钮"][selectedName.value] = "";
-  } else if (selectedCascader.value[0] === "按钮(点阵识别)") {
-    data.value[selectedCascader.value[1]]["按钮"][selectedName.value] = {
-      查找区域: "",
-      相似度: 0.9,
-    };
-  } else {
-    data.value[selectedCascader.value[1]]["状态"][selectedName.value] = {
-      查找区域: "",
-      相似度: 0.9,
-    };
-  }
-};
 
 onMounted(() => {
   loadConfigPathFromDB();
@@ -1392,7 +1508,7 @@ defineExpose({
 }
 
 .config-tab-container :deep(.vjs-tree-node__content) {
-  /* line-height: 1.5; */
+  line-height: 1.5;
 }
 
 .config-tab-container :deep(.vjs-tree-node) {
