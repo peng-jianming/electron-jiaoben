@@ -1,6 +1,8 @@
 """
 ADB 控制器 - 封装 ADB 命令实现截图和点击功能
 """
+import socket
+import struct
 import subprocess
 import time
 import random
@@ -19,12 +21,140 @@ class ADB控制器类:
         """
         self.设备ID = 设备ID
         self._命令前缀 = self._构建命令前缀()
+        self._adb_host = "127.0.0.1"
+        self._adb_port = 5037
 
     def _构建命令前缀(self):
         """构建 ADB 命令前缀"""
         if self.设备ID:
             return f'"{ADB路径}" -s {self.设备ID}'
         return f'"{ADB路径}"'
+
+    # ====================== ADB Socket 协议 ======================
+    # 直接通过 TCP socket 与 ADB server (localhost:5037) 通信，
+    # 避免每次截图都 spawn 子进程，30 设备并发时性能提升显著。
+    #
+    # 注意: ADB 协议中 exec: 命令是一次性的——数据读完后连接即终止,
+    # 无法在同一连接上执行第二条命令, 因此每次截图需新建连接。
+    # 但 localhost TCP 建连仅 ~0.1ms, 远低于 subprocess 的 ~20-60ms。
+
+    def _adb_socket_connect(self):
+        """创建到 ADB server 的 TCP 连接（localhost 建连约 0.1ms）"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect((self._adb_host, self._adb_port))
+        return sock
+
+    def _adb_send(self, sock, 命令字符串):
+        """按 ADB 协议格式发送命令: 4 字节十六进制长度 + 命令内容"""
+        编码命令 = 命令字符串.encode("utf-8")
+        sock.sendall(f"{len(编码命令):04x}".encode("utf-8") + 编码命令)
+
+    def _adb_read_status(self, sock):
+        """
+        读取 ADB server 的应答状态。
+        返回 (是否成功, 失败时的错误信息)
+        """
+        状态 = sock.recv(4)
+        if 状态 == b"OKAY":
+            return True, ""
+        if 状态 == b"FAIL":
+            长度 = int(sock.recv(4), 16)
+            return False, sock.recv(长度).decode("utf-8", errors="replace")
+        return False, f"未知状态: {状态!r}"
+
+    def _adb_recv_all(self, sock):
+        """读取 socket 直到 EOF，返回全部字节"""
+        chunks = []
+        while True:
+            try:
+                data = sock.recv(65536)
+                if not data:
+                    break
+                chunks.append(data)
+            except socket.timeout:
+                break
+        return b"".join(chunks)
+
+    def 截图到内存_socket(self):
+        """
+        通过 ADB socket 协议直接获取原始截图数据（raw RGBA）。
+        不创建子进程，30 设备并发时性能远优于 subprocess 方案，
+        且不占用硬件编码器，不与群控软件冲突。
+
+        返回:
+            原始字节数据（12 字节头 + RGBA 像素），失败返回 None
+        """
+        sock = None
+        try:
+            sock = self._adb_socket_connect()
+
+            # 1) 选择目标设备
+            if self.设备ID:
+                self._adb_send(sock, f"host:transport:{self.设备ID}")
+            else:
+                self._adb_send(sock, "host:transport-any")
+            成功, 错误 = self._adb_read_status(sock)
+            if not 成功:
+                return None
+
+            # 2) 发送 exec 命令执行 screencap（不带 -p，输出 raw RGBA）
+            self._adb_send(sock, "exec:screencap")
+            成功, 错误 = self._adb_read_status(sock)
+            if not 成功:
+                return None
+
+            # 3) 读取全部原始数据
+            数据 = self._adb_recv_all(sock)
+            if len(数据) > 12:
+                return 数据
+            return None
+        except Exception:
+            return None
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+
+    def 截图到内存_socket_png(self):
+        """
+        通过 ADB socket 协议获取 PNG 格式截图。
+        比 raw 模式慢（设备端需 PNG 压缩），但数据量更小。
+
+        返回:
+            PNG 字节数据，失败返回 None
+        """
+        sock = None
+        try:
+            sock = self._adb_socket_connect()
+
+            if self.设备ID:
+                self._adb_send(sock, f"host:transport:{self.设备ID}")
+            else:
+                self._adb_send(sock, "host:transport-any")
+            成功, 错误 = self._adb_read_status(sock)
+            if not 成功:
+                return None
+
+            self._adb_send(sock, "exec:screencap -p")
+            成功, 错误 = self._adb_read_status(sock)
+            if not 成功:
+                return None
+
+            数据 = self._adb_recv_all(sock)
+            if 数据 and 数据[:4] == b"\x89PNG":
+                return 数据
+            return None
+        except Exception:
+            return None
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
 
     def _执行命令(self, 命令, shell=True):
         """

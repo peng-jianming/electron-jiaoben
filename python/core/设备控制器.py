@@ -27,32 +27,46 @@ class 设备控制器类:
         self.设备ID = 设备ID
         self.adb = ADB控制器类(设备ID)
 
+    def _raw字节转图像(self, raw字节):
+        """将 screencap raw RGBA 字节转为 PIL Image (RGB)"""
+        if not raw字节 or len(raw字节) <= 12:
+            return None
+        try:
+            宽, 高, _ = struct.unpack("<III", raw字节[:12])
+            预期长度 = 宽 * 高 * 4
+            像素字节 = raw字节[12:12 + 预期长度]
+            if 宽 > 0 and 高 > 0 and len(像素字节) >= 预期长度:
+                像素数组 = np.frombuffer(像素字节, dtype=np.uint8).reshape((高, 宽, 4))
+                return Image.fromarray(像素数组, mode="RGBA").convert("RGB")
+        except Exception:
+            pass
+        return None
+
     def 截图到内存(self):
         """
-        截图并直接返回 PIL Image 对象
+        截图并直接返回 PIL Image 对象。
+        优先级: socket raw → subprocess raw → subprocess PNG
 
         返回:
             PIL Image 对象，失败返回 None
         """
         try:
-            # 优先尝试 raw 模式（通常比 PNG 更快），失败自动回退 PNG。
-            raw字节 = self.adb.截图到内存_快速原始()
-            if raw字节 and len(raw字节) > 12:
-                try:
-                    宽, 高, _ = struct.unpack("<III", raw字节[:12])
-                    预期长度 = 宽 * 高 * 4
-                    像素字节 = raw字节[12:12 + 预期长度]
-                    if 宽 > 0 and 高 > 0 and len(像素字节) >= 预期长度:
-                        像素数组 = np.frombuffer(像素字节, dtype=np.uint8).reshape((高, 宽, 4))
-                        图像RGBA = Image.fromarray(像素数组, mode="RGBA")
-                        return 图像RGBA.convert("RGB")
-                except Exception:
-                    pass
+            # 1) 最快: socket 直连 ADB server，无子进程开销
+            raw字节 = self.adb.截图到内存_socket()
+            图像 = self._raw字节转图像(raw字节)
+            if 图像:
+                return 图像
 
+            # 2) 次快: subprocess raw（兜底）
+            raw字节 = self.adb.截图到内存_快速原始()
+            图像 = self._raw字节转图像(raw字节)
+            if 图像:
+                return 图像
+
+            # 3) 最慢: subprocess PNG（最终兜底）
             图像字节 = self.adb.截图到内存()
             if 图像字节 is None:
                 return None
-
             图像 = Image.open(BytesIO(图像字节))
             图像.load()
             return 图像.convert("RGB")
