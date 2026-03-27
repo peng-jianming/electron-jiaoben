@@ -473,6 +473,7 @@ const handleDeleteLibraryResource = async ({ type, name } = {}) => {
 
 // 处理从 ConfigTab 发起的“添加图片到图片库”请求
 const handleAddImageToLibrary = async (payload) => {
+  const savedTab = activeTab.value;
   try {
     const { name, selectionRect, currentImageUrl } = payload || {};
     if (!currentImageUrl) {
@@ -549,7 +550,11 @@ const handleAddImageToLibrary = async (payload) => {
     });
   } catch (error) {
     console.error("添加图片到图片库失败:", error);
-    // 这里的错误提示已经在内部处理，大多数情况下不需要重复提示
+  } finally {
+    await nextTick();
+    if (activeTab.value !== savedTab) {
+      activeTab.value = savedTab;
+    }
   }
 };
 </script>

@@ -237,7 +237,12 @@ def 保存图片到图片库(data):
             except Exception as e:
                 print(f"保存图片到图片库: 加载现有图片库失败，将创建新的文件: {e}")
 
-        # 使用名称作为键；如果同名则覆盖
+        # 同名键自动追加短后缀，支持同一配置项存多张图片
+        original_name = name
+        counter = 1
+        while name in arrays:
+            name = f"{original_name}_{counter}"
+            counter += 1
         arrays[name] = img_to_save
 
         # 保存为压缩 npz

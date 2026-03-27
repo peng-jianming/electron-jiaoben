@@ -796,13 +796,12 @@ watch(
 
 /**
  * 判断资源名是否与待删除名匹配：
- * - 待删除名无下划线：精确匹配 或 带下划线名称的第一段相同（如 111 匹配 111、111_222_333）
- * - 待删除名有下划线：仅精确匹配
+ * - 统一按“配置名前缀族”删除：精确匹配 或 以 `${nameToDelete}_` 开头
+ * - 例如：删除 `a_b` 时，同时删除 `a_b`、`a_b_1`、`a_b_2`
  */
 function nameMatchesDeletion(itemName, nameToDelete) {
   const n = (itemName || "").trim();
   const t = nameToDelete.trim();
-  if (t.includes("_")) return n === t;
   return n === t || n.startsWith(t + "_");
 }
 
@@ -834,7 +833,16 @@ defineExpose({
   addImageItemFromConfig: async (payload) => {
     const { name, width, height, base64 } = payload || {};
     if (!base64) return false;
-    const displayName = (name || `图片${imageList.value.length + 1}`).trim();
+    const baseName = (name || `图片${imageList.value.length + 1}`).trim();
+    const existingNames = new Set(imageList.value.map(item => (item.name || "").trim()));
+    let displayName = baseName;
+    if (existingNames.has(displayName)) {
+      let counter = 1;
+      while (existingNames.has(`${baseName}_${counter}`)) {
+        counter++;
+      }
+      displayName = `${baseName}_${counter}`;
+    }
     const fullUrl = `data:image/png;base64,${base64}`;
     const newItem = {
       id: Date.now() + Math.random(),
@@ -846,21 +854,7 @@ defineExpose({
       thumbUrl: fullUrl,
       rawBase64: base64,
     };
-    const existingIndex = imageList.value.findIndex((item) => (item.name || "").trim() === displayName);
-    if (existingIndex !== -1) {
-      try {
-        await ElMessageBox.confirm(`同名「${displayName}」已存在，是否覆盖？`, "同名确认", {
-          confirmButtonText: "覆盖",
-          cancelButtonText: "取消",
-          type: "warning",
-        });
-      } catch {
-        return false;
-      }
-      imageList.value.splice(existingIndex, 1, newItem);
-    } else {
-      imageList.value.push(newItem);
-    }
+    imageList.value.push(newItem);
     return true;
   },
 });
