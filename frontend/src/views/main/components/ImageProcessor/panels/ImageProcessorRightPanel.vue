@@ -446,9 +446,9 @@ const handleOpenImageTest = ({ name, similarity, region } = {}) => {
     similarity,
     region,
   });
-  if (opened === true) {
-    activeTab.value = "image-library";
-  }
+  // if (opened === true) {
+  //   activeTab.value = "image-library";
+  // }
 };
 
 // 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）

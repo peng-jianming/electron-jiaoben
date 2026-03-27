@@ -249,6 +249,7 @@ const resultImageUrl = ref(null);
 const screenshotLoading = ref(false);
 const isScreenshotPending = ref(false);
 const currentTemplateBase64 = ref("");
+const currentTemplateCandidates = ref([]);
 
 function initImageSocket() {
   if (imageSocket) {
@@ -501,24 +502,37 @@ function openTestByImageName(name, options = {}) {
     ElMessage.warning("图片名不能为空");
     return false;
   }
-  const row = imageList.value.find(
-    (item) => (item.name || "").trim() === trimmedName
+  const escaped = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^${escaped}(?:_\\d+)?$`);
+  const matchedRows = imageList.value.filter((item) =>
+    pattern.test((item.name || "").trim())
   );
-  if (!row) {
-    ElMessage.warning(`图片库中未找到名为「${trimmedName}」的图片`);
+  if (!matchedRows.length) {
+    ElMessage.warning(`图片库中未找到名为「${trimmedName}」或「${trimmedName}_数字」的图片`);
     return false;
   }
-  openTestWithRow(row, options);
+  openTestWithRows(matchedRows, options);
   return true;
 }
 
 function openTestWithRow(row, options = {}) {
-  currentTestRow.value = row;
+  openTestWithRows([row], options);
+}
+
+function openTestWithRows(rows, options = {}) {
+  const validRows = (rows || []).filter((row) => row && row.fullUrl);
+  if (!validRows.length) {
+    ElMessage.error("当前模板图片数据无效，无法测试");
+    return;
+  }
+  currentTemplateCandidates.value = validRows;
+  const firstRow = validRows[0];
+  currentTestRow.value = firstRow;
   // 记录模板 base64（去掉 data URL 前缀）
-  if (row.rawBase64) {
-    currentTemplateBase64.value = row.rawBase64;
-  } else if (row.fullUrl && row.fullUrl.includes(",")) {
-    currentTemplateBase64.value = row.fullUrl.split(",")[1] || "";
+  if (firstRow.rawBase64) {
+    currentTemplateBase64.value = firstRow.rawBase64;
+  } else if (firstRow.fullUrl && firstRow.fullUrl.includes(",")) {
+    currentTemplateBase64.value = firstRow.fullUrl.split(",")[1] || "";
   } else {
     currentTemplateBase64.value = "";
   }
@@ -610,7 +624,7 @@ function handleDeviceScreenshot(data) {
 }
 
 async function handleMatch() {
-  if (!currentTemplateBase64.value) {
+  if (!currentTemplateCandidates.value.length) {
     ElMessage.warning("当前模板图片数据无效");
     return;
   }
@@ -648,9 +662,19 @@ async function handleMatch() {
       }
     }
 
+    const templateImages = currentTemplateCandidates.value
+      .map((item) => {
+        const itemBase64 =
+          item.rawBase64 ||
+          (item.fullUrl && item.fullUrl.includes(",") ? item.fullUrl.split(",")[1] : "");
+        if (!itemBase64) return null;
+        return { name: item.name || "", image: itemBase64 };
+      })
+      .filter(Boolean);
+
     await ipc.invoke(ipcApiRoute.sendToPython, {
       type: "image_library_match",
-      templateImage: currentTemplateBase64.value,
+      templateImages,
       largeImage: largeBase64,
       region,
       similarity: similarity.value,

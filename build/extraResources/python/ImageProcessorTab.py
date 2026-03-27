@@ -266,41 +266,24 @@ def 保存图片到图片库(data):
 def 图片库模板匹配(data):
     """
     使用图片库中的模板进行 OpenCV 模板匹配。
-    为了与新架构解耦，这里只支持前端同时提供：
-      - templateImage: 模板图片 base64
+    仅支持前端提供：
+      - templateImages: 模板图片数组，元素为 {name, image}
       - largeImage:    大图 base64
     返回事件: image-match-result
     """
     try:
-        template_b64 = data.get("templateImage")
+        template_images = data.get("templateImages") or []
         large_b64 = data.get("largeImage")
         region = data.get("region") or None
         similarity_threshold = float(data.get("similarity", 0.8))
 
-        if not template_b64:
+        if not isinstance(template_images, list) or not template_images:
             return _构造事件结果(
                 "image-match-result",
                 {"success": False, "error": "缺少模板图片数据"},
             )
 
         # 解码大图：优先使用前端传入的 base64，否则自动截图
-
-        # 解码模板图片
-        try:
-            tmpl_bytes = base64.b64decode(template_b64)
-            tmpl_arr = np.frombuffer(tmpl_bytes, np.uint8)
-            template_img = cv2.imdecode(tmpl_arr, cv2.IMREAD_COLOR)
-        except Exception as e:
-            return _构造事件结果(
-                "image-match-result",
-                {"success": False, "error": f"解码模板图片失败: {e}"},
-            )
-
-        if template_img is None:
-            return _构造事件结果(
-                "image-match-result",
-                {"success": False, "error": "无法解码模板图片"},
-            )
 
         large_img = None
         if large_b64:
@@ -355,21 +338,49 @@ def 图片库模板匹配(data):
                 int(region.get("h", 0)),
             )
 
-        # 执行模板匹配
-        match = opencv模板匹配(large_img, template_img, region=region_tuple)
+        # 逐个模板匹配：命中一个达到阈值即返回，不再继续
+        match = None
+        matched_template_name = ""
+        best_similarity = -1.0
+        for idx, item in enumerate(template_images):
+            if not isinstance(item, dict):
+                continue
+            cur_name = str(item.get("name") or "")
+            cur_b64 = item.get("image")
+            if not cur_b64:
+                continue
+            try:
+                tmpl_bytes = base64.b64decode(cur_b64)
+                tmpl_arr = np.frombuffer(tmpl_bytes, np.uint8)
+                template_img = cv2.imdecode(tmpl_arr, cv2.IMREAD_COLOR)
+            except Exception as e:
+                print(f"解码模板图片失败 idx={idx}, name={cur_name}, err={e}")
+                continue
+            if template_img is None:
+                continue
+            cur_match = opencv模板匹配(large_img, template_img, region=region_tuple)
+            if not cur_match:
+                continue
+            cur_similarity = float(cur_match.get("similarity", 0))
+            if cur_similarity > best_similarity:
+                best_similarity = cur_similarity
+            if cur_similarity >= similarity_threshold:
+                match = cur_match
+                matched_template_name = cur_name
+                break
+
         if not match:
+            if best_similarity >= 0:
+                return _构造事件结果(
+                    "image-match-result",
+                    {
+                        "success": False,
+                        "error": f"未找到满足阈值的匹配，最高相似度: {best_similarity:.4f} < 阈值 {similarity_threshold:.4f}",
+                    },
+                )
             return _构造事件结果(
                 "image-match-result",
                 {"success": False, "error": "未找到匹配位置"},
-            )
-
-        if match.get("similarity", 0) < similarity_threshold:
-            return _构造事件结果(
-                "image-match-result",
-                {
-                    "success": False,
-                    "error": f"匹配相似度不足: {match.get('similarity', 0):.4f} < 阈值 {similarity_threshold:.4f}",
-                },
             )
 
         # 绘制结果矩形
@@ -415,6 +426,7 @@ def 图片库模板匹配(data):
             "success": True,
             "result": match,
             "resultImage": base64.b64encode(buffer).decode("utf-8"),
+            "matchedTemplateName": matched_template_name,
         }
         return _构造事件结果("image-match-result", message)
 
