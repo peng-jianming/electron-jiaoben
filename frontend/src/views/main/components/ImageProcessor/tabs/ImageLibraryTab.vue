@@ -101,6 +101,7 @@
       width="600px"
       destroy-on-close
       :close-on-click-modal="false"
+      append-to-body
     >
       <div class="test-dialog-body">
         <el-form size="small" label-width="60px">
