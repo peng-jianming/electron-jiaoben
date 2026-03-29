@@ -52,10 +52,10 @@ class 设备控制器类:
         """
         try:
             # 1) 最快: socket 直连 ADB server，无子进程开销
-            # raw字节 = self.adb.截图到内存_socket()
-            # 图像 = self._raw字节转图像(raw字节)
-            # if 图像:
-            #     return 图像
+            raw字节 = self.adb.截图到内存_socket()
+            图像 = self._raw字节转图像(raw字节)
+            if 图像:
+                return 图像
 
             # 2) 次快: subprocess raw（兜底）
             raw字节 = self.adb.截图到内存_快速原始()

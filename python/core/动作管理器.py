@@ -45,11 +45,12 @@ class 动作管理器类:
         self.上次点击时间 = 0
         self.点击间隔 = None
 
-    def 查找(self):
+    def 查找(self, 新截图=False):
         """执行查找"""
         if not self.查找字符串:
             return self
-
+        if 新截图:
+            self._截图上下文.新轮次()
         截图 =  self.大图路径 if self.大图路径 else self._截图上下文.获取截图()
         self.x = 0
         self.y = 0
@@ -154,8 +155,8 @@ class 动作管理器类:
         else:  
             return bool(self.x and self.y)
 
-    def 找到则点击(self, 延时=(0.5, 1), 日志=None) -> bool:
-        return self.查找().点击(日志, 延时).是否找到()
+    def 找到则点击(self, 延时=(0.5, 1), 日志=None, 新截图=False) -> bool:
+        return self.查找(新截图).点击(日志, 延时).是否找到()
 
     def 直接点击(self, 延时=(0.5, 1), 日志=None) -> bool:
         return self.点击(日志, 延时).是否找到()
