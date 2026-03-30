@@ -5,6 +5,7 @@ import time
 import random
 import importlib
 import subprocess
+import re
 import numpy as np
 from PIL import Image
 
@@ -240,7 +241,7 @@ class 任务管理器类:
         return self.字库缓存
 
     def 加载图片库文件(self, 图片库文件路径):
-        """加载图片库文件（.npz 格式），键为图片名，值为模板图像数组，供模板匹配找图使用。"""
+        """加载图片库文件（.npz 格式），键为基础图片名，值为模板图像数组列表。"""
         self.图片库缓存 = {}
         if not 图片库文件路径 or not os.path.isfile(图片库文件路径):
             self.更新数据("日志", "图片库文件不存在，跳过加载")
@@ -248,9 +249,13 @@ class 任务管理器类:
         try:
             data = np.load(图片库文件路径, allow_pickle=False)
             for 名称 in data.files:
-                self.图片库缓存[名称] = np.asarray(data[名称])
+                基础名称 = re.sub(r"_\d+$", "", 名称)
+                if 基础名称 not in self.图片库缓存:
+                    self.图片库缓存[基础名称] = []
+                self.图片库缓存[基础名称].append(np.asarray(data[名称]))
             data.close()
-            self.更新数据("日志", f"成功加载 {len(self.图片库缓存)} 张图片到图片库缓存")
+            模板总数 = sum(len(v) for v in self.图片库缓存.values())
+            self.更新数据("日志", f"成功加载 {len(self.图片库缓存)} 组图片，共 {模板总数} 张模板到图片库缓存")
         except Exception as e:
             self.更新数据("日志", f"加载图片库文件失败: {e}")
 

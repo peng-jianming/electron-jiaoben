@@ -141,7 +141,7 @@ class 动作管理器类:
         return self
 
     def 设置图片库(self, 图片库集合):
-        self.图片库集合 = 图片库集合 or {}
+        self.图片库集合 = 图片库集合
         return self
 
     def 设置模型(self, 模型):
@@ -314,9 +314,9 @@ class 动作管理器类:
             self.更新数据("日志", f"未找到图片库: {图片名}")
             return None
 
-        模板 = self.图片库集合[图片名]
-        if 模板 is None or not hasattr(模板, 'shape'):
-            self.更新数据("日志", f"图片库 {图片名} 的模板无效")
+        模板列表 = self.图片库集合[图片名]
+        if not isinstance(模板列表, list) or not 模板列表:
+            self.更新数据("日志", f"图片库 {图片名} 的模板列表无效")
             return None
 
         # 大图转 numpy
@@ -354,32 +354,37 @@ class 动作管理器类:
             搜索区域 = 大图数组[裁剪y: 裁剪y + 裁剪高, 裁剪x: 裁剪x + 裁剪宽]
             偏移x, 偏移y = 裁剪x, 裁剪y
 
-        # 模板与搜索区域通道一致（灰度或 BGR）
-        if len(模板.shape) == 2:
-            搜索图 = cv2.cvtColor(搜索区域, cv2.COLOR_BGR2GRAY)
-            模板图 = np.asarray(模板, dtype=np.uint8)
-        else:
-            模板图 = np.asarray(模板, dtype=np.uint8)
-            if 模板图.shape[2] != 搜索区域.shape[2]:
+        # 遍历同名模板列表，命中任一模板即返回
+        for 模板 in 模板列表:
+            if 模板 is None or not hasattr(模板, "shape"):
+                continue
+
+            # 模板与搜索区域通道一致（灰度或 BGR）
+            if len(模板.shape) == 2:
                 搜索图 = cv2.cvtColor(搜索区域, cv2.COLOR_BGR2GRAY)
-                模板图 = cv2.cvtColor(模板图, cv2.COLOR_BGR2GRAY)
+                模板图 = np.asarray(模板, dtype=np.uint8)
             else:
-                搜索图 = 搜索区域
-                模板图 = 模板图
+                模板图 = np.asarray(模板, dtype=np.uint8)
+                if 模板图.shape[2] != 搜索区域.shape[2]:
+                    搜索图 = cv2.cvtColor(搜索区域, cv2.COLOR_BGR2GRAY)
+                    模板图 = cv2.cvtColor(模板图, cv2.COLOR_BGR2GRAY)
+                else:
+                    搜索图 = 搜索区域
+                    模板图 = 模板图
 
-        if 模板图.shape[0] > 搜索图.shape[0] or 模板图.shape[1] > 搜索图.shape[1]:
-            return None
+            if 模板图.shape[0] > 搜索图.shape[0] or 模板图.shape[1] > 搜索图.shape[1]:
+                continue
 
-        匹配结果 = cv2.matchTemplate(搜索图, 模板图, cv2.TM_CCOEFF_NORMED)
-        最小值, 最大值, 最小位置, 最大位置 = cv2.minMaxLoc(匹配结果)
+            匹配结果 = cv2.matchTemplate(搜索图, 模板图, cv2.TM_CCOEFF_NORMED)
+            最小值, 最大值, 最小位置, 最大位置 = cv2.minMaxLoc(匹配结果)
 
-        if 最大值 >= 相似度:
-            模板高, 模板宽 = 模板图.shape[:2]
-            return {
-                "x": 最大位置[0] + 偏移x,
-                "y": 最大位置[1] + 偏移y,
-                "w": 模板宽,
-                "h": 模板高,
-                "相似度": float(最大值),
-            }
+            if 最大值 >= 相似度:
+                模板高, 模板宽 = 模板图.shape[:2]
+                return {
+                    "x": 最大位置[0] + 偏移x,
+                    "y": 最大位置[1] + 偏移y,
+                    "w": 模板宽,
+                    "h": 模板高,
+                    "相似度": float(最大值),
+                }
         return None
