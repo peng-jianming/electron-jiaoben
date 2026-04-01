@@ -1,224 +1,349 @@
-"""
-视频帧（低延迟）：通过 scrcpy-core（内置 scrcpy 3.1 服务端 + PyAV）取流，不弹投屏窗口。
-备用：可用项目内 ADB 截图（较慢）。
-"""
-import os
-import sys
+import ctypes
+from ctypes import wintypes
 import time
-
-_ROOT = os.path.dirname(os.path.abspath(__file__))
-_PYTHON = os.path.join(_ROOT, "python")
-if _PYTHON not in sys.path:
-    sys.path.insert(0, _PYTHON)
 
 import cv2
 import numpy as np
-from PIL import Image
+import win32gui
 
-from core.Scrcpy视频流 import Scrcpy视频流类
-from 设置 import 缓存目录
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
 
-_DEFAULT_SCRCPY_DIR = os.path.join(_ROOT, "python", "scrcpy")
-_DEFAULT_DEBUG_DIR = os.path.join(缓存目录, "aaa调试截图")
-
-
-class 设备视频流会话类:
-    """
-    绑定一台设备，通过 scrcpy-core 建立视频流后，可反复调用 获取当前视频帧()（无需每次重连）。
-
-    用法::
-
-        cam = 设备视频流会话类("9a8de478")
-        cam.开始()
-        try:
-            for _ in range(100):
-                bgr = cam.获取当前视频帧()
-        finally:
-            cam.关闭()
-
-    或使用 with::
-
-        with 设备视频流会话类("9a8de478") as cam:
-            bgr = cam.获取当前视频帧()
-    """
-
-    def __init__(
-        self,
-        设备ID,
-        *,
-        scrcpy目录=None,
-        max_size=None,
-        video_bit_rate=16_000_000,
-        本机端口=None,
-    ):
-        self.设备ID = 设备ID
-        self._流 = None
-        self._kw = dict(
-            设备ID=设备ID,
-            scrcpy目录=scrcpy目录 or _DEFAULT_SCRCPY_DIR,
-            max_size=max_size,
-            video_bit_rate=video_bit_rate,
-            本机端口=本机端口,
-        )
-
-    def 开始(self) -> None:
-        if self._流 is not None:
-            return
-        self._流 = Scrcpy视频流类(**self._kw)
-        self._流.开始()
-
-    def 关闭(self) -> None:
-        if self._流 is not None:
-            self._流.停止()
-            self._流 = None
-
-    @property
-    def 已连接(self) -> bool:
-        return self._流 is not None and getattr(self._流, "_已启动", False)
-
-    def 获取当前视频帧(self, 丢弃旧帧=True, 最多丢弃=256):
-        """
-        取尽量新的一帧 BGR ndarray；未启动时会自动 开始()。
-        流断开或解码失败时返回 None。
-
-        间隔较久再取帧时，应保留默认 丢弃旧帧=True，否则会读到解码队列里的旧画面。
-        """
-        self.开始()
-        return self._流.读取一帧(丢弃旧帧=丢弃旧帧, 最多丢弃=最多丢弃)
-
-    def __enter__(self):
-        self.开始()
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        self.关闭()
-        return False
+SRCCOPY = 0x00CC0020
+BI_RGB = 0
+DIB_RGB_COLORS = 0
+INPUT_MOUSE = 0
+MOUSEEVENTF_MOVE = 0x0001
 
 
-def _调试输出截图(
-    图像,
-    *,
-    前缀="帧",
-    保存目录=None,
-    显示窗口=False,
-    保存格式="bmp",
-):
-    """
-    将 BGR ndarray 或 PIL(RGB) 落盘；默认 BMP（无压缩位图，体积大但无保存损）。
-    保存格式 \"png\" 时为无损 PNG（zlib 仅打包像素，不改变画质）。
-    """
-    目录 = 保存目录 or _DEFAULT_DEBUG_DIR
-    os.makedirs(目录, exist_ok=True)
-    fmt = (保存格式 or "bmp").lower().lstrip(".")
-    if fmt not in ("bmp", "png"):
-        fmt = "bmp"
-    名 = time.strftime(f"{前缀}_%Y%m%d_%H%M%S.{fmt}")
-    路径 = os.path.abspath(os.path.join(目录, "1.png"))
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ("biSize", wintypes.DWORD),
+        ("biWidth", wintypes.LONG),
+        ("biHeight", wintypes.LONG),
+        ("biPlanes", wintypes.WORD),
+        ("biBitCount", wintypes.WORD),
+        ("biCompression", wintypes.DWORD),
+        ("biSizeImage", wintypes.DWORD),
+        ("biXPelsPerMeter", wintypes.LONG),
+        ("biYPelsPerMeter", wintypes.LONG),
+        ("biClrUsed", wintypes.DWORD),
+        ("biClrImportant", wintypes.DWORD),
+    ]
 
-    if isinstance(图像, np.ndarray):
-        预览 = 图像
-        if fmt == "bmp":
-            ok, buf = cv2.imencode(".bmp", 图像)
-        else:
-            ok, buf = cv2.imencode(
-                ".png",
-                图像,
-                [cv2.IMWRITE_PNG_COMPRESSION, 0],
-            )
-        if not ok:
-            print(f"[调试] {fmt.upper()} 编码失败，未写入文件")
-            return
-        with open(路径, "wb") as f:
-            f.write(buf.tobytes())
-    elif isinstance(图像, Image.Image):
-        rgb = 图像.convert("RGB")
-        预览 = cv2.cvtColor(np.array(rgb), cv2.COLOR_RGB2BGR)
-        with open(路径, "wb") as f:
-            if fmt == "bmp":
-                rgb.save(f, format="BMP")
+
+class BITMAPINFO(ctypes.Structure):
+    _fields_ = [
+        ("bmiHeader", BITMAPINFOHEADER),
+        ("bmiColors", wintypes.DWORD * 3),
+    ]
+
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouseData", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("dwExtraInfo", ctypes.c_size_t),
+    ]
+
+
+class _INPUTUNION(ctypes.Union):
+    _fields_ = [("mi", MOUSEINPUT)]
+
+
+class INPUT(ctypes.Structure):
+    _anonymous_ = ("u",)
+    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+
+
+class POINT(ctypes.Structure):
+    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+
+
+SendInput = user32.SendInput
+SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
+SendInput.restype = wintypes.UINT
+GetCursorPos = user32.GetCursorPos
+GetCursorPos.argtypes = (ctypes.POINTER(POINT),)
+GetCursorPos.restype = wintypes.BOOL
+
+
+class WindowTool:
+    def __init__(self, hwnd: int):
+        if not win32gui.IsWindow(hwnd):
+            raise ValueError(f"无效窗口句柄: {hwnd}")
+        self.hwnd = hwnd
+
+    def _normalize_rect(self, x1, y1, x2, y2):
+        left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
+        client_w, client_h = right - left, bottom - top
+        if client_w <= 0 or client_h <= 0:
+            raise RuntimeError("窗口客户区尺寸无效，无法截图")
+
+        if x1 is None or y1 is None or x2 is None or y2 is None:
+            x1, y1, x2, y2 = 0, 0, client_w, client_h
+
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(client_w, x2)
+        y2 = min(client_h, y2)
+
+        width = x2 - x1
+        height = y2 - y1
+        if width <= 0 or height <= 0:
+            raise ValueError("截图区域无效，请检查 x1/y1/x2/y2")
+
+        return x1, y1, width, height
+
+    def _get_mouse_path(current_x, current_y, target_x, target_y, min_n=10):
+        trajectory = []
+        dct = {
+            550: 1,
+            300: 2.1,
+            200: 2.2,
+            150: 2.3,
+            100: 2.4,
+            50: 2.55,
+            25: 2.58,
+            0: 2.6,
+        }
+        step_v = 2
+        while True:
+            distance = ((target_x - current_x) ** 2 + (target_y - current_y) ** 2) ** 0.5
+            if distance <= min_n:
+                break
+            for k, v in dct.items():
+                if distance > k:
+                    move_distance = distance / (v + step_v)
+                    break
             else:
-                rgb.save(f, format="PNG", compress_level=0)
-    else:
-        print(f"[调试] 不支持的图像类型: {type(图像)}")
-        return
+                move_distance = 1
 
-    if os.path.isfile(路径):
-        print(f"[调试] 截图已保存: {路径}")
-    else:
-        print(f"[调试] 写入后未找到文件，请检查路径权限: {路径}")
+            direction_x = (target_x - current_x) / distance
+            direction_y = (target_y - current_y) / distance
+            step_x = round(direction_x * move_distance)
+            step_y = round(direction_y * move_distance)
+            current_x += step_x
+            current_y += step_y
+            trajectory.append([step_x, step_y])
 
-    if 显示窗口:
-        cv2.imshow("aaa调试预览", 预览)
-        print("[调试] 预览窗口已打开，按任意键关闭…")
-        cv2.waitKey(0)
-        cv2.destroyWindow("aaa调试预览")
+        trajectory.append((target_x - current_x, target_y - current_y))
+        return trajectory
 
+    def _mouse_move_relative(dx: int, dy: int):
+        event = INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dx=dx, dy=dy, dwFlags=MOUSEEVENTF_MOVE))
+        sent = SendInput(1, ctypes.byref(event), ctypes.sizeof(INPUT))
+        if sent != 1:
+            raise ctypes.WinError(ctypes.get_last_error())
 
-def 获取当前视频帧(
-    设备ID=None,
-    scrcpy目录=None,
-    *,
-    max_size=None,
-    video_bit_rate=16_000_000,
-    调试=False,
-    调试保存目录=None,
-    调试显示窗口=False,
-    调试保存格式="bmp",
-):
-    """
-    取当前一帧（走 scrcpy 编码流，非 adb screencap）。
+    def move_mouse_relative(self, dx: int, dy: int, min_n: int = 10, interval: float = 0.002):
+        """
+        参考 get_mouse_path + MouseMoveRELATIVE 的平滑相对移动。
+        dx/dy 为总相对位移（屏幕坐标系）。
+        """
+        total_dx = int(dx)
+        total_dy = int(dy)
+        threshold = max(1, int(min_n))
+        delay = max(0.0, float(interval))
 
-    每次调用会建立/拆除一次流，约 1～2 秒开销；循环取帧请用 设备视频流会话类 或::
+        path = self._get_mouse_path(0, 0, total_dx, total_dy, threshold)
+        for step_x, step_y in path:
+            self._mouse_move_relative(int(step_x), int(step_y))
+            if delay > 0:
+                time.sleep(delay)
+        return path
 
-        with Scrcpy视频流类(设备ID, scrcpy目录) as v:
-            while True:
-                bgr = v.读取一帧()
+    def move_mouse_to_screen(self, x: int, y: int, min_n: int = 10, interval: float = 0.002):
+        """
+        从当前鼠标位置平滑移动到屏幕绝对坐标 (x, y)。
+        """
+        pt = POINT()
+        ok = GetCursorPos(ctypes.byref(pt))
+        if not ok:
+            raise ctypes.WinError(ctypes.get_last_error())
 
-    :param 设备ID: adb devices 序列号，单设备可 None。
-    :param scrcpy目录: 已忽略（兼容旧参数）；服务端由 scrcpy-core 自带。
-    :param max_size: 长边上限制（如 1280）；默认 None 为原机分辨率，更清晰。
-    :param video_bit_rate: H.264 码率；默认 16Mbps 减轻块糊，不需要可传 None。
-    :param 调试: 为 True 时落盘并打印绝对路径（默认目录见 设置.缓存目录/aaa调试截图）。
-    :param 调试保存目录: 覆盖默认调试保存目录。
-    :param 调试显示窗口: 为 True 时用 OpenCV 弹窗显示本帧（会先保存文件）。
-    :param 调试保存格式: \"bmp\"（默认，无压缩位图）或 \"png\"（无损 PNG）。
-    :return: numpy.ndarray (BGR, 与 OpenCV 一致)；失败返回 None。
-    """
-    try:
-        with Scrcpy视频流类(
-            设备ID=设备ID,
-            scrcpy目录=scrcpy目录 or _DEFAULT_SCRCPY_DIR,
-            max_size=max_size,
-            video_bit_rate=video_bit_rate,
-        ) as v:
-            帧 = v.读取一帧()
-        if 帧 is not None and (调试 or 调试显示窗口):
-            _调试输出截图(
-                帧,
-                前缀="视频帧",
-                保存目录=调试保存目录,
-                显示窗口=调试显示窗口,
-                保存格式=调试保存格式,
+        target_x = int(x)
+        target_y = int(y)
+        dx = target_x - int(pt.x)
+        dy = target_y - int(pt.y)
+        return self.move_mouse_relative(dx, dy, min_n=min_n, interval=interval)
+
+    def _bitmap_to_bgr(h_dc, h_bitmap, width, height) -> np.ndarray:
+        padding = (4 - (width * 3) % 4) % 4
+        line_size = width * 3 + padding
+        image_size = height * line_size
+
+        bmi = BITMAPINFO()
+        bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        bmi.bmiHeader.biWidth = width
+        bmi.bmiHeader.biHeight = -height
+        bmi.bmiHeader.biPlanes = 1
+        bmi.bmiHeader.biBitCount = 24
+        bmi.bmiHeader.biCompression = BI_RGB
+        bmi.bmiHeader.biSizeImage = image_size
+
+        buffer = ctypes.create_string_buffer(image_size)
+        scan_lines = gdi32.GetDIBits(
+            h_dc, h_bitmap, 0, height, buffer, ctypes.byref(bmi), DIB_RGB_COLORS
+        )
+        if scan_lines == 0:
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, line_size))
+        img_bgr = arr[:, : width * 3].reshape((height, width, 3))
+        return img_bgr.copy()
+
+    def move_window(self, x: int, y: int, repaint: bool = True):
+        """
+        移动窗口到指定屏幕坐标，保持窗口当前尺寸不变。
+        """
+        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
+        width = right - left
+        height = bottom - top
+        if width <= 0 or height <= 0:
+            raise RuntimeError("窗口尺寸无效，无法移动")
+
+        try:
+            win32gui.MoveWindow(self.hwnd, int(x), int(y), width, height, repaint)
+        except win32gui.error as e:
+            raise RuntimeError(f"移动窗口失败: {e}") from e
+        return win32gui.GetWindowRect(self.hwnd)
+
+    def resize_client_area(self, client_width: int, client_height: int, repaint: bool = True):
+        """
+        调整窗口客户区（工作区）尺寸，不改变当前窗口左上角位置。
+        """
+        client_width = int(client_width)
+        client_height = int(client_height)
+        if client_width <= 0 or client_height <= 0:
+            raise ValueError("客户区尺寸必须大于 0")
+
+        win_left, win_top, win_right, win_bottom = win32gui.GetWindowRect(self.hwnd)
+        cur_client_left, cur_client_top, cur_client_right, cur_client_bottom = win32gui.GetClientRect(
+            self.hwnd
+        )
+        cur_client_width = cur_client_right - cur_client_left
+        cur_client_height = cur_client_bottom - cur_client_top
+        if cur_client_width <= 0 or cur_client_height <= 0:
+            raise RuntimeError("当前客户区尺寸无效，无法调整")
+
+        frame_w = (win_right - win_left) - cur_client_width
+        frame_h = (win_bottom - win_top) - cur_client_height
+        target_window_w = client_width + frame_w
+        target_window_h = client_height + frame_h
+        if target_window_w <= 0 or target_window_h <= 0:
+            raise RuntimeError("计算后的窗口尺寸无效，请检查参数")
+
+        try:
+            win32gui.MoveWindow(
+                self.hwnd, win_left, win_top, target_window_w, target_window_h, repaint
             )
-        return 帧
-    except Exception as e:
-        print(f"取视频帧失败: {e}")
-        return None
+        except win32gui.error as e:
+            raise RuntimeError(f"调整客户区尺寸失败: {e}") from e
+        return win32gui.GetClientRect(self.hwnd)
 
+    def capture_background(self, x1=None, y1=None, x2=None, y2=None) -> np.ndarray:
+        x1, y1, width, height = self._normalize_rect(x1, y1, x2, y2)
 
-def 视频帧转pil(bgr: np.ndarray):
-    """BGR numpy -> PIL RGB。"""
-    if bgr is None:
-        return None
-    rgb = bgr[:, :, ::-1]
-    return Image.fromarray(rgb)
+        h_wnd_dc = user32.GetDC(self.hwnd)
+        if not h_wnd_dc:
+            raise ctypes.WinError(ctypes.get_last_error())
 
+        h_mem_dc = gdi32.CreateCompatibleDC(h_wnd_dc)
+        if not h_mem_dc:
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        h_bitmap = gdi32.CreateCompatibleBitmap(h_wnd_dc, width, height)
+        if not h_bitmap:
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
+        if not old_obj:
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        try:
+            ok = gdi32.BitBlt(h_mem_dc, 0, 0, width, height, h_wnd_dc, x1, y1, SRCCOPY)
+            if not ok:
+                raise ctypes.WinError(ctypes.get_last_error())
+            return self._bitmap_to_bgr(h_mem_dc, h_bitmap, width, height)
+        finally:
+            gdi32.SelectObject(h_mem_dc, old_obj)
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+
+    def capture_foreground(self, x1=None, y1=None, x2=None, y2=None) -> np.ndarray:
+        x1, y1, width, height = self._normalize_rect(x1, y1, x2, y2)
+        screen_x, screen_y = win32gui.ClientToScreen(self.hwnd, (0, 0))
+        src_x = screen_x + x1
+        src_y = screen_y + y1
+
+        screen_w = user32.GetSystemMetrics(0)
+        screen_h = user32.GetSystemMetrics(1)
+        if src_x >= screen_w:
+            raise ValueError(f"起始坐标超过屏幕横轴 {src_x} >= {screen_w}")
+        if src_y >= screen_h:
+            raise ValueError(f"起始坐标超过屏幕纵轴 {src_y} >= {screen_h}")
+
+        h_screen_dc = user32.GetDC(0)
+        if not h_screen_dc:
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        h_mem_dc = gdi32.CreateCompatibleDC(h_screen_dc)
+        if not h_mem_dc:
+            user32.ReleaseDC(0, h_screen_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        h_bitmap = gdi32.CreateCompatibleBitmap(h_screen_dc, width, height)
+        if not h_bitmap:
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(0, h_screen_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
+        if not old_obj:
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(0, h_screen_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        try:
+            ok = gdi32.BitBlt(h_mem_dc, 0, 0, width, height, h_screen_dc, src_x, src_y, SRCCOPY)
+            if not ok:
+                raise ctypes.WinError(ctypes.get_last_error())
+            return self._bitmap_to_bgr(h_mem_dc, h_bitmap, width, height)
+        finally:
+            gdi32.SelectObject(h_mem_dc, old_obj)
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(0, h_screen_dc)
 
 
 if __name__ == "__main__":
-    # 示例：长会话多帧（请把设备 ID 改成你的）
-    with 设备视频流会话类("9a8de478") as cam:
-        while True:
-            帧 = cam.获取当前视频帧()
-            _调试输出截图(帧,前缀="视频帧")
-            time.sleep(1) 
+    # 示例：把下面这个句柄替换为你自己的窗口句柄（十进制整数）
+    target_hwnd = 134528
+
+    if target_hwnd == 0:
+        raise SystemExit("请先把 target_hwnd 改成目标窗口句柄")
+
+    cap = WindowTool(target_hwnd)
+    # 前台截图（可见内容）
+    # frame = cap.capture_foreground()
+    # 后台截图（窗口 DC）
+    cap.move_mouse_to_screen(100, 100)
+    # frame = cap.resize_client_area(700,700)
+    # frame = cap.capture_background()
+
+    
+    # cv2.imshow("window_capture", frame)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
