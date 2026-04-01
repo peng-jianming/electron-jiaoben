@@ -14,6 +14,8 @@ BI_RGB = 0
 DIB_RGB_COLORS = 0
 INPUT_MOUSE = 0
 MOUSEEVENTF_MOVE = 0x0001
+PW_CLIENTONLY = 0x00000001
+PW_RENDERFULLCONTENT = 0x00000002
 
 
 class BITMAPINFOHEADER(ctypes.Structure):
@@ -69,6 +71,9 @@ SendInput.restype = wintypes.UINT
 GetCursorPos = user32.GetCursorPos
 GetCursorPos.argtypes = (ctypes.POINTER(POINT),)
 GetCursorPos.restype = wintypes.BOOL
+PrintWindow = user32.PrintWindow
+PrintWindow.argtypes = (wintypes.HWND, wintypes.HDC, wintypes.UINT)
+PrintWindow.restype = wintypes.BOOL
 
 
 class WindowTool:
@@ -98,6 +103,7 @@ class WindowTool:
 
         return x1, y1, width, height
 
+    @staticmethod
     def _get_mouse_path(current_x, current_y, target_x, target_y, min_n=10):
         trajectory = []
         dct = {
@@ -133,6 +139,7 @@ class WindowTool:
         trajectory.append((target_x - current_x, target_y - current_y))
         return trajectory
 
+    @staticmethod
     def _mouse_move_relative(dx: int, dy: int):
         event = INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dx=dx, dy=dy, dwFlags=MOUSEEVENTF_MOVE))
         sent = SendInput(1, ctypes.byref(event), ctypes.sizeof(INPUT))
@@ -171,6 +178,7 @@ class WindowTool:
         dy = target_y - int(pt.y)
         return self.move_mouse_relative(dx, dy, min_n=min_n, interval=interval)
 
+    @staticmethod
     def _bitmap_to_bgr(h_dc, h_bitmap, width, height) -> np.ndarray:
         padding = (4 - (width * 3) % 4) % 4
         line_size = width * 3 + padding
@@ -327,10 +335,54 @@ class WindowTool:
             gdi32.DeleteDC(h_mem_dc)
             user32.ReleaseDC(0, h_screen_dc)
 
+    def capture_printwindow(self, x1=None, y1=None, x2=None, y2=None, render_full: bool = True) -> np.ndarray:
+        """
+        使用 PrintWindow 进行后台截图（尽量获取遮挡/最小化窗口内容）。
+        坐标参数使用客户区坐标系，行为与 capture_background 保持一致。
+        """
+        crop_x, crop_y, crop_w, crop_h = self._normalize_rect(x1, y1, x2, y2)
+        _, _, client_w, client_h = self._normalize_rect(0, 0, None, None)
+
+        h_wnd_dc = user32.GetDC(self.hwnd)
+        if not h_wnd_dc:
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        h_mem_dc = gdi32.CreateCompatibleDC(h_wnd_dc)
+        if not h_mem_dc:
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        h_bitmap = gdi32.CreateCompatibleBitmap(h_wnd_dc, client_w, client_h)
+        if not h_bitmap:
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
+        if not old_obj:
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            raise ctypes.WinError(ctypes.get_last_error())
+
+        try:
+            flags = PW_CLIENTONLY | (PW_RENDERFULLCONTENT if render_full else 0)
+            ok = PrintWindow(self.hwnd, h_mem_dc, flags)
+            if not ok:
+                raise RuntimeError("PrintWindow 截图失败，目标窗口可能不支持该方式")
+
+            full_img = self._bitmap_to_bgr(h_mem_dc, h_bitmap, client_w, client_h)
+            return full_img[crop_y : crop_y + crop_h, crop_x : crop_x + crop_w].copy()
+        finally:
+            gdi32.SelectObject(h_mem_dc, old_obj)
+            gdi32.DeleteObject(h_bitmap)
+            gdi32.DeleteDC(h_mem_dc)
+            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+
 
 if __name__ == "__main__":
     # 示例：把下面这个句柄替换为你自己的窗口句柄（十进制整数）
-    target_hwnd = 134528
+    target_hwnd = 3739680
 
     if target_hwnd == 0:
         raise SystemExit("请先把 target_hwnd 改成目标窗口句柄")
@@ -339,11 +391,12 @@ if __name__ == "__main__":
     # 前台截图（可见内容）
     # frame = cap.capture_foreground()
     # 后台截图（窗口 DC）
-    cap.move_mouse_to_screen(100, 100)
+    # cap.move_mouse_to_screen(100, 100)
     # frame = cap.resize_client_area(700,700)
-    # frame = cap.capture_background()
+    frame = cap.capture_background()
+    # frame = cap.capture_printwindow()
 
     
-    # cv2.imshow("window_capture", frame)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    cv2.imshow("window_capture", frame)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
