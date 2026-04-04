@@ -93,7 +93,7 @@
               @batchResume="handleBatchResume"
               @batchEnd="handleBatchEnd"
               @openLog="handleOpenLog"
-              @refreshTaskConfig="handleRefreshTaskConfig"
+              @resetTaskProgress="handleResetTaskProgress"
             />
             <Device
               v-show="currentTab === 'device'"
@@ -166,12 +166,12 @@ const panelTitle = computed(() => {
 
 let matchSocket = null;
 
-// 更新账号状态（合并 socket 推送的字段到对应账号行）
+// 更新账号状态（合并 socket 推送的字段到对应账号行，通过唯一 id 匹配）
 function updateAccountStatus(statusData) {
-  const 账号key = statusData.账号;
-  if (!账号key) return;
+  const idKey = statusData.id;
+  if (!idKey) return;
 
-  const index = accountList.value.findIndex((item) => item.账号 === 账号key);
+  const index = accountList.value.findIndex((item) => item.id === idKey);
   if (index === -1) return;
 
   accountList.value[index] = {
@@ -224,9 +224,9 @@ function initMatchSocket() {
       if (Array.isArray(data)) {
         accountList.value = data.map((item) => ({
           ...item,
+          任务进度: item.任务进度 || 0,
           设备ID: "",
           状态: "空闲",
-          当前任务: "",
           日志: "",
         }));
       }
@@ -256,26 +256,22 @@ const handleGetAccountList = () => sendToBackend("获取账号列表");
 // ─── 账号操作 ────────────────────────────────
 
 const handleStartAccountTask = (row) => {
-  const 账号自带配置 = Array.isArray(row.任务配置列表) && row.任务配置列表.length > 0;
-  const 任务配置列表 = 账号自带配置
-    ? JSON.parse(JSON.stringify(row.任务配置列表))
-    : JSON.parse(JSON.stringify(taskSelectValue.value));
   sendToBackend("账号开始任务", {
-    账号: row.账号,
-    任务配置列表,
+    id: row.id,
+    任务配置列表: JSON.parse(JSON.stringify(taskSelectValue.value)),
   });
 };
 
 const handleEndAccountTask = (row) => {
-  sendToBackend("账号结束任务", { 账号: row.账号 });
+  sendToBackend("账号结束任务", { id: row.id });
 };
 
 const handlePauseAccountTask = (row) => {
-  sendToBackend("账号暂停任务", { 账号: row.账号 });
+  sendToBackend("账号暂停任务", { id: row.id });
 };
 
 const handleResumeAccountTask = (row) => {
-  sendToBackend("账号恢复任务", { 账号: row.账号 });
+  sendToBackend("账号恢复任务", { id: row.id });
 };
 
 const handleOpenLog = (row) => {
@@ -290,13 +286,11 @@ const handleDisableDevice = (row) => {
   sendToBackend("禁用设备", { 设备ID: row.设备ID });
 };
 
-const handleRefreshTaskConfig = (row) => {
-  const 任务配置列表 = JSON.parse(JSON.stringify(taskSelectValue.value));
-  sendToBackend("设置账号任务配置列表", { 账号: row.账号, 任务配置列表 });
-  // 刷新后立即更新本地该账号的任务配置，这样点击「开始」时会用最新配置
-  const index = accountList.value.findIndex((item) => item.账号 === row.账号);
+const handleResetTaskProgress = (row) => {
+  sendToBackend("重置账号任务进度", { id: row.id });
+  const index = accountList.value.findIndex((item) => item.id === row.id);
   if (index !== -1) {
-    accountList.value[index] = { ...accountList.value[index], 任务配置列表 };
+    accountList.value[index] = { ...accountList.value[index], 任务进度: 0, 状态: '空闲' };
   }
 };
 

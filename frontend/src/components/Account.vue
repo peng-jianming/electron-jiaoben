@@ -13,19 +13,19 @@
         <el-button
           type="primary"
           @click="handleBatchStart"
-          :disabled="!taskSelectValue.length && !list.some(r => r.任务配置列表.length)"
+          :disabled="!taskSelectValue.length"
         >全部开始</el-button>
         <el-button type="warning" @click="emit('batchPause')">全部暂停</el-button>
         <el-button type="success" @click="emit('batchResume')">全部恢复</el-button>
         <el-button type="danger" @click="emit('batchEnd')">全部结束</el-button>
-        <el-button type="info" :disabled="list.some(r => isRunning(r))" @click="handleRefreshAllTaskConfig">刷新全部任务配置</el-button>
+        <el-button type="info" :disabled="list.some(r => isRunning(r))" @click="handleResetAllTaskProgress">重置全部任务进度</el-button>
       </div>
     </div>
 
     <div class="table-container">
       <el-table
         :data="list"
-        row-key="账号"
+        row-key="id"
         :expand-row-keys="expandedRowKeys"
         @expand-change="onExpandChange"
         @row-contextmenu="onRowContextmenu"
@@ -66,7 +66,21 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="当前任务" label="当前任务" min-width="30" show-overflow-tooltip />
+        <el-table-column label="任务进度" width="90" align="center">
+          <template #default="scope">
+            <span v-if="taskSelectValue.length" class="progress-text">
+              {{ scope.row.任务进度 || 0 }}/{{ taskSelectValue.length }}
+            </span>
+            <span v-else class="no-device">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="当前任务" min-width="30" show-overflow-tooltip>
+          <template #default="scope">
+            <span v-if="scope.row.状态 != '空闲' && scope.row.状态 != '等待设备'">
+              {{ taskSelectValue[scope.row.任务进度].名称 }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="日志" label="日志" min-width="140" show-overflow-tooltip />
       </el-table>
 
@@ -79,7 +93,7 @@
       >
         <div
           class="context-menu-item"
-          :class="{ disabled: (!props.taskSelectValue.length && !contextMenu.row?.任务配置列表?.length) || isRunning(contextMenu.row) }"
+          :class="{ disabled: !props.taskSelectValue.length || isRunning(contextMenu.row) || isCompleted(contextMenu.row) }"
           @click="handleContextMenuStart"
         >
           <span class="item-icon primary">▶</span>
@@ -117,10 +131,10 @@
         <div
           class="context-menu-item"
           :class="{ disabled: isRunning(contextMenu.row) }"
-          @click="handleContextMenuRefresh"
+          @click="handleContextMenuResetProgress"
         >
           <span class="item-icon info">🔄</span>
-          刷新任务配置
+          重置任务进度
         </div>
       </div>
     </div>
@@ -187,7 +201,7 @@ const emit = defineEmits([
   "batchResume",
   "batchEnd",
   "openLog",
-  "refreshTaskConfig",
+  "resetTaskProgress",
 ]);
 
 const contextMenu = ref({
@@ -213,7 +227,7 @@ function closeContextMenu() {
 }
 
 function handleContextMenuStart() {
-  if (contextMenu.value.row && !(!props.taskSelectValue.length && !contextMenu.value.row.任务配置列表?.length) && !isRunning(contextMenu.value.row)) {
+  if (contextMenu.value.row && props.taskSelectValue.length && !isRunning(contextMenu.value.row) && !isCompleted(contextMenu.value.row)) {
     handleStart(contextMenu.value.row);
   }
   closeContextMenu();
@@ -247,9 +261,9 @@ function handleContextMenuLog() {
   closeContextMenu();
 }
 
-function handleContextMenuRefresh() {
+function handleContextMenuResetProgress() {
   if (contextMenu.value.row && !isRunning(contextMenu.value.row)) {
-    emit("refreshTaskConfig", contextMenu.value.row);
+    emit("resetTaskProgress", contextMenu.value.row);
   }
   closeContextMenu();
 }
@@ -267,14 +281,14 @@ watch(
   () => props.list,
   (list) => {
     expandedRowKeys.value = expandedRowKeys.value.filter((key) =>
-      list.some((row) => row.账号 === key)
+      list.some((row) => row.id === key)
     );
   },
   { deep: true }
 );
 
 function onExpandChange(_row, expandedRows) {
-  expandedRowKeys.value = expandedRows.map((r) => r.账号);
+  expandedRowKeys.value = expandedRows.map((r) => r.id);
 }
 
 function isRunning(row) {
@@ -287,22 +301,31 @@ function isActive(row) {
   return row.状态 === '运行中' || row.状态 === '已暂停' || row.状态 === '等待设备';
 }
 
+function isCompleted(row) {
+  if (!row || !props.taskSelectValue.length) return false;
+  return (row.任务进度 || 0) >= props.taskSelectValue.length;
+}
+
 const tableRowClassName = ({ row }) => {
   if (row.故障) return "fault-row";
   return "";
 };
 
 function handleStart(row) {
-  if (!props.taskSelectValue.length && !row.任务配置列表.length) {
-    ElMessage.warning("请先到「任务」页面选择任务或账号自带任务配置");
+  if (!props.taskSelectValue.length) {
+    ElMessage.warning("请先到「任务」页面选择任务");
+    return;
+  }
+  if (isCompleted(row)) {
+    ElMessage.warning("该账号任务已全部完成，如需重新执行请先重置任务进度");
     return;
   }
   emit("startTask", row);
 }
 
 function handleBatchStart() {
-  if (!props.taskSelectValue.length && !props.list.some(r => r.任务配置列表.length)) {
-    ElMessage.warning("请先到「任务」页面选择任务或账号自带任务配置");
+  if (!props.taskSelectValue.length) {
+    ElMessage.warning("请先到「任务」页面选择任务");
     return;
   }
   emit("batchStart");
@@ -326,9 +349,9 @@ function getLogClass(log) {
   return "";
 }
 
-function handleRefreshAllTaskConfig() {
+function handleResetAllTaskProgress() {
   props.list.forEach(r => {
-    emit("refreshTaskConfig", r);
+    emit("resetTaskProgress", r);
   });
 }
 
@@ -552,10 +575,17 @@ function handleRefreshAllTaskConfig() {
   color: @text-muted;
 }
 
+.progress-text {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  color: @primary-color;
+  font-weight: 500;
+}
+
 // ─── 统计栏 ────────────────────────────────
 .statistics-info {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
   flex-shrink: 0;
   padding-top: 6px;
@@ -616,6 +646,11 @@ function handleRefreshAllTaskConfig() {
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
   border-color: rgba(59, 130, 246, 0.3);
   .statistics-info-item-value { color: #3b82f6; }
+}
+.statistics-info-item--completed {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  border-color: rgba(99, 102, 241, 0.3);
+  .statistics-info-item-value { color: #6366f1; }
 }
 .statistics-info-item--idle {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
