@@ -84,6 +84,7 @@
               v-show="currentTab === 'account'"
               :list="accountList"
               :taskSelectValue="taskSelectValue"
+              :deviceList="deviceList"
               @startTask="handleStartAccountTask"
               @pauseTask="handlePauseAccountTask"
               @resumeTask="handleResumeAccountTask"
@@ -94,6 +95,7 @@
               @batchEnd="handleBatchEnd"
               @openLog="handleOpenLog"
               @resetTaskProgress="handleResetTaskProgress"
+              @bindDevice="handleBindDevice"
             />
             <Device
               v-show="currentTab === 'device'"
@@ -241,6 +243,7 @@ function initMatchSocket() {
         accountList.value = data.map((item) => ({
           ...item,
           任务进度: item.任务进度 || 0,
+          绑定设备: item.绑定设备 || "",
           设备ID: "",
           状态: "空闲",
           日志: "",
@@ -311,6 +314,14 @@ const handleResetTaskProgress = (row) => {
 };
 
 // ─── 批量操作 ────────────────────────────────
+
+const handleBindDevice = (data) => {
+  sendToBackend("绑定设备", data);
+  const index = accountList.value.findIndex((item) => item.id === data.id);
+  if (index !== -1) {
+    accountList.value[index] = { ...accountList.value[index], 绑定设备: data.绑定设备 };
+  }
+};
 
 const handleBatchStart = () => {
   sendToBackend("全部开始", {

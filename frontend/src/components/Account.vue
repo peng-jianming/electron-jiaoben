@@ -45,9 +45,32 @@
         <el-table-column prop="等级" label="等级" min-width="30" show-overflow-tooltip />
         <el-table-column prop="门派" label="门派" min-width="30" show-overflow-tooltip />
         <el-table-column prop="金币" label="金币" min-width="30" show-overflow-tooltip />
-        <el-table-column label="设备ID" width="110" show-overflow-tooltip>
+        <el-table-column label="绑定设备" width="140">
           <template #default="scope">
-            <span v-if="scope.row.状态 === '等待设备'" class="waiting-device">
+            <el-select
+              :model-value="scope.row.绑定设备 || ''"
+              placeholder="未绑定"
+              size="small"
+              clearable
+              :disabled="isRunning(scope.row)"
+              @change="(val) => handleBindDevice(scope.row, val)"
+            >
+              <el-option
+                v-for="device in props.deviceList"
+                :key="device.设备ID"
+                :label="device.设备ID"
+                :value="device.设备ID"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="设备ID" width="130" show-overflow-tooltip>
+          <template #default="scope">
+            <span v-if="scope.row.状态 === '等待设备' && isBoundDeviceDisconnected(scope.row)" class="waiting-device waiting-offline">
+              <el-icon class="waiting-icon"><Loading /></el-icon>
+              绑定设备未连接
+            </span>
+            <span v-else-if="scope.row.状态 === '等待设备'" class="waiting-device">
               <el-icon class="waiting-icon"><Loading /></el-icon>
               等待空闲设备
             </span>
@@ -189,6 +212,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  deviceList: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
@@ -202,6 +229,7 @@ const emit = defineEmits([
   "batchEnd",
   "openLog",
   "resetTaskProgress",
+  "bindDevice",
 ]);
 
 const contextMenu = ref({
@@ -291,6 +319,13 @@ function onExpandChange(_row, expandedRows) {
   expandedRowKeys.value = expandedRows.map((r) => r.id);
 }
 
+/** 等待中且日志表明绑定设备不在设备池（与后端「绑定设备未连接」文案一致） */
+function isBoundDeviceDisconnected(row) {
+  if (!row || row.状态 !== "等待设备" || !row.绑定设备) return false;
+  const log = String(row.日志 || "");
+  return log.includes("绑定设备未连接") || log.includes("不在当前设备池");
+}
+
 function isRunning(row) {
   if (!row) return false;
   return row.状态 === '运行中' || row.状态 === '已暂停' || row.状态 === '等待设备';
@@ -347,6 +382,10 @@ function getLogClass(log) {
   if (log.includes("警告") || log.includes("warn")) return "log-warn";
   if (log.includes("成功") || log.includes("完成") || log.includes("success")) return "log-success";
   return "";
+}
+
+function handleBindDevice(row, deviceId) {
+  emit("bindDevice", { id: row.id, 绑定设备: deviceId || "" });
 }
 
 function handleResetAllTaskProgress() {
@@ -554,6 +593,10 @@ function handleResetAllTaskProgress() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+
+  &.waiting-offline {
+    color: @danger-color;
+  }
 }
 
 .waiting-icon {

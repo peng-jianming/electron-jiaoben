@@ -69,6 +69,36 @@ class 设备池管理器类:
                 return 设备["设备ID"]
         return None
 
+    def 获取所有空闲设备(self):
+        """返回所有未禁用且空闲的设备ID列表。"""
+        return [
+            设备["设备ID"]
+            for 设备 in self._设备列表
+            if not 设备.get("是否禁用") and 设备["状态"] == "空闲"
+        ]
+
+    def 设备是否在池中(self, 设备ID):
+        """绑定设备是否出现在当前设备列表中（ADB 已识别）。"""
+        if not 设备ID:
+            return False
+        return any(设备["设备ID"] == 设备ID for 设备 in self._设备列表)
+
+    def 获取设备条目(self, 设备ID):
+        """返回池中该设备的字典，不存在则 None。"""
+        if not 设备ID:
+            return None
+        for 设备 in self._设备列表:
+            if 设备["设备ID"] == 设备ID:
+                return 设备
+        return None
+
+    def 指定设备是否空闲(self, 设备ID):
+        """判断指定设备是否存在、未禁用且空闲。"""
+        for 设备 in self._设备列表:
+            if 设备["设备ID"] == 设备ID:
+                return not 设备.get("是否禁用") and 设备["状态"] == "空闲"
+        return False
+
     def 查找账号设备(self, 账号key):
         """根据账号key 查找其占用的设备ID。"""
         for 设备 in self._设备列表:
