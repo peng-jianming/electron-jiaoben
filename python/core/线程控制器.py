@@ -40,8 +40,8 @@ class 线程控制器类:
 
     def _执行线程(self, func, 线程key, 任务函数参数集合):
         func(任务函数参数集合)
-        self.线程集合.pop(线程key, None)
-        self.线程结束后回调函数(线程key)
+        if self.线程集合.pop(线程key, None) is not None:
+            self.线程结束后回调函数(线程key)
 
     def 获取线程(self, 线程key):
         """获取线程对象"""
@@ -79,13 +79,14 @@ class 线程控制器类:
         """
         线程对象 = self.线程集合.get(线程key)
         if 线程对象 and 线程对象.is_alive():
+            if getattr(线程对象, '_pause_state', False):
+                线程对象.resume()
             线程对象.TerminateThread()
             if self.lock.locked():  # 解锁,防止死锁
                 self.lock.release()
             self.打印回调函数(线程key, "日志", f"线程停止")
             if 线程对象.is_alive():
-                self.打印回调函数(线程key, "日志", f"线程停止失败")
-                return 0
+                self.打印回调函数(线程key, "日志", f"线程停止失败，强制清理状态")
             self.线程集合.pop(线程key, None)
             self.线程结束后回调函数(线程key)
             return 1
@@ -179,18 +180,18 @@ class 线程控制器类:
             self._批量启动线程对象.stop()
             self._批量启动线程对象 = None
             print("停止滚号线程")
-        # 停止线程
+        # 停止线程（用快照避免与任务线程并发 pop 时出现空集合竞态）
         while True:
-            if len(self.线程集合) == 0:
+            编号列表 = list(self.线程集合.keys())
+            if not 编号列表:
                 break
-            第一个编号 = list(self.线程集合.keys())[0]
-            self.停止线程(第一个编号)
+            self.停止线程(编号列表[0])
         return 1
 
     def 暂停全部线程(self):
-        for 编号, 线程对象 in self.线程集合.items():
+        for 编号 in list(self.线程集合.keys()):
             self.暂停线程(编号)
 
     def 恢复全部线程(self):
-        for 编号, 线程对象 in self.线程集合.items():
+        for 编号 in list(self.线程集合.keys()):
             self.恢复线程(编号)
