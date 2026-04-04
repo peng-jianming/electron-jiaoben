@@ -64,43 +64,15 @@ class ExampleController {
   }
 
 
-  获取账号列表(args, event) {
-    const accountList = exampleService.获取账号列表();
-    return accountList;
-  }
-
-
-  保存账号列表(args, event) {
-    try {
-      return exampleService.保存账号列表(args);
-    } catch (error) {
-      console.error('保存账号列表错误:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 获取任务配置（已选任务列表 + 任务配置）
-   * @param {Object} args
-   * @param {Object} event
-   */
   获取任务配置(args, event) {
     try {
       return exampleService.获取任务配置();
     } catch (error) {
       console.error('获取任务配置错误:', error);
-      return {
-        selectedTasks: [],
-        taskConfig: []
-      };
+      return [];
     }
   }
 
-  /**
-   * 保存任务配置（已选任务列表 + 任务配置）
-   * @param {Object} args - { taskSelectValue } 或 { selectedTasks, taskConfig }
-   * @param {Object} event
-   */
   保存任务配置(args, event) {
     try {
       return exampleService.保存任务配置(args);

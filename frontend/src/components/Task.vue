@@ -266,7 +266,6 @@ watch(
 function syncToParent() {
   const 任务配置列表 = selectedList.value.map((i) => ({
     名称: i.name,
-    是否完成: false,
     参数配置: taskConfig.value[i.id] ?? getDefaultConfig(i.name),
   }));
   emit("update:modelValue", 任务配置列表);

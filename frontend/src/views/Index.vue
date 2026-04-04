@@ -104,7 +104,8 @@
             <Task
               v-show="currentTab === 'task'"
               :task-list="taskList"
-              v-model="taskSelectValue"
+              :model-value="taskSelectValue"
+              @update:model-value="handleTaskConfigUpdate"
               @reload="handleGetTaskList"
               class="task-select-full"
             />
@@ -122,7 +123,7 @@ import Task from "@/components/Task.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import { Monitor, User, List, Refresh } from "@element-plus/icons-vue";
 
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
@@ -146,13 +147,28 @@ async function loadTaskConfig() {
   } catch (e) {}
 }
 
-async function saveTaskConfig() {
+/** @param {unknown} [list] 不传则使用当前 taskSelectValue */
+async function saveTaskConfig(list) {
   if (!ipc) return;
+  const payload = Array.isArray(list)
+    ? list
+    : taskSelectValue.value;
+  if (!Array.isArray(payload)) return;
   try {
-    await ipc.invoke(ipcApiRoute.保存任务配置, {
-      taskSelectValue: JSON.parse(JSON.stringify(taskSelectValue.value)),
+    const res = await ipc.invoke(ipcApiRoute.保存任务配置, {
+      taskSelectValue: JSON.parse(JSON.stringify(payload)),
     });
-  } catch (e) {}
+    if (res && res.success === false) {
+      console.error("保存任务配置失败:", res.message);
+    }
+  } catch (e) {
+    console.error("保存任务配置 IPC 异常:", e);
+  }
+}
+
+function handleTaskConfigUpdate(val) {
+  taskSelectValue.value = Array.isArray(val) ? val : [];
+  void saveTaskConfig(taskSelectValue.value);
 }
 
 const panelTitle = computed(() => {
@@ -305,9 +321,6 @@ const handleBatchStart = () => {
 const handleBatchPause = () => sendToBackend("全部暂停");
 const handleBatchResume = () => sendToBackend("全部恢复");
 const handleBatchEnd = () => sendToBackend("全部结束");
-
-// 监听任务选择变更，自动持久化
-watch(taskSelectValue, () => saveTaskConfig(), { deep: true });
 
 onMounted(async () => {
   await initMatchSocket();
