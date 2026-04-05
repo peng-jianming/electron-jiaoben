@@ -94,3 +94,7 @@ class 设备控制器类:
 
     def 滑动(self, 起始区域, 结束区域):
         self.adb.拟人滑动_区域(起始区域, 结束区域)
+
+
+    def 启动应用(self, 包名):
+        return self.adb.启动应用(包名)

@@ -93,8 +93,8 @@ class 识字管理器类:
                     y2 = y2 / 缩放比例
                 out.append({
                     "结果": text,
-                    "x": int(x1),
-                    "y": int(y1),
+                    "x": (x + int(x1)) if x is not None else int(x1),
+                    "y": (y + int(y1)) if y is not None else int(y1),
                     "w": int(x2 - x1),
                     "h": int(y2 - y1),
                 })

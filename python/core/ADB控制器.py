@@ -627,3 +627,20 @@ class ADB控制器类:
 
         # print(f"拟人滑动_区域: start=({start_x},{start_y}) end=({end_x},{end_y}) 竖直为主={竖直为主}")
         return self.拟人滑动(start_x, start_y, end_x, end_y)
+
+    def 启动应用(self, 包名):
+        """
+        启动应用。
+        包名可为完整组件 package/activity，或仅 package（此时用 monkey 拉起桌面入口）。
+        """
+        if "/" in 包名:
+            命令 = f"{self._命令前缀} shell am start -W -n {包名}"
+        else:
+            命令 = (
+                f"{self._命令前缀} shell monkey -p {包名} "
+                "-c android.intent.category.LAUNCHER 1"
+            )
+        成功, 输出 = self._执行命令(命令)
+        if not 成功:
+            print(f"启动应用失败: {输出}")
+        return 成功

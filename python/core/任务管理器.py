@@ -14,11 +14,17 @@ from .截图管理器 import 截图管理器类
 from .动作管理器 import 动作管理器类
 from .界面管理器 import 界面管理器类
 from 设置 import (
-    字库文件路径, 图片库文件路径, 模型文件路径, 音乐文件路径,
-    未知截图目录, 界面配置文件路径, 任务目录
+    字库文件路径,
+    图片库文件路径,
+    模型文件路径,
+    音乐文件路径,
+    未知截图目录,
+    界面配置文件路径,
+    任务目录,
 )
 
 from dataclasses import dataclass
+
 
 @dataclass
 class 状态机环境:
@@ -28,6 +34,8 @@ class 状态机环境:
     界面识别缓存: dict
     更新数据: callable
     参数配置: dict
+    账号信息: dict
+
 
 class 任务管理器类:
     # 任务管理器, 负责任务的运行工作, 包括任务的加载、运行、保存进度等。
@@ -35,10 +43,9 @@ class 任务管理器类:
     def __init__(self, 参数集合):
         self.设备ID = 参数集合.get("设备ID")
         self.任务配置列表 = 参数集合.get("任务配置列表")
-        self.任务进度 = 参数集合.get("任务进度", 0)
+        self.账号信息 = 参数集合.get("账号信息")
         self.更新数据 = 参数集合.get("更新数据")
         self.参数集合 = 参数集合
-
         self._任务类型映射 = self.获取所有任务列表()
 
         # 设备控制器实例
@@ -64,7 +71,7 @@ class 任务管理器类:
         扫描 任务目录 下所有 .py 模块，以文件名作为任务名，收集模块下的 `创建任务` 函数。
         """
         结果 = {}
-        忽略模块名 = {'__init__', '任务管理器'}
+        忽略模块名 = {"__init__", "任务管理器"}
         父目录 = os.path.dirname(任务目录)
         包名 = os.path.basename(任务目录)
 
@@ -104,10 +111,24 @@ class 任务管理器类:
     def 运行(self):
         self.更新数据("故障", False)
         总数 = len(self.任务配置列表)
-        if self.任务进度 > 0:
-            self.更新数据("日志", f"从第 {self.任务进度 + 1}/{总数} 个任务恢复执行")
+        if self.账号信息.get("任务进度", 0) > 0:
+            self.更新数据("日志", f"从第 {self.账号信息.get("任务进度", 0) + 1}/{总数} 个任务恢复执行")
+        # 确认账号是否跟当前运行的状态匹配
+        # 如果未登录的就登录
+        # 如果已经登录的直接查看信息
+        # 如果信息匹配不上就退出退出重新登录
+        from 任务.公共方法 import 确认账号信息
 
-        for i in range(self.任务进度, 总数):
+        确认账号信息(状态机环境(
+                控制器=self.控制器,
+                界面集合=self.界面集合,
+                截图上下文=self._截图上下文,
+                界面识别缓存=self.界面识别缓存,
+                更新数据=self.更新数据,
+                账号信息=self.账号信息,
+               参数配置={},
+            ), self.账号信息)
+        for i in range(self.账号信息.get("任务进度", 0), 总数):
             任务配置 = self.任务配置列表[i]
             self.更新数据("日志", f"{任务配置.get('名称')} 开始")
             环境 = 状态机环境(
@@ -117,6 +138,7 @@ class 任务管理器类:
                 界面识别缓存=self.界面识别缓存,
                 更新数据=self.更新数据,
                 参数配置=任务配置.get("参数配置", {}),
+                账号信息=self.账号信息,
             )
             self._任务类型映射[任务配置.get("名称")](环境)
             self.更新数据("任务进度", i + 1)
@@ -151,7 +173,15 @@ class 任务管理器类:
             偏色字符串 = 条目.get("偏色")
             目标偏移 = 条目.get("偏移点击区域")
 
-            if not all([名称, 点阵十六进制, 尺寸信息, 偏色字符串 is not None, 目标偏移 is not None]):
+            if not all(
+                [
+                    名称,
+                    点阵十六进制,
+                    尺寸信息,
+                    偏色字符串 is not None,
+                    目标偏移 is not None,
+                ]
+            ):
                 continue
 
             偏色字符串 = 偏色字符串.strip() if isinstance(偏色字符串, str) else ""
@@ -169,18 +199,26 @@ class 任务管理器类:
                 if len(基础颜色十六进制) != 6 or len(容差十六进制) != 6:
                     continue
                 try:
-                    颜色容差列表.append({
-                        "基础颜色": np.array([
-                            int(基础颜色十六进制[0:2], 16),
-                            int(基础颜色十六进制[2:4], 16),
-                            int(基础颜色十六进制[4:6], 16),
-                        ], dtype=np.int16),
-                        "容差": np.array([
-                            int(容差十六进制[0:2], 16),
-                            int(容差十六进制[2:4], 16),
-                            int(容差十六进制[4:6], 16),
-                        ], dtype=np.int16),
-                    })
+                    颜色容差列表.append(
+                        {
+                            "基础颜色": np.array(
+                                [
+                                    int(基础颜色十六进制[0:2], 16),
+                                    int(基础颜色十六进制[2:4], 16),
+                                    int(基础颜色十六进制[4:6], 16),
+                                ],
+                                dtype=np.int16,
+                            ),
+                            "容差": np.array(
+                                [
+                                    int(容差十六进制[0:2], 16),
+                                    int(容差十六进制[2:4], 16),
+                                    int(容差十六进制[4:6], 16),
+                                ],
+                                dtype=np.int16,
+                            ),
+                        }
+                    )
                 except ValueError:
                     continue
 
@@ -223,19 +261,21 @@ class 任务管理器类:
             if 名称 not in self.字库缓存:
                 self.字库缓存[名称] = []
 
-            self.字库缓存[名称].append({
-                "模板掩码": 模板掩码,
-                "宽度": 宽度,
-                "高度": 高度,
-                "总数量": 总数量,
-                "偏色": 偏色字符串,
-                "颜色容差列表": 颜色容差列表,
-                "点阵十六进制": 点阵十六进制,
-                "目标偏移x": 目标偏移x,
-                "目标偏移y": 目标偏移y,
-                "目标偏移宽": 目标偏移宽,
-                "目标偏移高": 目标偏移高,
-            })
+            self.字库缓存[名称].append(
+                {
+                    "模板掩码": 模板掩码,
+                    "宽度": 宽度,
+                    "高度": 高度,
+                    "总数量": 总数量,
+                    "偏色": 偏色字符串,
+                    "颜色容差列表": 颜色容差列表,
+                    "点阵十六进制": 点阵十六进制,
+                    "目标偏移x": 目标偏移x,
+                    "目标偏移y": 目标偏移y,
+                    "目标偏移宽": 目标偏移宽,
+                    "目标偏移高": 目标偏移高,
+                }
+            )
 
             加载数量 += 1
         self.更新数据("日志", f"成功加载 {加载数量} 个字库到缓存")
@@ -256,7 +296,10 @@ class 任务管理器类:
                 self.图片库缓存[基础名称].append(np.asarray(data[名称]))
             data.close()
             模板总数 = sum(len(v) for v in self.图片库缓存.values())
-            self.更新数据("日志", f"成功加载 {len(self.图片库缓存)} 组图片，共 {模板总数} 张模板到图片库缓存")
+            self.更新数据(
+                "日志",
+                f"成功加载 {len(self.图片库缓存)} 组图片，共 {模板总数} 张模板到图片库缓存",
+            )
         except Exception as e:
             self.更新数据("日志", f"加载图片库文件失败: {e}")
 
@@ -265,6 +308,7 @@ class 任务管理器类:
     def 加载模型文件(self, 模型路径):
         """加载 YOLO 模型"""
         from ultralytics import YOLO
+
         self._模型 = YOLO(模型路径)
         return self._模型
 
@@ -296,7 +340,7 @@ class 任务管理器类:
                 self.字库缓存,
                 self.图片库缓存,
                 self._模型,
-                self.更新数据
+                self.更新数据,
             )
         return 配置
 
@@ -316,13 +360,15 @@ class 任务界面状态机类:
         # 当前任务实例内：对“所有界面”都生效的公共逻辑
         self._当前任务所有界面公共处理器 = []
         self.任务未完成 = True
-        self.上下文 = {}
+        self.上下文 = {"控制器": self.控制器, "账号信息": 环境.账号信息}
         self._任务超时时间 = None
 
     def 注册界面(self, 界面名称):
         """装饰器：注册界面处理函数"""
+
         def 装饰器(函数):
             self.注册界面集合[界面名称] = 函数
+
         return 装饰器
 
     @classmethod
@@ -335,37 +381,37 @@ class 任务界面状态机类:
                 ...
         无论是 三界奇缘 / 趣闻鉴赏 等任务，只要进入“主界面”，都会先执行这里。
         """
+        
         def 装饰器(函数):
             if 界面名称 not in cls._全局界面公共处理器集合:
                 cls._全局界面公共处理器集合[界面名称] = []
             cls._全局界面公共处理器集合[界面名称].append(函数)
             return 函数
+
         return 装饰器
 
     def _执行界面处理链(self, 界面名称):
         """按固定顺序执行：跨任务公共处理 -> 本任务所有界面公共 -> 当前界面处理。"""
         界面对象 = self.界面集合[界面名称]
-
         # 1) 跨任务共享的类级公共逻辑
         for 公共处理函数 in self._全局界面公共处理器集合.get(界面名称, []):
             公共处理函数(self.上下文, 界面对象)
 
         # 2) 当前任务实例内：所有界面公共逻辑
-        # @任务界面状态机.注册公共界面()
-        # def _(上下文, 界面):
-        #     # 进入任何已识别界面前都会先执行
-        #     pass
         for 公共处理函数 in self._当前任务所有界面公共处理器:
             公共处理函数(self.上下文, 界面对象)
 
         # 3) 当前界面专属任务逻辑
-        self.注册界面集合[界面名称](self.上下文, 界面对象)
+        if 界面名称 in self.注册界面集合:
+            self.注册界面集合[界面名称](self.上下文, 界面对象)
 
     def 注册公共界面(self):
         """装饰器：注册当前任务实例内“所有界面”的公共处理逻辑。"""
+
         def 装饰器(函数):
             self._当前任务所有界面公共处理器.append(函数)
             return 函数
+
         return 装饰器
 
     def 设置超时时间(self, 秒):
@@ -377,7 +423,7 @@ class 任务界面状态机类:
             pass
         return self
 
-    def _尝试执行误触(self, 区域 = None):
+    def _尝试执行误触(self, 区域=None):
         if not 区域:
             return False
 
@@ -387,7 +433,7 @@ class 任务界面状态机类:
             time.sleep(random.uniform(0.5, 1.5))
         elif num > 0.3:
             time.sleep(random.uniform(1.5, 3))
-        elif num > 0.7:    
+        elif num > 0.7:
             time.sleep(random.uniform(3, 6))
 
         # 根据概率决定是否触发误触
@@ -396,18 +442,17 @@ class 任务界面状态机类:
 
         # 随机选择误触类型
         误触类型 = random.choices(
-            ['点击', '滑动', '等待'],
+            ["点击", "滑动", "等待"],
             weights=[0.7, 0, 0.3],  # 点击50%, 滑动20%, 等待30%
-            k=1
+            k=1,
         )[0]
         self.更新数据("日志", f"[误触模拟] 误触 - 类型: {误触类型}")
-        
-        if 误触类型 == '点击':
+
+        if 误触类型 == "点击":
             self.控制器.随机点击(区域)
-        elif 误触类型 == '滑动':
+        elif 误触类型 == "滑动":
             pass
-            
-        
+
         return True
 
     def 保存未知图片(self, 图像数据):
@@ -422,6 +467,7 @@ class 任务界面状态机类:
                 图像数据.save(目标路径)
             else:
                 import shutil
+
                 shutil.copy(图像数据, 目标路径)
             self.更新数据("日志", f"未知界面截图已保存: {目标路径}")
         except Exception:
@@ -435,19 +481,17 @@ class 任务界面状态机类:
                     # 优先使用 playsound（阻塞直到播放结束）
                     try:
                         from playsound import playsound
+
                         playsound(音乐文件路径)
                     except ImportError:
                         # 根据系统选择阻塞式播放方式
                         import platform
+
                         系统 = platform.system()
                         if 系统 == "Windows":
                             # 等待播放器进程退出：只有关闭播放器后才继续执行
                             安全路径 = 音乐文件路径.replace("'", "''")
-                            命令 = (
-                                "Start-Process -FilePath "
-                                f"'{安全路径}' "
-                                "-Wait"
-                            )
+                            命令 = "Start-Process -FilePath " f"'{安全路径}' " "-Wait"
                             subprocess.run(
                                 ["powershell", "-NoProfile", "-Command", 命令],
                                 check=False,
@@ -484,8 +528,16 @@ class 任务界面状态机类:
                 优先列表.append(当前界面名)
             if 上一界面名 and 上一界面名 != 当前界面名:
                 优先列表.append(上一界面名)
-
-            for 界面名称 in 优先列表 + [k for k in self.注册界面集合.keys() if k not in 优先列表]:
+            for 界面名称 in (
+                优先列表
+                + [k for k in self.注册界面集合.keys() if k not in 优先列表]
+                + [
+                    k
+                    for k in self._全局界面公共处理器集合.keys()
+                    if (k not in 优先列表 and k not in self.注册界面集合.keys())
+                ]
+            ):
+                
                 if self.界面识别缓存[界面名称].查找().是否找到():
                     已找到 = True
                     if self._尝试执行误触(self.界面识别缓存[界面名称].误触区域):
@@ -500,16 +552,19 @@ class 任务界面状态机类:
 
             if not 已找到:
                 是否处于未知界面 = True
-                
+
                 # 尝试关闭未注册界面
                 for 界面名称, 界面对象 in self.界面集合.items():
                     if 界面名称 in self.注册界面集合:
                         continue
-                    if hasattr(界面对象.按钮, '关闭'):
+                    if hasattr(界面对象.按钮, "关闭"):
                         if self.界面识别缓存[界面名称].查找().是否找到():
                             是否处于未知界面 = False
                             界面对象.按钮.关闭.点击()
-                            self.更新数据("日志", f"目前位于未注册界面: {界面名称}, 直接关闭当前界面")
+                            self.更新数据(
+                                "日志",
+                                f"目前位于未注册界面: {界面名称}, 直接关闭当前界面",
+                            )
                             break
                 if 是否处于未知界面:
                     if 未知开始时间 is None:
@@ -521,18 +576,23 @@ class 任务界面状态机类:
                         self.播放音乐()
                         未知开始时间 = None
                     else:
-                        self.更新数据("日志", f"目前位于未知界面, {60 - 经过时间:.0f} 秒后报警")
+                        self.更新数据(
+                            "日志", f"目前位于未知界面, {60 - 经过时间:.0f} 秒后报警"
+                        )
 
             # 检查任务级别超时
             if self._任务超时时间 is not None:
                 任务已用时 = time.time() - 任务开始时间
                 if 任务已用时 >= self._任务超时时间:
-                    self.更新数据("日志", f"任务已超过设定超时时间 {self._任务超时时间:.0f} 秒, 播放提示音乐")
+                    self.更新数据(
+                        "日志",
+                        f"任务已超过设定超时时间 {self._任务超时时间:.0f} 秒, 播放提示音乐",
+                    )
                     self.播放音乐()
                     self.更新数据("故障", True)
                     # 为避免每轮循环反复触发，只播一次后清空超时配置
                     self._任务超时时间 = None
-            
+
             time.sleep(0.1)
 
     def 结束(self):
@@ -542,4 +602,3 @@ class 任务界面状态机类:
     def 更新上下文(self, **kwargs):
         """更新上下文"""
         self.上下文.update(kwargs)
-

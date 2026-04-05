@@ -50,12 +50,12 @@ class 账号管理器类:
         except Exception:
             return []
 
-    def 获取任务进度(self, id):
+    def 获取账号信息(self, id):
         列表 = self.获取账号列表()
         for 项 in 列表:
             if isinstance(项, dict) and 项.get("id") == id:
-                return 项.get("任务进度", 0)
-        return 0
+                return 项
+        return None
 
     def 写入账号列表(self, id, 字段, 内容):
         """
