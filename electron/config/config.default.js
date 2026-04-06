@@ -12,12 +12,12 @@ module.exports = () => {
     singleLock: false,
     windowsOption: {
       title: 'mhxy',
-      width: 1366,
-      height: 768,
-      minWidth: 1366,
-      minHeight: 768,
-      maxWidth: 1366,
-      maxHeight: 768,
+      width: 1920,
+      height: 1080,
+      minWidth: 1920,
+      minHeight: 1080,
+      maxWidth: 1920,
+      maxHeight: 1080,
       webPreferences: {
         //webSecurity: false,
         contextIsolation: false, // false -> 可在渲染进程中使用electron的api，true->需要bridge.js(contextBridge)
