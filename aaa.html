@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>图色脚本 · 界面配置可视化</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4d;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --accent-dim: #2a5fad;
+      --danger: #e85d5d;
+      --ok: #3ecf8e;
+      --radius: 10px;
+      --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    header .hint {
+      color: var(--muted);
+      font-size: 0.8rem;
+      max-width: 420px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-left: auto;
+      align-items: center;
+    }
+    label.file-btn {
+      cursor: pointer;
+      padding: 8px 14px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      border: none;
+    }
+    label.file-btn input { display: none; }
+    button, .btn-secondary {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+    }
+    button:hover, .btn-secondary:hover { background: #2c3d52; }
+    button.primary { background: var(--accent); border-color: var(--accent-dim); color: #fff; }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+    input[type="text"], input[type="number"], select, textarea {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    textarea { font-family: ui-monospace, monospace; min-height: 72px; resize: vertical; }
+    .main {
+      display: grid;
+      grid-template-columns: minmax(280px, 320px) 1fr;
+      overflow: hidden;
+    }
+    @media (max-width: 800px) {
+      .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    }
+    .nav {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .nav-search {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .nav-item-text {
+      flex: 1;
+      min-width: 0;
+      line-height: 1.35;
+      word-break: break-all;
+    }
+    .nav-thumb-wrap {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .nav-thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .nav-thumb-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.25;
+      padding: 3px;
+    }
+    .nav-base-field {
+      padding: 0 10px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-base-field label {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .nav-base-field input { font-size: 0.8rem; }
+    .nav-item:hover { background: var(--surface2); }
+    .nav-item.active {
+      background: var(--surface2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .content {
+      overflow-y: auto;
+      padding: 16px 20px 48px;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .field label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(61, 139, 253, 0.12);
+    }
+    .entry-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-bottom: 10px;
+      background: var(--bg);
+    }
+    .entry-head {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .entry-head input.name {
+      flex: 1;
+      font-weight: 600;
+    }
+    .entry-thumb-wrap {
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .entry-thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .entry-thumb-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.55rem;
+      color: var(--muted);
+      text-align: center;
+      padding: 2px;
+      line-height: 1.2;
+    }
+    .thumb-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .thumb {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .thumb-broken {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      color: var(--muted);
+      padding: 4px;
+      text-align: center;
+    }
+    .img-list-item {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .img-list-item input { flex: 1; }
+    .empty {
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 12px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .json-raw summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>界面配置可视化</h1>
+      <span class="hint">左侧列表会尽量显示<strong>缩略图</strong>：优先 <code>特征图片</code> 路径；<code>类型:图片</code> 的条目会按脚本规则尝试 <code>界面名_状态|按钮_条目名.png</code>（与 <code>查找字符串</code> 一致时可覆盖）。请设置侧栏「预览基路径」指向资源目录。</span>
+      <div class="toolbar">
+        <label class="file-btn">加载 JSON<input type="file" id="fileIn" accept=".json,application/json" /></label>
+        <button type="button" class="primary" id="btnExport">导出 JSON</button>
+        <button type="button" id="btnNewUi">新建界面</button>
+        <span class="badge" id="statusBadge">未加载</span>
+      </div>
+    </header>
+    <div class="main">
+      <aside class="nav">
+        <div class="nav-base-field">
+          <label for="baseUrlNav">预览图基路径（保存到浏览器）</label>
+          <input type="text" id="baseUrlNav" placeholder="例：file:///D:/pjm/.../python/资源/ 或 http://localhost:8080/资源/" />
+        </div>
+        <div class="nav-search">
+          <input type="text" id="filterNav" placeholder="筛选界面名称…" />
+        </div>
+        <div class="nav-list" id="navList"></div>
+      </aside>
+      <main class="content" id="content">
+        <p class="empty">请加载 <code>界面配置.json</code> 或点击「新建界面」开始编辑。</p>
+      </main>
+    </div>
+  </div>
+
+  <script>
+(function () {
+  const IMAGE_ARRAY_KEYS = ['特征图片', '图片列表', '图片数组', 'images', 'featureImages'];
+  const BUTTON_KEYS = ['按钮'];
+  const STATE_KEYS = ['状态'];
+  const LS_BASE = 'uiConfigVisualizer_baseUrl';
+
+  let data = null;
+  let currentKey = null;
+  let baseUrl = '';
+  let previewRefreshTimer;
+
+  try {
+    baseUrl = localStorage.getItem(LS_BASE) || '';
+  } catch (e) { /* ignore */ }
+
+  function schedulePreviewRefresh() {
+    clearTimeout(previewRefreshTimer);
+    previewRefreshTimer = setTimeout(() => {
+      renderNav();
+      if (currentKey) renderContent();
+    }, 280);
+  }
+
+  function isPlainObject(v) {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  function getImageList(obj) {
+    if (!isPlainObject(obj)) return null;
+    for (const k of IMAGE_ARRAY_KEYS) {
+      if (Array.isArray(obj[k]) && obj[k].every((x) => typeof x === 'string')) return { key: k, list: obj[k] };
+    }
+    return null;
+  }
+
+  function resolveUrl(path) {
+    if (!path || typeof path !== 'string') return '';
+    const p = path.trim();
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p) || p.startsWith('data:') || p.startsWith('file:')) return p;
+    const prefix = baseUrl.replace(/\/?$/, '/');
+    if (prefix) return prefix + p.replace(/^\.?\//, '');
+    try {
+      return new URL(p, document.baseURI).href;
+    } catch {
+      return p;
+    }
+  }
+
+  function dedupePush(arr, v) {
+    if (!v || typeof v !== 'string') return;
+    const t = v.trim();
+    if (!t || arr.includes(t)) return;
+    arr.push(t);
+  }
+
+  /** 与 界面管理器 中默认规则一致，可被 JSON 里的 查找字符串 覆盖 */
+  function templateKeyForEntry(uiName, sectionPrefix, entryName, entry) {
+    if (entry && typeof entry.查找字符串 === 'string' && entry.查找字符串.trim()) {
+      return entry.查找字符串.trim();
+    }
+    return uiName + '_' + sectionPrefix + '_' + entryName;
+  }
+
+  function collectPathsFromObject(obj) {
+    const gl = getImageList(obj);
+    if (!gl) return [];
+    return gl.list.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean);
+  }
+
+  /** 侧栏缩略图：按顺序尝试，首张能加载的即显示 */
+  function collectUiPreviewCandidates(uiName, ui) {
+    const urls = [];
+    if (!isPlainObject(ui)) return urls;
+    collectPathsFromObject(ui).forEach((p) => dedupePush(urls, p));
+    ['状态', '按钮'].forEach((sec) => {
+      const sub = ui[sec];
+      if (!isPlainObject(sub)) return;
+      Object.keys(sub).forEach((entryName) => {
+        const entry = sub[entryName];
+        if (!isPlainObject(entry)) return;
+        collectPathsFromObject(entry).forEach((p) => dedupePush(urls, p));
+        if (entry.类型 === '图片') {
+          const key = templateKeyForEntry(uiName, sec, entryName, entry);
+          dedupePush(urls, key + '.png');
+          dedupePush(urls, key + '.jpg');
+        }
+      });
+    });
+    if (ui.类型 === '图片') {
+      dedupePush(urls, uiName + '.png');
+      dedupePush(urls, uiName + '.jpg');
+    }
+    dedupePush(urls, '界面预览/' + uiName + '.png');
+    dedupePush(urls, '界面预览/' + uiName + '.jpg');
+    dedupePush(urls, '预览/' + uiName + '.png');
+    dedupePush(urls, '预览/' + uiName + '.jpg');
+    return urls;
+  }
+
+  function entryPreviewCandidates(uiName, sectionPrefix, entryName, entry) {
+    const urls = [];
+    if (!isPlainObject(entry)) return urls;
+    collectPathsFromObject(entry).forEach((p) => dedupePush(urls, p));
+    if (entry.类型 === '图片') {
+      const key = templateKeyForEntry(uiName, sectionPrefix, entryName, entry);
+      dedupePush(urls, key + '.png');
+      dedupePush(urls, key + '.jpg');
+    }
+    return urls;
+  }
+
+  function mountSequentialImage(wrap, imgClass, pathList, placeholderClass, placeholderText) {
+    wrap.innerHTML = '';
+    if (!pathList || !pathList.length) {
+      const ph = el('div', placeholderClass, '');
+      ph.textContent = placeholderText;
+      wrap.appendChild(ph);
+      return;
+    }
+    const img = document.createElement('img');
+    img.alt = '';
+    if (imgClass) img.className = imgClass;
+    let i = 0;
+    function fail() {
+      wrap.innerHTML = '';
+      const ph = el('div', placeholderClass, '');
+      ph.textContent = placeholderText;
+      wrap.appendChild(ph);
+    }
+    function step() {
+      if (i >= pathList.length) {
+        fail();
+        return;
+      }
+      const url = resolveUrl(pathList[i]);
+      img.onerror = () => {
+        i += 1;
+        step();
+      };
+      img.onload = () => { img.onerror = null; };
+      img.src = url;
+    }
+    wrap.appendChild(img);
+    step();
+  }
+
+  function ensureData() {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      data = {};
+    }
+  }
+
+  function renderNav() {
+    const list = document.getElementById('navList');
+    const q = (document.getElementById('filterNav').value || '').trim().toLowerCase();
+    list.innerHTML = '';
+    const keys = Object.keys(data || {}).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    for (const k of keys) {
+      if (q && !k.toLowerCase().includes(q)) continue;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nav-item' + (k === currentKey ? ' active' : '');
+      const thumbWrap = el('div', 'nav-thumb-wrap');
+      const ui = data[k];
+      const candidates = isPlainObject(ui) ? collectUiPreviewCandidates(k, ui) : [];
+      mountSequentialImage(thumbWrap, '', candidates, 'nav-thumb-placeholder', '无预览');
+      const text = el('span', 'nav-item-text');
+      text.textContent = k;
+      btn.appendChild(thumbWrap);
+      btn.appendChild(text);
+      btn.addEventListener('click', () => { currentKey = k; renderNav(); renderContent(); });
+      list.appendChild(btn);
+    }
+    if (!keys.length) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = '暂无界面，请点击「新建界面」。';
+      list.appendChild(p);
+    }
+  }
+
+  function el(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function fieldBlock(labelText, inputEl) {
+    const wrap = el('div', 'field');
+    const lab = el('label');
+    lab.textContent = labelText;
+    wrap.appendChild(lab);
+    wrap.appendChild(inputEl);
+    return wrap;
+  }
+
+  function renderThumbs(paths) {
+    const row = el('div', 'thumb-row');
+    paths.slice(0, 12).forEach((p) => {
+      const src = resolveUrl(p);
+      const img = new Image();
+      img.className = 'thumb';
+      img.alt = '';
+      img.onload = () => { row.appendChild(img); };
+      img.onerror = () => {
+        const d = el('div', 'thumb thumb-broken');
+        d.textContent = '无法加载';
+        row.appendChild(d);
+      };
+      img.src = src;
+    });
+    if (paths.length > 12) {
+      const more = el('div', 'thumb thumb-broken');
+      more.textContent = '+' + (paths.length - 12);
+      row.appendChild(more);
+    }
+    return row;
+  }
+
+  function editImageArray(obj, container) {
+    const found = getImageList(obj);
+    const key = found ? found.key : '特征图片';
+    let list = found ? [...found.list] : [];
+
+    const section = el('div', 'field');
+    section.appendChild(el('label', '', '特征图片（路径列表，可选）'));
+
+    const listWrap = el('div');
+    function redrawList() {
+      listWrap.innerHTML = '';
+      list.forEach((path, idx) => {
+        const row = el('div', 'img-list-item');
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = path;
+        inp.placeholder = '相对/绝对路径或 URL';
+        inp.addEventListener('input', () => { list[idx] = inp.value; sync(); });
+        const del = el('button', 'danger');
+        del.type = 'button';
+        del.textContent = '删';
+        del.addEventListener('click', () => { list.splice(idx, 1); sync(); redrawList(); redrawPreview(); });
+        row.appendChild(inp);
+        row.appendChild(del);
+        listWrap.appendChild(row);
+      });
+    }
+
+    const previewWrap = el('div');
+    function redrawPreview() {
+      previewWrap.innerHTML = '';
+      const valid = list.filter(Boolean);
+      if (valid.length) previewWrap.appendChild(renderThumbs(valid));
+    }
+
+    function sync() {
+      if (!list.length) {
+        IMAGE_ARRAY_KEYS.forEach((k) => { delete obj[k]; });
+      } else {
+        IMAGE_ARRAY_KEYS.forEach((k) => { if (k !== key) delete obj[k]; });
+        obj[key] = list;
+      }
+      schedulePreviewRefresh();
+    }
+
+    const addBtn = el('button', '');
+    addBtn.type = 'button';
+    addBtn.textContent = '+ 添加图片路径';
+    addBtn.addEventListener('click', () => { list.push(''); sync(); redrawList(); });
+
+    redrawList();
+    redrawPreview();
+    section.appendChild(listWrap);
+    section.appendChild(addBtn);
+    section.appendChild(previewWrap);
+    container.appendChild(section);
+  }
+
+  function primitiveFields(obj, container, skipKeys, onFieldChange) {
+    const skip = new Set(skipKeys || []);
+    const keys = Object.keys(obj).filter((k) => !skip.has(k) && typeof obj[k] !== 'object');
+    const grid = el('div', 'grid-2');
+    keys.forEach((k) => {
+      const val = obj[k];
+      let input;
+      const bump = () => { if (typeof onFieldChange === 'function') onFieldChange(k); };
+      if (typeof val === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.step = 'any';
+        input.value = val;
+        input.addEventListener('input', () => {
+          const n = parseFloat(input.value);
+          obj[k] = Number.isFinite(n) ? n : input.value;
+          bump();
+        });
+      } else if (typeof val === 'boolean') {
+        input = document.createElement('select');
+        input.innerHTML = '<option value="true">true</option><option value="false">false</option>';
+        input.value = String(val);
+        input.addEventListener('change', () => { obj[k] = input.value === 'true'; bump(); });
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.value = val == null ? '' : String(val);
+        input.addEventListener('input', () => { obj[k] = input.value; bump(); });
+      }
+      const label = k === '查找区域' ? '查询范围（查找区域）' : k;
+      grid.appendChild(fieldBlock(label, input));
+    });
+    if (keys.length) container.appendChild(grid);
+  }
+
+  function nestedJsonField(label, obj, key, container) {
+    const ta = document.createElement('textarea');
+    let raw;
+    try {
+      raw = obj[key] === undefined ? '' : JSON.stringify(obj[key], null, 2);
+    } catch {
+      raw = String(obj[key]);
+    }
+    ta.value = raw;
+    ta.addEventListener('change', () => {
+      const t = ta.value.trim();
+      if (!t) { delete obj[key]; return; }
+      try { obj[key] = JSON.parse(t); } catch { alert('JSON 格式无效：' + key); }
+    });
+    container.appendChild(fieldBlock(label, ta));
+  }
+
+  function renderNamedObjectSection(title, parentObj, childKey, container) {
+    const sub = parentObj[childKey];
+    if (!isPlainObject(sub)) return;
+
+    const panel = el('div', 'panel');
+    panel.appendChild(el('h2', '', title + ' <span class="badge">' + Object.keys(sub).length + ' 项</span>'));
+
+    const head = el('div', 'row-actions');
+    const add = el('button', 'primary');
+    add.type = 'button';
+    add.textContent = '+ 新建条目';
+    add.addEventListener('click', () => {
+      let n = 1;
+      let name = '新条目';
+      while (sub[name]) name = '新条目_' + n++;
+      sub[name] = { 类型: '点阵', 查找区域: '', 相似度: 0.9 };
+      renderNav();
+      renderContent();
+    });
+    head.appendChild(add);
+    panel.appendChild(head);
+
+    Object.keys(sub).forEach((entryName) => {
+      const entry = sub[entryName];
+      if (!isPlainObject(entry)) return;
+
+      const card = el('div', 'entry-card');
+      const headRow = el('div', 'entry-head');
+      const entryThumb = el('div', 'entry-thumb-wrap');
+      const ec = entryPreviewCandidates(currentKey, childKey, entryName, entry);
+      mountSequentialImage(entryThumb, '', ec, 'entry-thumb-placeholder', '无图');
+      headRow.appendChild(entryThumb);
+      const nameInp = document.createElement('input');
+      nameInp.className = 'name';
+      nameInp.value = entryName;
+      let nameWorking = entryName;
+      nameInp.addEventListener('change', () => {
+        const nn = nameInp.value.trim() || entryName;
+        if (nn !== nameWorking) {
+          if (sub[nn] && nn !== nameWorking) {
+            alert('名称已存在');
+            nameInp.value = nameWorking;
+            return;
+          }
+          sub[nn] = sub[nameWorking];
+          delete sub[nameWorking];
+          nameWorking = nn;
+          renderNav();
+          renderContent();
+        }
+      });
+
+      const delBtn = el('button', 'danger');
+      delBtn.type = 'button';
+      delBtn.textContent = '删除';
+      delBtn.addEventListener('click', () => {
+        if (confirm('删除「' + nameWorking + '」？')) {
+          delete sub[nameWorking];
+          renderNav();
+          renderContent();
+        }
+      });
+      headRow.appendChild(nameInp);
+      headRow.appendChild(delBtn);
+      card.appendChild(headRow);
+
+      primitiveFields(entry, card, new Set(IMAGE_ARRAY_KEYS), (key) => {
+        if (key === '类型' || key === '查找字符串') schedulePreviewRefresh();
+      });
+      editImageArray(entry, card);
+
+      const otherObjKeys = Object.keys(entry).filter((k) => {
+        if (IMAGE_ARRAY_KEYS.includes(k)) return false;
+        const v = entry[k];
+        return isPlainObject(v) || Array.isArray(v);
+      });
+      if (otherObjKeys.length) {
+        const det = el('details', 'json-raw');
+        det.innerHTML = '<summary>其它嵌套字段（JSON）</summary>';
+        otherObjKeys.forEach((k) => {
+          const ta = document.createElement('textarea');
+          ta.value = JSON.stringify(entry[k], null, 2);
+          ta.addEventListener('change', () => {
+            try { entry[k] = JSON.parse(ta.value.trim() || 'null'); } catch { alert('JSON 无效: ' + k); }
+          });
+          det.appendChild(fieldBlock(k, ta));
+        });
+        card.appendChild(det);
+      }
+
+      panel.appendChild(card);
+    });
+
+    container.appendChild(panel);
+  }
+
+  function renderContent() {
+    const root = document.getElementById('content');
+    root.innerHTML = '';
+    if (!data || !currentKey || !data[currentKey]) {
+      root.innerHTML = '<p class="empty">请选择左侧界面，或加载配置。</p>';
+      return;
+    }
+    const ui = data[currentKey];
+    if (!isPlainObject(ui)) {
+      root.textContent = '该界面数据不是对象，请用文本编辑器处理。';
+      return;
+    }
+
+    const top = el('div', 'panel');
+    top.appendChild(el('h2', '', '界面：' + currentKey));
+
+    const renameRow = el('div', 'grid-2');
+    const renameInp = document.createElement('input');
+    renameInp.type = 'text';
+    renameInp.value = currentKey;
+    renameRow.appendChild(fieldBlock('界面名称（回车保存）', renameInp));
+    renameInp.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const nn = renameInp.value.trim();
+      if (!nn || nn === currentKey) return;
+      if (data[nn]) { alert('名称已存在'); return; }
+      data[nn] = data[currentKey];
+      delete data[currentKey];
+      currentKey = nn;
+      renderNav();
+      renderContent();
+    });
+    top.appendChild(renameRow);
+
+    const stripInner = el('div', 'entry-head');
+    stripInner.style.marginBottom = '12px';
+    const bigThumb = el('div', 'entry-thumb-wrap');
+    bigThumb.style.width = '72px';
+    bigThumb.style.height = '72px';
+    const stripCandidates = collectUiPreviewCandidates(currentKey, ui);
+    mountSequentialImage(bigThumb, '', stripCandidates, 'entry-thumb-placeholder', '无预览');
+    const stripLabel = el('div', 'field');
+    stripLabel.style.flex = '1';
+    stripLabel.innerHTML = '<label>界面缩略预览（与侧栏一致）</label><p style="margin:6px 0 0;font-size:0.8rem;color:var(--muted)">点阵类无 PNG 时可为界面或条目配置「特征图片」，或将参考图命名为 <code>界面名_状态|按钮_条目名.png</code> 放在预览基路径下（与脚本默认查找键一致）。</p>';
+    stripInner.appendChild(bigThumb);
+    stripInner.appendChild(stripLabel);
+    top.appendChild(stripInner);
+
+    primitiveFields(ui, top, new Set([...STATE_KEYS, ...BUTTON_KEYS, '滑动区域', '识字区域', ...IMAGE_ARRAY_KEYS]), (key) => {
+      if (key === '类型' || key === '查找字符串') schedulePreviewRefresh();
+    });
+
+    const imgPanel = el('div', 'panel');
+    imgPanel.appendChild(el('h2', '', '界面级 · 特征图片（可选）'));
+    editImageArray(ui, imgPanel);
+    root.appendChild(top);
+    root.appendChild(imgPanel);
+
+    ['滑动区域', '识字区域'].forEach((k) => {
+      if (ui[k] !== undefined) {
+        const p = el('div', 'panel');
+        p.appendChild(el('h2', '', k));
+        if (isPlainObject(ui[k]) || Array.isArray(ui[k])) nestedJsonField(k + '（JSON）', ui, k, p);
+        else {
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.value = ui[k] == null ? '' : String(ui[k]);
+          inp.addEventListener('input', () => { ui[k] = inp.value; });
+          p.appendChild(fieldBlock(k, inp));
+        }
+        root.appendChild(p);
+      }
+    });
+
+    STATE_KEYS.forEach((k) => renderNamedObjectSection('状态（界面识别特征）', ui, k, root));
+    BUTTON_KEYS.forEach((k) => renderNamedObjectSection('按钮', ui, k, root));
+
+    const extraKeys = Object.keys(ui).filter((k) => {
+      if ([...STATE_KEYS, ...BUTTON_KEYS, '滑动区域', '识字区域'].includes(k)) return false;
+      if (IMAGE_ARRAY_KEYS.includes(k)) return false;
+      const v = ui[k];
+      return isPlainObject(v) && !Array.isArray(v);
+    });
+    extraKeys.forEach((k) => renderNamedObjectSection(k, ui, k, root));
+  }
+
+  document.getElementById('fileIn').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        data = JSON.parse(r.result);
+        ensureData();
+        currentKey = Object.keys(data)[0] || null;
+        document.getElementById('statusBadge').textContent = '已加载 · ' + Object.keys(data).length + ' 个界面';
+        document.getElementById('statusBadge').style.color = 'var(--ok)';
+        renderNav();
+        renderContent();
+      } catch (err) {
+        alert('JSON 解析失败：' + err.message);
+      }
+    };
+    r.readAsText(f, 'UTF-8');
+    e.target.value = '';
+  });
+
+  document.getElementById('btnExport').addEventListener('click', () => {
+    ensureData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '界面配置.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById('btnNewUi').addEventListener('click', () => {
+    ensureData();
+    let n = 1;
+    let name = '新界面';
+    while (data[name]) name = '新界面_' + n++;
+    data[name] = {
+      类型: '点阵',
+      查找区域: '',
+      相似度: 0.9,
+      状态: {},
+      按钮: {}
+    };
+    currentKey = name;
+    document.getElementById('statusBadge').textContent = '已编辑';
+    document.getElementById('statusBadge').style.color = 'var(--ok)';
+    renderNav();
+    renderContent();
+  });
+
+  document.getElementById('filterNav').addEventListener('input', renderNav);
+
+  (function initBaseUrlNav() {
+    const navBase = document.getElementById('baseUrlNav');
+    if (!navBase) return;
+    navBase.value = baseUrl;
+    let debounce;
+    navBase.addEventListener('input', () => {
+      baseUrl = navBase.value.trim();
+      try {
+        localStorage.setItem(LS_BASE, baseUrl);
+      } catch (e) { /* ignore */ }
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        renderNav();
+        if (currentKey) renderContent();
+      }, 120);
+    });
+  })();
+})();
+  </script>
+</body>
+</html>
