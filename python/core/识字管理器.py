@@ -3,6 +3,7 @@
 """
 
 import os
+import threading
 
 import cv2
 import numpy as np
@@ -19,6 +20,7 @@ from paddleocr import PaddleOCR  # noqa: E402
 from paddle import device
 
 _ocr = None
+_ocr_predict_lock = threading.Lock()
 _OCR_MAX_SIDE = 960
 
 def get_ocr():
@@ -78,7 +80,8 @@ class 识字管理器类:
             # 灰度或其他通道数，直接使用
             img_input = img_np
 
-        result = _ocr.predict(input=img_input)
+        with _ocr_predict_lock:
+            result = _ocr.predict(input=img_input)
         out = []
         for page in result:
             texts = page.get("rec_texts", [])
