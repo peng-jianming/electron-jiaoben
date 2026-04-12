@@ -116,9 +116,9 @@ onUnmounted(() => {
 @shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
 @shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
 
-/* 固定尺寸 */
-@app-width: 1440px;
-@app-height: 960px;
+/* 固定尺寸（与 electron/config/config.default.js 窗口 1920×1080 一致） */
+@app-width: 1920px;
+@app-height: 1080px;
 @title-bar-height: 40px;
 @content-height: @app-height - @title-bar-height;
 
@@ -159,8 +159,16 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-.router-view-container :deep(.el-tabs__content) {
-  display: block !important;
+/* 勿对全局 el-tabs__content 写 display:block !important，会打断图色处理器右侧 Tab 的 flex 链，导致配置页无法滚动 */
+
+/* 图色处理器页铺满内容区高度 */
+.router-view-container :deep(.image-processor-tab) {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== 处理遮罩层 ===== */

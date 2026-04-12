@@ -153,10 +153,10 @@ defineEmits([
 .left-panel {
   display: flex;
   flex-direction: column;
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
-  height: 882px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
   gap: 0;
   overflow: hidden;

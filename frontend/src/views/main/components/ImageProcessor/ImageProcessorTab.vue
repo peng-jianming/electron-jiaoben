@@ -2449,21 +2449,23 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ===== 固定尺寸 ===== */
-/* 1440 x 960 窗口, 标题栏40px, 内容区 920px */
-/* 左220px | 中760px | 右460px = 1440px */
+/* ===== 布局 ===== */
+/* 窗口 1920×1080，标题栏 40px → 内容区高度由 Index 变量决定 */
+/* 左 220px | 中 760px | 右 flex:1 占满剩余宽度（1920−40 内约为 940px） */
 
 .image-processor-tab {
-  width: 1440px;
-  height: 920px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
 
 .processor-layout {
   display: flex;
-  width: 1440px;
-  height: 920px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -2472,7 +2474,8 @@ onUnmounted(() => {
   width: 220px;
   min-width: 220px;
   max-width: 220px;
-  height: 920px;
+  height: 100%;
+  flex-shrink: 0;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -2482,7 +2485,8 @@ onUnmounted(() => {
   width: 760px;
   min-width: 760px;
   max-width: 760px;
-  height: 920px;
+  height: 100%;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2492,14 +2496,19 @@ onUnmounted(() => {
   background: #0f172a;
 }
 
-/* ===== 右面板容器 ===== */
+/* ===== 右侧面板：占满剩余宽度 ===== */
+/* min-height:0 + 纵向 flex：避免作为横向 flex 子项时被内容撑高，否则内部 Tab 无法建立滚动高度 */
 .right-panel {
-  width: 460px;
-  min-width: 460px;
-  max-width: 460px;
-  height: 920px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  max-width: none;
+  height: 100%;
   overflow: hidden;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 中间面板内的图片标签栏 */

@@ -1,117 +1,566 @@
 <template>
   <div class="config-tab-container">
-    <!-- 配置 JSON 文件选择 -->
-    <div>
+    <!-- 顶部工具栏 -->
+    <div class="cfg-toolbar">
+      <div class="cfg-toolbar-left">
+        <el-button
+          type="primary"
+          class="cfg-toolbar-btn cfg-toolbar-btn--primary"
+          size="small"
+          @click="handleNewScreen"
+        >
+          <el-icon class="cfg-btn-icon"><Plus /></el-icon>
+          新建界面
+        </el-button>
+        <el-button
+          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+          size="small"
+          @click="handleSelectConfigFile"
+        >
+          <el-icon class="cfg-btn-icon"><FolderOpened /></el-icon>
+          选择配置
+        </el-button>
+        <el-button
+          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+          size="small"
+          :disabled="!configForm.configPath"
+          @click="handleOpenConfigFile"
+        >
+          <el-icon class="cfg-btn-icon"><Document /></el-icon>
+          打开文件
+        </el-button>
+        <el-button
+          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+          size="small"
+          :disabled="!data"
+          @click="handleExportConfig"
+        >
+          <el-icon class="cfg-btn-icon"><Download /></el-icon>
+          导出 JSON
+        </el-button>
+        <el-button
+          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+          size="small"
+          @click="handleImportConfig"
+        >
+          <el-icon class="cfg-btn-icon"><Upload /></el-icon>
+          导入配置
+        </el-button>
+        <el-button
+          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+          size="small"
+          @click="loadDemoConfig"
+        >
+          加载示例
+        </el-button>
+      </div>
+      <div class="cfg-toolbar-right">
+        <span class="cfg-badge">
+          <el-icon><Check /></el-icon>
+          编辑后自动保存
+        </span>
+      </div>
+    </div>
+
+    <div class="cfg-toolbar-path-row">
       <el-input
         v-model="configForm.configPath"
         placeholder="请选择配置 JSON 文件"
         readonly
         size="small"
-      >
-        <template #prepend>
-          <el-button @click="handleSelectConfigFile">选择文件</el-button>
-        </template>
-        <template #append>
-          <el-button @click="handleOpenConfigFile" :disabled="!configForm.configPath">
-            打开文件
-          </el-button>
-        </template>
-      </el-input>
+        class="cfg-path-input"
+      />
     </div>
-    <div style="flex: 1; overflow: auto">
-      <vue-json-pretty v-if="data" deep="1" :data="data" showIcon :collapsedOnClickBrackets="false">
-        <template #renderNodeValue="{ node, defaultValue }">
-          <span v-if="node.key == '类型'">{{ node.content }}</span>
-          <el-input
-            v-else-if="node.key == '偏移点击区域'"
-              style=" width: 90%"
-              v-model="node.content"
-              size="small"
-              @blur="handleBlur(node)"
-          >
-            <template #append>
+
+    <div class="cfg-workspace">
+      <!-- 左侧：顶层配置项（无缩略图，仅占位图标） -->
+      <aside class="cfg-sidebar">
+        <div class="cfg-sidebar-header">
+          <span class="cfg-sidebar-title">
+            <el-icon><Grid /></el-icon>
+            界面列表
+          </span>
+          <span class="cfg-badge cfg-badge--muted">{{ rootKeys.length }} 个界面</span>
+        </div>
+        <div class="cfg-sidebar-list">
+          <template v-if="data && rootKeys.length">
+            <div
+              v-for="key in rootKeys"
+              :key="key"
+              class="cfg-root-item"
+              :class="{ 'is-active': selectedRootKey === key }"
+              @click="selectedRootKey = key"
+            >
+              <div class="cfg-root-icon" aria-hidden="true">
+                {{ rootInitial(key) }}
+              </div>
+              <div class="cfg-root-info">
+                <div class="cfg-root-name" :title="key">{{ key }}</div>
+                <div class="cfg-root-meta">
+                  {{ screenButtonCount(key) }} 按钮 · {{ screenStateCount(key) }} 状态
+                </div>
+              </div>
               <el-button
-                :type="
-                  isFontClickOffsetAreaSelectionActiveForNode(node)
-                    ? 'warning'
-                    : 'primary'
-                "
-                :disabled="!hasSelectionRect"
+                class="cfg-root-delete"
+                type="danger"
+                link
                 size="small"
-                @click="toggleFontClickOffsetAreaSelectionForNode(node)"
+                @click.stop="handleDeleteRootScreen(key)"
               >
-                {{
-                  isFontClickOffsetAreaSelectionActiveForNode(node) ? "取消" : "圈选"
-                }}
+                <el-icon><Delete /></el-icon>
               </el-button>
-            </template>
-          </el-input>
-          <el-input
-            v-else
-              style="display: inline-block; width: 90%"
-              v-model="node.content"
-              size="small"
-              @blur="handleBlur(node)"
-          />
-        </template>
-        <template #renderNodeActions="{ node, defaultActions }">
-          <template
-            v-if="
-              node.type != 'content' &&
-              node.type != 'arrayStart' &&
-              node.level != 0 &&
-              node.key != '滑动区域' &&
-              node.key != '识字区域' &&
-              node.key != '按钮' &&
-              node.key != '状态'
-            "
-          >
-            <el-button type="primary" size="small" @click="handleTest(node)"
-              >测试</el-button
-            >
-            <el-button  type="primary" size="small" @click="handleAddConfig(node)"
-              >制作点阵/添加图片</el-button
-            >
+            </div>
           </template>
+          <div v-else class="cfg-sidebar-empty">
+            <el-icon :size="28"><FolderOpened /></el-icon>
+            <p>加载配置后，此处列出顶层键</p>
+          </div>
+        </div>
+      </aside>
 
-          <el-button
-            v-if="
-              (node.type == 'objectStart' || node.level == 3 || node.level == 1) &&
-              node.level != 0 &&
-              node.key != '滑动区域' &&
-              node.key != '识字区域' &&
-              node.key != '按钮' &&
-              node.key != '状态'
-            "
-            type="danger"
-            size="small"
-            @click="handleDelete(node)"
-            >删除</el-button
-          >
+      <!-- 右侧：结构化配置（对齐原型） -->
+      <main class="cfg-main">
+        <div v-if="data && currentScreenObj" class="cfg-visual-wrap">
+          <div class="cfg-visual-scroll">
+            <div class="proto-section-card">
+              <div class="proto-section-title">
+                <span>界面配置</span>
+              </div>
+              <div class="proto-field-group">
+                <div class="proto-field-label">界面名称</div>
+                <el-input
+                  size="small"
+                  class="proto-input"
+                  :model-value="selectedRootKey"
+                  readonly
+                />
+              </div>
+              <div class="proto-inline-group">
+                <div class="proto-inline-field">
+                  <div class="proto-field-label">相似度 (0~1)</div>
+                  <el-input-number
+                    v-model="screenSimilarityModel"
+                    :min="0"
+                    :max="1"
+                    :step="0.01"
+                    :precision="2"
+                    size="small"
+                    class="proto-input-full"
+                    controls-position="right"
+                    @change="onScreenSimilarityCommit"
+                  />
+                </div>
+                <div class="proto-inline-field proto-inline-field--grow">
+                  <div class="proto-field-label">查询范围（查找区域）</div>
+                  <el-input
+                    v-model="screenSearchRegionModel"
+                    size="small"
+                    class="proto-input"
+                    placeholder="例如 0,0,1920,1080，留空表示不限"
+                    @blur="onScreenSearchRegionBlur"
+                  />
+                </div>
+              </div>
+              <div
+                v-if="currentScreenObj && Object.prototype.hasOwnProperty.call(currentScreenObj, '误触区域')"
+                class="proto-field-group"
+              >
+                <div class="proto-field-label">误触区域</div>
+                <el-input
+                  v-model="screenAvoidRegionModel"
+                  size="small"
+                  class="proto-input"
+                  placeholder="x,y,w,h，可留空"
+                  @blur="onScreenAvoidRegionBlur"
+                />
+              </div>
+            </div>
 
-          <el-button
-            v-if="node.key == '滑动区域'"
-            type="primary"
-            size="small"
-            @click="handleAddSliderArea(node)"
-            >添加</el-button
-          >
-          <el-button
-            v-if="node.key == '识字区域'"
-            type="primary"
-            size="small"
-            @click="handleAddSzArea(node)"
-            >添加</el-button
-          >
-          <el-button
-            v-if="node.key == '状态' || node.key == '按钮' || node.path == 'root'"
-            type="primary"
-            size="small"
-            @click="handleAddItem(node)"
-            >添加</el-button
-          >
-        </template>
-      </vue-json-pretty>
+            <!-- 滑动区域：子项为 { 起始区域, 结束区域 } -->
+            <div class="proto-section-card">
+              <div class="proto-section-title proto-section-title--between">
+                <span>滑动区域列表</span>
+                <el-button
+                  type="success"
+                  size="small"
+                  class="proto-add-btn"
+                  @click="
+                    handleAddSliderArea({
+                      path: buildJsonPath([selectedRootKey, '滑动区域']),
+                    })
+                  "
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加滑动区域
+                </el-button>
+              </div>
+              <template v-if="sliderEntriesForScreen.length">
+                <div
+                  v-for="[slName, sl] in sliderEntriesForScreen"
+                  :key="'sl-' + slName"
+                  class="proto-button-card"
+                >
+                  <div class="proto-button-header">
+                    <span class="proto-button-name">{{ slName }}</span>
+                    <el-button
+                      type="danger"
+                      size="small"
+                      link
+                      @click="handleDeleteByPath(buildPathKeysForSlider(slName))"
+                    >
+                      删除
+                    </el-button>
+                  </div>
+                  <div class="proto-inline-group">
+                    <div class="proto-inline-field proto-inline-field--grow">
+                      <div class="proto-field-label">起始区域</div>
+                      <el-input
+                        v-model="sl.起始区域"
+                        size="small"
+                        class="proto-input"
+                        placeholder="x,y,w,h"
+                        @blur="
+                          onSliderEndpointBlur(
+                            slName,
+                            '起始区域',
+                            sl.起始区域
+                          )
+                        "
+                      />
+                    </div>
+                    <div class="proto-inline-field proto-inline-field--grow">
+                      <div class="proto-field-label">结束区域</div>
+                      <el-input
+                        v-model="sl.结束区域"
+                        size="small"
+                        class="proto-input"
+                        placeholder="x,y,w,h"
+                        @blur="
+                          onSliderEndpointBlur(slName, '结束区域', sl.结束区域)
+                        "
+                      />
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div v-else class="proto-empty-hint">
+                暂无滑动区域，点击「添加滑动区域」
+              </div>
+            </div>
+
+            <!-- 识字区域：常见为「名称 → 区域字符串」；嵌套对象需导出 JSON 在外部编辑 -->
+            <div class="proto-section-card">
+              <div class="proto-section-title proto-section-title--between">
+                <span>识字区域列表</span>
+                <el-button
+                  type="success"
+                  size="small"
+                  class="proto-add-btn"
+                  @click="
+                    handleAddSzArea({
+                      path: buildJsonPath([selectedRootKey, '识字区域']),
+                    })
+                  "
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加识字区域
+                </el-button>
+              </div>
+              <template v-if="szEntriesForScreen.length">
+                <div
+                  v-for="[zn, zv] in szEntriesForScreen"
+                  :key="'sz-' + zn"
+                  class="proto-button-card"
+                >
+                  <div class="proto-button-header">
+                    <span class="proto-button-name">{{ zn }}</span>
+                    <el-button
+                      type="danger"
+                      size="small"
+                      link
+                      @click="handleDeleteByPath(buildPathKeysForSz(zn))"
+                    >
+                      删除
+                    </el-button>
+                  </div>
+                  <template v-if="typeof zv === 'string'">
+                    <div class="proto-field-label">区域 / 内容（x,y,w,h）</div>
+                    <el-input
+                      :model-value="zv"
+                      size="small"
+                      class="proto-input"
+                      placeholder="例如 270,85,155,37"
+                      @update:model-value="(v) => setSzEntryString(zn, v)"
+                      @blur="onSzStringBlur(zn)"
+                    />
+                  </template>
+                  <div v-else class="proto-sz-object-hint">
+                    当前为嵌套对象，请使用「导出 JSON」编辑后「导入配置」
+                  </div>
+                </div>
+              </template>
+              <div v-else class="proto-empty-hint">
+                暂无识字区域，点击「添加识字区域」
+              </div>
+            </div>
+
+            <div class="proto-section-card">
+              <div class="proto-section-title proto-section-title--between">
+                <span>状态属性列表</span>
+                <el-button
+                  type="success"
+                  size="small"
+                  class="proto-add-btn"
+                  @click="handleAddItem({ path: buildJsonPath([selectedRootKey, '状态']) })"
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加状态
+                </el-button>
+              </div>
+              <template v-if="stateEntriesForScreen.length">
+                <div
+                  v-for="[stName, st] in stateEntriesForScreen"
+                  :key="'st-' + stName"
+                  class="proto-button-card"
+                >
+                  <div class="proto-button-header">
+                    <span class="proto-button-name">{{ stName }}</span>
+                    <div class="proto-button-actions">
+                      <el-button
+                        type="primary"
+                        size="small"
+                        link
+                        @click="handleTestByPath(buildPathKeysForState(stName))"
+                      >
+                        测试
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        size="small"
+                        link
+                        @click="handleAddConfigByPath(buildPathKeysForState(stName))"
+                      >
+                        制作点阵/添加图片
+                      </el-button>
+                      <el-button
+                        type="danger"
+                        size="small"
+                        link
+                        @click="handleDeleteByPath(buildPathKeysForState(stName))"
+                      >
+                        删除
+                      </el-button>
+                    </div>
+                  </div>
+                  <div class="proto-field-row">
+                    <span class="proto-mini-label">类型</span>
+                    <span class="proto-type-tag">{{ st?.类型 ?? "-" }}</span>
+                  </div>
+                  <div class="proto-inline-group">
+                    <div class="proto-inline-field">
+                      <div class="proto-field-label">相似度</div>
+                      <el-input-number
+                        :model-value="Number(st?.相似度 ?? 0.9)"
+                        :min="0"
+                        :max="1"
+                        :step="0.01"
+                        :precision="2"
+                        size="small"
+                        class="proto-input-full"
+                        controls-position="right"
+                        @change="(v) => onStateSimilarityCommit(stName, v)"
+                      />
+                    </div>
+                    <div class="proto-inline-field proto-inline-field--grow">
+                      <div class="proto-field-label">查询范围</div>
+                      <el-input
+                        v-model="st.查找区域"
+                        size="small"
+                        class="proto-input"
+                        @blur="onStateFieldBlur(stName, '查找区域', st.查找区域)"
+                      />
+                    </div>
+                  </div>
+                  <div class="proto-field-group">
+                    <div class="proto-field-label">偏移点击区域</div>
+                    <el-input
+                      v-model="st.偏移点击区域"
+                      size="small"
+                      class="proto-input"
+                      @blur="onStateFieldBlur(stName, '偏移点击区域', st.偏移点击区域)"
+                    >
+                      <template #append>
+                        <el-button
+                          :type="
+                            isOffsetActiveForPath(
+                              buildJsonPath(
+                                buildPathKeysForState(stName, '偏移点击区域')
+                              )
+                            )
+                              ? 'warning'
+                              : 'primary'
+                          "
+                          :disabled="!hasSelectionRect"
+                          size="small"
+                          @click="
+                            toggleFontClickOffsetAreaSelectionForNode({
+                              path: buildJsonPath(
+                                buildPathKeysForState(stName, '偏移点击区域')
+                              ),
+                            })
+                          "
+                        >
+                          {{
+                            isOffsetActiveForPath(
+                              buildJsonPath(
+                                buildPathKeysForState(stName, '偏移点击区域')
+                              )
+                            )
+                              ? "取消"
+                              : "圈选"
+                          }}
+                        </el-button>
+                      </template>
+                    </el-input>
+                  </div>
+                </div>
+              </template>
+              <div v-else class="proto-empty-hint">暂无状态，点击「添加状态」</div>
+            </div>
+
+            <div class="proto-section-card">
+              <div class="proto-section-title proto-section-title--between">
+                <span>按钮属性列表</span>
+                <el-button
+                  type="success"
+                  size="small"
+                  class="proto-add-btn"
+                  @click="handleAddItem({ path: buildJsonPath([selectedRootKey, '按钮']) })"
+                >
+                  <el-icon><Plus /></el-icon>
+                  添加按钮
+                </el-button>
+              </div>
+              <template v-if="buttonEntriesForScreen.length">
+                <div
+                  v-for="[btnName, btn] in buttonEntriesForScreen"
+                  :key="btnName"
+                  class="proto-button-card"
+                >
+                  <div class="proto-button-header">
+                    <span class="proto-button-name">{{ btnName }}</span>
+                    <div class="proto-button-actions">
+                      <el-button
+                        type="primary"
+                        size="small"
+                        link
+                        @click="handleTestByPath(buildPathKeysForButton(btnName))"
+                      >
+                        测试
+                      </el-button>
+                      <el-button
+                        type="primary"
+                        size="small"
+                        link
+                        @click="handleAddConfigByPath(buildPathKeysForButton(btnName))"
+                      >
+                        制作点阵/添加图片
+                      </el-button>
+                      <el-button
+                        type="danger"
+                        size="small"
+                        link
+                        @click="handleDeleteByPath(buildPathKeysForButton(btnName))"
+                      >
+                        删除
+                      </el-button>
+                    </div>
+                  </div>
+                  <div class="proto-field-row">
+                    <span class="proto-mini-label">类型</span>
+                    <span class="proto-type-tag">{{ btn?.类型 ?? "-" }}</span>
+                  </div>
+                  <div class="proto-inline-group">
+                    <div class="proto-inline-field">
+                      <div class="proto-field-label">相似度</div>
+                      <el-input-number
+                        :model-value="Number(btn?.相似度 ?? 0.9)"
+                        :min="0"
+                        :max="1"
+                        :step="0.01"
+                        :precision="2"
+                        size="small"
+                        class="proto-input-full"
+                        controls-position="right"
+                        @change="(v) => onButtonSimilarityCommit(btnName, v)"
+                      />
+                    </div>
+                    <div class="proto-inline-field proto-inline-field--grow">
+                      <div class="proto-field-label">查询范围</div>
+                      <el-input
+                        v-model="btn.查找区域"
+                        size="small"
+                        class="proto-input"
+                        @blur="onButtonFieldBlur(btnName, '查找区域', btn.查找区域)"
+                      />
+                    </div>
+                  </div>
+                  <div class="proto-field-group">
+                    <div class="proto-field-label">偏移点击区域</div>
+                    <el-input
+                      v-model="btn.偏移点击区域"
+                      size="small"
+                      class="proto-input"
+                      @blur="onButtonFieldBlur(btnName, '偏移点击区域', btn.偏移点击区域)"
+                    >
+                      <template #append>
+                        <el-button
+                          :type="
+                            isOffsetActiveForPath(
+                              buildJsonPath(buildPathKeysForButton(btnName, '偏移点击区域'))
+                            )
+                              ? 'warning'
+                              : 'primary'
+                          "
+                          :disabled="!hasSelectionRect"
+                          size="small"
+                          @click="
+                            toggleFontClickOffsetAreaSelectionForNode({
+                              path: buildJsonPath(
+                                buildPathKeysForButton(btnName, '偏移点击区域')
+                              ),
+                            })
+                          "
+                        >
+                          {{
+                            isOffsetActiveForPath(
+                              buildJsonPath(buildPathKeysForButton(btnName, '偏移点击区域'))
+                            )
+                              ? "取消"
+                              : "圈选"
+                          }}
+                        </el-button>
+                      </template>
+                    </el-input>
+                  </div>
+                </div>
+              </template>
+              <div v-else class="proto-empty-hint">暂无按钮，点击「添加按钮」</div>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="data" class="cfg-json-only-card">
+          <div class="cfg-section-title">当前项无法结构化编辑</div>
+          <p class="proto-json-only-hint">
+            选中的顶层键不是对象，或结构与标准「界面」不一致。请使用「导出 JSON」在外部修改后「导入配置」，或更换为可解析的界面配置。
+          </p>
+        </div>
+        <div v-else class="cfg-empty-state">
+          <el-icon class="cfg-empty-icon"><FolderOpened /></el-icon>
+          <p>请选择 JSON 配置文件</p>
+          <p class="cfg-empty-sub">支持界面、按钮、状态等结构化编辑</p>
+        </div>
+      </main>
     </div>
 
     <!-- 测试弹框：按当前配置项名称（点阵名）查询所有同名点阵进行找字测试 -->
@@ -147,7 +596,11 @@
                 基于当前图片与圈选区域生成字库点阵配置
               </div>
             </div>
-            <el-button link type="primary" size="small" @click="drawer = false">
+            <el-button
+              class="cfg-toolbar-btn cfg-toolbar-btn--outline"
+              size="small"
+              @click="drawer = false"
+            >
               关闭
             </el-button>
           </div>
@@ -300,11 +753,20 @@
 </template>
 
 <script setup>
-import VueJsonPretty from "vue-json-pretty";
-import "vue-json-pretty/lib/styles.css";
 import { ref, watch, onMounted, computed, h } from "vue";
 import { ElMessage, ElMessageBox, ElInput, ElCheckbox, ElRadio, ElRadioGroup } from "element-plus";
-import { Close, Picture } from "@element-plus/icons-vue";
+import {
+  Close,
+  Picture,
+  FolderOpened,
+  Document,
+  Check,
+  Grid,
+  Plus,
+  Download,
+  Upload,
+  Delete,
+} from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
@@ -342,6 +804,512 @@ const emit = defineEmits([
 ]);
 
 const data = ref(undefined);
+
+/** 左侧列表：配置 JSON 顶层键（排序展示，无缩略图） */
+const rootKeys = computed(() => {
+  const d = data.value;
+  if (d == null || typeof d !== "object" || Array.isArray(d)) return [];
+  return Object.keys(d).sort();
+});
+
+const selectedRootKey = ref(null);
+
+watch(
+  rootKeys,
+  (keys) => {
+    if (!keys.length) {
+      selectedRootKey.value = null;
+      return;
+    }
+    if (
+      selectedRootKey.value == null ||
+      !keys.includes(selectedRootKey.value)
+    ) {
+      selectedRootKey.value = keys[0];
+    }
+  },
+  { immediate: true }
+);
+
+const rootInitial = (key) => {
+  const s = String(key || "").trim();
+  return s ? s.charAt(0).toUpperCase() : "?";
+};
+
+const rootChildCount = (key) => {
+  const d = data.value?.[key];
+  if (d != null && typeof d === "object" && !Array.isArray(d)) {
+    return Object.keys(d).length;
+  }
+  return 0;
+};
+
+/** 供结构化编辑 / 圈选写回使用的路径串，与 getPathKeys 互逆 */
+const buildJsonPath = (keys) => {
+  if (!keys || !keys.length) return "root";
+  return (
+    "root" +
+    keys
+      .map((k) => {
+        const s = String(k);
+        const escaped = s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        return `["${escaped}"]`;
+      })
+      .join("")
+  );
+};
+
+const currentScreenObj = computed(() => {
+  const k = selectedRootKey.value;
+  if (!k || !data.value) return null;
+  const s = data.value[k];
+  if (s != null && typeof s === "object" && !Array.isArray(s)) return s;
+  return null;
+});
+
+const buttonEntriesForScreen = computed(() => {
+  const s = currentScreenObj.value;
+  const b = s?.按钮;
+  if (!b || typeof b !== "object" || Array.isArray(b)) return [];
+  return Object.keys(b)
+    .sort()
+    .map((k) => [k, b[k]])
+    .filter(
+      ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
+    );
+});
+
+/** 与按钮列表一致：仅展示值为「普通对象」的状态项（排除字符串坐标等） */
+const stateEntriesForScreen = computed(() => {
+  const s = currentScreenObj.value;
+  const st = s?.状态;
+  if (!st || typeof st !== "object" || Array.isArray(st)) return [];
+  return Object.keys(st)
+    .sort()
+    .map((k) => [k, st[k]])
+    .filter(
+      ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
+    );
+});
+
+const screenButtonCount = (screenKey) => {
+  const b = data.value?.[screenKey]?.按钮;
+  if (!b || typeof b !== "object" || Array.isArray(b)) return 0;
+  return Object.keys(b).length;
+};
+
+const screenStateCount = (screenKey) => {
+  const st = data.value?.[screenKey]?.状态;
+  if (!st || typeof st !== "object" || Array.isArray(st)) return 0;
+  return Object.keys(st).length;
+};
+
+const buildPathKeysForButton = (btnName, tail) => {
+  const sk = selectedRootKey.value;
+  const base = [sk, "按钮", btnName];
+  return tail ? [...base, tail] : base;
+};
+
+const buildPathKeysForState = (stateName, tail) => {
+  const sk = selectedRootKey.value;
+  const base = [sk, "状态", stateName];
+  return tail ? [...base, tail] : base;
+};
+
+const buildPathKeysForSlider = (sliderName) => {
+  const sk = selectedRootKey.value;
+  return [sk, "滑动区域", sliderName];
+};
+
+const buildPathKeysForSz = (entryName) => {
+  const sk = selectedRootKey.value;
+  return [sk, "识字区域", entryName];
+};
+
+/** 滑动区域子项：值为含 起始区域/结束区域 的对象 */
+const sliderEntriesForScreen = computed(() => {
+  const s = currentScreenObj.value?.滑动区域;
+  if (!s || typeof s !== "object" || Array.isArray(s)) return [];
+  return Object.keys(s)
+    .sort()
+    .map((k) => [k, s[k]])
+    .filter(
+      ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
+    );
+});
+
+/** 识字区域：键值对（字符串可编辑；嵌套对象仅提示导出编辑） */
+const szEntriesForScreen = computed(() => {
+  const z = currentScreenObj.value?.识字区域;
+  if (!z || typeof z !== "object" || Array.isArray(z)) return [];
+  return Object.keys(z)
+    .sort()
+    .map((k) => [k, z[k]]);
+});
+
+const onSliderEndpointBlur = (sliderName, fieldKey, raw) => {
+  const sl = currentScreenObj.value?.滑动区域?.[sliderName];
+  if (!sl || typeof sl !== "object") return;
+  const trimmed = raw == null ? "" : String(raw).trim();
+  if (trimmed === "") {
+    sl[fieldKey] = "";
+    return;
+  }
+  if (!validateRegionLike(trimmed, fieldKey)) {
+    sl[fieldKey] = "";
+    return;
+  }
+  sl[fieldKey] = trimmed;
+};
+
+const setSzEntryString = (zn, v) => {
+  const z = currentScreenObj.value?.识字区域;
+  if (!z) return;
+  z[zn] = v;
+};
+
+const onSzStringBlur = (zn) => {
+  const z = currentScreenObj.value?.识字区域;
+  if (!z) return;
+  const raw = z[zn];
+  if (typeof raw !== "string") return;
+  const trimmed = raw.trim();
+  if (trimmed === "") return;
+  if (!validateRegionLike(trimmed, "识字区域")) {
+    z[zn] = "";
+  }
+};
+
+const screenSimilarityModel = computed({
+  get() {
+    const s = currentScreenObj.value;
+    if (!s) return 0.9;
+    const v = Number(s.相似度);
+    return Number.isFinite(v) ? v : 0.9;
+  },
+  set(v) {
+    const s = currentScreenObj.value;
+    if (s) s.相似度 = v;
+  },
+});
+
+const screenSearchRegionModel = computed({
+  get() {
+    const s = currentScreenObj.value;
+    return s?.查找区域 != null ? String(s.查找区域) : "";
+  },
+  set(v) {
+    const s = currentScreenObj.value;
+    if (s) s.查找区域 = v;
+  },
+});
+
+const screenAvoidRegionModel = computed({
+  get() {
+    const s = currentScreenObj.value;
+    return s?.误触区域 != null ? String(s.误触区域) : "";
+  },
+  set(v) {
+    const s = currentScreenObj.value;
+    if (s) s.误触区域 = v;
+  },
+});
+
+const onScreenSimilarityCommit = () => {
+  const s = currentScreenObj.value;
+  if (!s) return;
+  const num = Number(s.相似度);
+  if (Number.isNaN(num) || num < 0 || num > 1) {
+    ElMessage.error("相似度必须在 0 到 1 之间");
+    s.相似度 = 0.9;
+    return;
+  }
+  s.相似度 = num;
+};
+
+const validateRegionLike = (trimmed, label) => {
+  if (trimmed === "") return true;
+  if (!/^-?\d+,-?\d+,-?\d+,-?\d+$/.test(trimmed)) {
+    ElMessage.error(`${label}格式错误，应为空或 x,y,w,h`);
+    return false;
+  }
+  return true;
+};
+
+const onScreenSearchRegionBlur = () => {
+  const s = currentScreenObj.value;
+  if (!s) return;
+  const trimmed = String(s.查找区域 ?? "").trim();
+  if (!validateRegionLike(trimmed, "查询范围")) {
+    s.查找区域 = "";
+  }
+};
+
+const onScreenAvoidRegionBlur = () => {
+  const s = currentScreenObj.value;
+  if (!s) return;
+  const trimmed = String(s.误触区域 ?? "").trim();
+  if (!validateRegionLike(trimmed, "误触区域")) {
+    s.误触区域 = "";
+  }
+};
+
+const onButtonSimilarityCommit = (btnName, v) => {
+  const s = currentScreenObj.value?.按钮?.[btnName];
+  if (!s) return;
+  const num = Number(v);
+  if (Number.isNaN(num) || num < 0 || num > 1) {
+    ElMessage.error("相似度必须在 0 到 1 之间");
+    return;
+  }
+  s.相似度 = num;
+};
+
+const onButtonFieldBlur = (btnName, fieldKey, raw) => {
+  const s = currentScreenObj.value?.按钮?.[btnName];
+  if (!s) return;
+  const newStr = raw == null ? "" : String(raw);
+  const trimmed = newStr.trim();
+  if (fieldKey === "查找区域") {
+    if (!validateRegionLike(trimmed, "查询范围")) return;
+    s.查找区域 = trimmed;
+    return;
+  }
+  if (fieldKey === "偏移点击区域") {
+    if (trimmed === "") {
+      s.偏移点击区域 = "";
+      return;
+    }
+    if (!validateRegionLike(trimmed, "偏移点击区域")) return;
+    s.偏移点击区域 = trimmed;
+  }
+};
+
+const onStateSimilarityCommit = (stateName, v) => {
+  const s = currentScreenObj.value?.状态?.[stateName];
+  if (!s) return;
+  const num = Number(v);
+  if (Number.isNaN(num) || num < 0 || num > 1) {
+    ElMessage.error("相似度必须在 0 到 1 之间");
+    return;
+  }
+  s.相似度 = num;
+};
+
+const onStateFieldBlur = (stateName, fieldKey, raw) => {
+  const s = currentScreenObj.value?.状态?.[stateName];
+  if (!s) return;
+  const newStr = raw == null ? "" : String(raw);
+  const trimmed = newStr.trim();
+  if (fieldKey === "查找区域") {
+    if (!validateRegionLike(trimmed, "查询范围")) return;
+    s.查找区域 = trimmed;
+    return;
+  }
+  if (fieldKey === "偏移点击区域") {
+    if (trimmed === "") {
+      s.偏移点击区域 = "";
+      return;
+    }
+    if (!validateRegionLike(trimmed, "偏移点击区域")) return;
+    s.偏移点击区域 = trimmed;
+  }
+};
+
+const isOffsetActiveForPath = (pathStr) => {
+  return (
+    fontClickOffsetAreaSelectionEnabled.value &&
+    offsetAreaSelectionTargetMode.value === "json" &&
+    offsetAreaSelectionTargetNodePath.value === pathStr
+  );
+};
+
+const handleTestByPath = (pathKeys) => {
+  handleTest({ path: buildJsonPath(pathKeys) });
+};
+
+const handleAddConfigByPath = (pathKeys) => {
+  const node = { path: buildJsonPath(pathKeys) };
+  handleAddConfig(node);
+};
+
+const handleDeleteByPath = (pathKeys) => {
+  handleDelete({ path: buildJsonPath(pathKeys) });
+};
+
+const ensureScreenShape = (k) => {
+  const s = data.value?.[k];
+  if (!k || !s || typeof s !== "object" || Array.isArray(s)) return;
+  if (!s.按钮 || typeof s.按钮 !== "object" || Array.isArray(s.按钮)) s.按钮 = {};
+  if (!s.状态 || typeof s.状态 !== "object" || Array.isArray(s.状态)) s.状态 = {};
+  if (!s.滑动区域 || typeof s.滑动区域 !== "object" || Array.isArray(s.滑动区域))
+    s.滑动区域 = {};
+  if (!s.识字区域 || typeof s.识字区域 !== "object" || Array.isArray(s.识字区域))
+    s.识字区域 = {};
+};
+
+watch(selectedRootKey, (k) => {
+  if (k) ensureScreenShape(k);
+});
+
+const handleNewScreen = () => {
+  if (!data.value || typeof data.value !== "object" || Array.isArray(data.value)) {
+    data.value = {};
+  }
+  ElMessageBox.prompt("", "新建界面", {
+    confirmButtonText: "确定",
+    cancelButtonText: "取消",
+    inputPlaceholder: "请输入界面名称",
+  })
+    .then(({ value }) => {
+      const key = (value || "").trim();
+      if (!key) {
+        ElMessage.error("界面名称不能为空");
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(data.value, key)) {
+        ElMessage.error("名称已存在");
+        return;
+      }
+      data.value[key] = {
+        类型: "图片",
+        查找区域: "",
+        相似度: 0.9,
+        状态: {},
+        按钮: {},
+        滑动区域: {},
+        识字区域: {},
+        误触区域: "",
+      };
+      selectedRootKey.value = key;
+      ElMessage.success("已添加界面");
+    })
+    .catch(() => {});
+};
+
+const handleDeleteRootScreen = (key) => {
+  if (!data.value || !key) return;
+  ElMessageBox.confirm(`确定删除界面「${key}」及其下所有配置？`, "删除确认", {
+    type: "warning",
+    confirmButtonText: "删除",
+    cancelButtonText: "取消",
+  })
+    .then(() => {
+      delete data.value[key];
+      ElMessage.success("已删除");
+      const remaining = Object.keys(data.value || {}).sort();
+      selectedRootKey.value = remaining.length ? remaining[0] : null;
+    })
+    .catch(() => {});
+};
+
+const handleExportConfig = async () => {
+  if (!data.value) {
+    ElMessage.warning("没有可导出的配置");
+    return;
+  }
+  try {
+    const res = await ipc.invoke(ipcApiRoute.openSaveDialog, {
+      defaultName: `图色配置_${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`,
+    });
+    if (!res || !res.success || res.canceled || !res.filePath) return;
+    const content = JSON.stringify(data.value, null, 2);
+    await ipc.invoke(ipcApiRoute.writeTextFile, {
+      filePath: res.filePath,
+      content,
+    });
+    ElMessage.success("已导出");
+  } catch (e) {
+    ElMessage.error("导出失败: " + (e?.message || "未知错误"));
+  }
+};
+
+const handleImportConfig = async () => {
+  try {
+    await ElMessageBox.confirm(
+      "导入将替换当前内存中的全部配置（未写入文件的修改会丢失）。是否继续？",
+      "导入配置",
+      { type: "warning", confirmButtonText: "继续", cancelButtonText: "取消" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    const dialogResult = await ipc.invoke(ipcApiRoute.openFileDialog, {
+      title: "选择要导入的 JSON",
+      defaultPath: configForm.value.configPath || "",
+      filters: [
+        { name: "JSON 文件", extensions: ["json"] },
+        { name: "所有文件", extensions: ["*"] },
+      ],
+    });
+    if (
+      !dialogResult ||
+      !dialogResult.success ||
+      dialogResult.canceled ||
+      !dialogResult.filePath
+    ) {
+      return;
+    }
+    const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+      filePath: dialogResult.filePath,
+    });
+    if (!readResult || !readResult.success) {
+      throw new Error(readResult?.message || "读取失败");
+    }
+    const parsed = JSON.parse(readResult.content || "{}");
+    if (parsed == null || typeof parsed !== "object") {
+      ElMessage.error("JSON 根节点必须是对象");
+      return;
+    }
+    data.value = parsed;
+    ElMessage.success("已导入（可再「选择配置」指定保存路径）");
+  } catch (e) {
+    ElMessage.error("导入失败: " + (e?.message || "未知错误"));
+  }
+};
+
+const loadDemoConfig = () => {
+  data.value = {
+    登录界面: {
+      类型: "图片",
+      查找区域: "0,0,1280,720",
+      相似度: 0.85,
+      状态: {},
+      按钮: {
+        登录按钮: {
+          类型: "点阵",
+          查找区域: "",
+          偏移点击区域: "",
+          相似度: 0.9,
+        },
+        注册按钮: {
+          类型: "图片",
+          查找区域: "",
+          偏移点击区域: "",
+          相似度: 0.88,
+        },
+      },
+      滑动区域: {},
+      识字区域: {},
+      误触区域: "",
+    },
+    主城界面: {
+      类型: "图片",
+      查找区域: "",
+      相似度: 0.8,
+      状态: {},
+      按钮: {
+        背包: { 类型: "图片", 查找区域: "", 偏移点击区域: "", 相似度: 0.9 },
+      },
+      滑动区域: {},
+      识字区域: {},
+      误触区域: "",
+    },
+  };
+  selectedRootKey.value = "登录界面";
+  ElMessage.success("已加载示例（未绑定文件路径，请选择配置后保存）");
+};
 
 watch(
   data,
@@ -547,7 +1515,7 @@ const fontClickOffsetAreaSelectionEnabled = ref(false);
 
 // 偏移点击区域圈选目标：
 // - drawer：写回 `fontClickOffsetAreaInput`（抽屉里添加点阵）
-// - json：写回 vue-json-pretty 对应节点的 `node.content`（通过 node.path 精确定位）
+// - json：按 `node.path` 写回配置里对应「偏移点击区域」字段
 const offsetAreaSelectionTargetMode = ref("drawer"); // "drawer" | "json"
 const offsetAreaSelectionTargetNodePath = ref("");
 
@@ -563,78 +1531,6 @@ const hasSelectionRect = computed(() => {
   return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
 });
 
-
-const handleBlur = (node) => {
-  const keys = getPathKeys(node.path);
-
-  if (!keys.length) return;
-
-  // 找到当前字段的原始值
-  let target = data.value;
-  keys.forEach((key, index) => {
-    if (index < keys.length - 1) {
-      target = target[key];
-    }
-  });
-  const lastKey = keys[keys.length - 1];
-  const oldValue = target?.[lastKey];
-  const oldStr = oldValue == null ? "" : String(oldValue);
-  const newStr = node.content == null ? "" : String(node.content);
-
-  // 未修改，直接返回
-  if (newStr === oldStr) {
-    return;
-  }
-
-  const trimmed = newStr.trim();
-
-  // ===== 按字段校验 =====
-  // 1. 含“区域”的字段：允许空，或 x,y,w,h 四个整数
-  if ((node.key && String(node.key).includes("区域")) || keys.join("").includes("区域")) {
-    if (trimmed !== "" && !/^-?\d+,-?\d+,-?\d+,-?\d+$/.test(trimmed)) {
-      ElMessage.error("区域格式错误，应为空或 x,y,w,h");
-      node.content = oldStr;
-      return;
-    }
-  }
-
-  // 2. 偏色：D61E24-373737|D61E24-373731 形式，即 6位HEX-6位HEX，用 | 分割
-  if (node.key === "偏色") {
-    const pattern = /^([0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})(\|[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6})*$/;
-    if (trimmed !== "" && !pattern.test(trimmed)) {
-      ElMessage.error("偏色格式错误，应为 6位HEX-6位HEX，多个用“|”分隔");
-      node.content = oldStr;
-      return;
-    }
-  }
-
-  // 3. 相似度：只能在 0~1 之间，最多 2 位小数
-  let valueToSave = newStr;
-  if (node.key === "相似度") {
-    if (trimmed === "") {
-      ElMessage.error("相似度不能为空");
-      node.content = oldStr;
-      return;
-    }
-    const num = Number(trimmed);
-    if (Number.isNaN(num) || num < 0 || num > 1) {
-      ElMessage.error("相似度必须在 0 到 1 之间，最多 2 位小数");
-      node.content = oldStr;
-      return;
-    }
-    const parts = trimmed.split(".");
-    if (parts[1] && parts[1].length > 2) {
-      ElMessage.error("相似度最多保留 2 位小数");
-      node.content = oldStr;
-      return;
-    }
-    valueToSave = num; // 相似度保存为数值
-  }
-
-  // 通过校验，保存并提示
-  target[lastKey] = valueToSave;
-  ElMessage.success("保存成功");
-};
 
 // 供外部（图片点击）调用的添加颜色方法
 const addColor = (colorInfo) => {
@@ -892,26 +1788,15 @@ const handleAddItem = (node) => {
     .catch(() => {});
 };
 
-// 获取当前节点
+// 获取当前节点（按路径深度遍历，避免层数写死）
 const getCurrentNode = (node) => {
+  if (!node?.path) return undefined;
   const keys = getPathKeys(node.path);
-  
-  if (keys.length == 1) {
-    return data.value[keys[0]];
+  let t = data.value;
+  for (const k of keys) {
+    t = t?.[k];
   }
-
-  if (keys.length == 2) {
-    return data.value[keys[0]][keys[1]];
-  }
-
-  if (keys.length == 3) {
-    return data.value[keys[0]][keys[1]][keys[2]];
-  }
-
-  if (keys.length == 4) {
-    return data.value[keys[0]][keys[1]][keys[2]][keys[3]];
-  }
-
+  return t;
 };
 const currentName = ref("");
 // ========== 节点操作 ==========
@@ -956,7 +1841,7 @@ const toggleFontClickOffsetAreaSelection = () => {
     emit("stop-code-generator-selection");
     ElMessage.info("已取消圈选模式");
   } else {
-    // 若已开启但目标在 json：切换为抽屉目标（继续圈选）
+    // 若已开启但目标在配置字段：切换为抽屉目标（继续圈选）
     if (fontClickOffsetAreaSelectionEnabled.value) {
       offsetAreaSelectionTargetMode.value = "drawer";
       offsetAreaSelectionTargetNodePath.value = "";
@@ -974,15 +1859,7 @@ const toggleFontClickOffsetAreaSelection = () => {
   }
 };
 
-const isFontClickOffsetAreaSelectionActiveForNode = (node) => {
-  return (
-    fontClickOffsetAreaSelectionEnabled.value &&
-    offsetAreaSelectionTargetMode.value === "json" &&
-    offsetAreaSelectionTargetNodePath.value === node?.path
-  );
-};
-
-// 给 vue-json-pretty 中“偏移点击区域”节点用：点击“圈选”后在图片上拖拽获取偏移值
+// 结构化表单中「偏移点击区域」旁圈选：写回对应配置路径
 const toggleFontClickOffsetAreaSelectionForNode = (node) => {
   if (!hasSelectionRect.value) {
     ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
@@ -990,7 +1867,10 @@ const toggleFontClickOffsetAreaSelectionForNode = (node) => {
   }
   if (!node?.path) return;
 
-  const targetIsActive = isFontClickOffsetAreaSelectionActiveForNode(node);
+  const targetIsActive =
+    fontClickOffsetAreaSelectionEnabled.value &&
+    offsetAreaSelectionTargetMode.value === "json" &&
+    offsetAreaSelectionTargetNodePath.value === node.path;
 
   // 已开启且点击当前节点：取消
   if (targetIsActive) {
@@ -1347,7 +2227,6 @@ const setFontClickOffsetAreaFromSelection = (rect) => {
   if (offsetAreaSelectionTargetMode.value === "drawer") {
     fontClickOffsetAreaInput.value = areaStr;
   } else {
-    // 写回到 vue-json-pretty 对应节点的 `data.value` 上
     const keys = getPathKeys(offsetAreaSelectionTargetNodePath.value);
     if (!keys.length) {
       ElMessage.warning("无法定位偏移点击区域节点，已生成偏移值但未写回");
@@ -1395,7 +2274,7 @@ const getPathKeys = (path) => {
 
 /** 点击测试：点阵则弹出找字测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
 const handleTest = (node) => {
-  if (!node || node.key == null) return;
+  if (!node?.path) return;
 
   const path = getPathKeys(node.path);
   let configItem = data.value;
@@ -1436,6 +2315,7 @@ const onTestDialogClosed = () => {
 
 /** 删除节点对应的配置项 */
 const handleDelete = (node) => {
+  if (!node?.path) return;
   const keys = getPathKeys(node.path);
   if (!keys.length) {
     ElMessage.warning("无法解析节点路径");
@@ -1496,34 +2376,287 @@ defineExpose({
 .config-tab-container {
   position: relative;
   overflow: hidden;
+  /* 作为 el-tab-pane 的 flex 子项时须参与收缩，否则 height:100% 无参照且侧栏/主区无法内部滚动 */
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
   box-sizing: border-box;
-  background: #f9fafb;
+  padding: 12px 14px;
+  background: #f0f2f5;
+  font-size: 13px;
+  color: #1e293b;
 }
 
-.config-tab-container :deep(.vjs-tree) {
-  /* background-color: #ffffff; */
-  /* border-radius: 8px; */
-  border: 1px solid #e2e8f0;
-  gap: 6px !important;
+/* —— 工具栏 —— */
+.cfg-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.cfg-toolbar-left,
+.cfg-toolbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cfg-toolbar-btn {
+  border-radius: 40px !important;
+  font-weight: 500;
+  padding: 8px 16px !important;
+}
+
+.cfg-toolbar-btn--primary {
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+}
+
+.cfg-toolbar-btn--outline {
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.cfg-toolbar-btn--outline:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+.cfg-btn-icon {
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.cfg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 30px;
+  font-size: 12px;
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.cfg-badge--muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.cfg-toolbar-path-row {
+  flex-shrink: 0;
+}
+
+.cfg-path-input :deep(.el-input__wrapper) {
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px #cbd5e1 inset;
+}
+
+.cfg-path-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #3b82f6 inset, 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* —— 主工作区：侧栏 + 编辑 —— */
+.cfg-workspace {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  gap: 16px;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+
+.cfg-sidebar {
+  flex: 1;
+  min-width: 240px;
+  max-width: 320px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  /* padding: 8px 10px; */
-  /* font-size: 12px; */
-  /* color: #1e293b; */
-  /* font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; */
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  align-self: stretch;
 }
 
-.config-tab-container :deep(.vjs-tree-node__content) {
-  line-height: 1.5;
-}
-
-.config-tab-container :deep(.vjs-tree-node) {
+.cfg-sidebar-header {
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e9eef3;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cfg-sidebar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cfg-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0 12px;
+}
+
+.cfg-root-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  background: #fefefe;
+  border: 1px solid transparent;
+}
+
+.cfg-root-item:hover {
+  background: #f8fafc;
+}
+
+.cfg-root-item.is-active {
+  background: #eef2ff;
+  border-color: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #3b82f6;
+  padding-left: 11px;
+}
+
+.cfg-root-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.cfg-root-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cfg-root-name {
+  font-weight: 600;
+  font-size: 13px;
+  word-break: break-word;
+  color: #0f172a;
+}
+
+.cfg-root-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.cfg-sidebar-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.cfg-sidebar-empty p {
+  margin: 10px 0 0;
+}
+
+.cfg-main {
+  flex: 3;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cfg-section-card {
+  background: #f9fafb;
+  border-radius: 20px;
+  padding: 18px 20px;
+  border: 1px solid #edf2f7;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cfg-section-title {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  padding-left: 12px;
+  border-left: 4px solid #3b82f6;
+}
+
+.cfg-section-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.cfg-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  color: #94a3b8;
+}
+
+.cfg-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.45;
+}
+
+.cfg-empty-state p {
+  margin: 0;
+  font-size: 15px;
+}
+
+.cfg-empty-sub {
+  margin-top: 8px !important;
+  font-size: 12px !important;
+  color: #cbd5e1;
 }
 
 .config-drawer-wrapper {
@@ -1543,21 +2676,23 @@ defineExpose({
 .config-drawer {
   position: relative;
   height: 100%;
-  width: 360px;
+  width: 380px;
+  max-width: min(380px, 100%);
   background-color: #ffffff;
   display: flex;
   flex-direction: column;
   z-index: 1;
   border-left: 1px solid #e2e8f0;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
-  border-radius: 8px 0 0 8px;
+  border-radius: 20px 0 0 20px;
 }
 
 .config-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 8px;
+  gap: 10px;
+  padding: 14px 16px;
   flex-shrink: 0;
   border-bottom: 1px solid #e2e8f0;
   background: radial-gradient(circle at top left, #e0f2fe 0, #f8fafc 45%, #ffffff 100%);
@@ -1603,18 +2738,18 @@ defineExpose({
 
 .config-drawer-body {
   flex: 1;
-  padding: 0 5px;
+  padding: 12px 14px;
   overflow: auto;
   font-size: 13px;
   color: #475569;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .config-drawer-footer {
   flex-shrink: 0;
-  padding: 8px 14px;
+  padding: 12px 16px;
   border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: flex-end;
@@ -1761,5 +2896,184 @@ defineExpose({
 .config-drawer-slide-enter-active,
 .config-drawer-slide-leave-active {
   transition: all 0.25s ease;
+}
+
+/* —— 原型式结构化编辑区 —— */
+.cfg-visual-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cfg-visual-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-right: 4px;
+}
+
+.proto-section-card {
+  background: #f9fafb;
+  border-radius: 20px;
+  padding: 18px 20px;
+  border: 1px solid #edf2f7;
+}
+
+.proto-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  padding-left: 12px;
+  border-left: 4px solid #3b82f6;
+  color: #0f172a;
+}
+
+.proto-section-title--between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.proto-add-btn {
+  border-radius: 40px !important;
+}
+
+.proto-field-group {
+  margin-bottom: 14px;
+}
+
+.proto-field-label {
+  font-weight: 500;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: #334155;
+}
+
+.proto-input,
+.proto-input-full {
+  width: 100%;
+}
+
+.proto-inline-group {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.proto-inline-field {
+  flex: 1;
+  min-width: 120px;
+}
+
+.proto-inline-field--grow {
+  flex: 2;
+  min-width: 200px;
+}
+
+.proto-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.proto-button-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.proto-button-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.proto-button-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.proto-button-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.proto-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.proto-mini-label {
+  font-size: 12px;
+  color: #64748b;
+  width: 40px;
+}
+
+.proto-type-tag {
+  font-size: 12px;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.proto-empty-hint {
+  text-align: center;
+  padding: 20px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.proto-sz-object-hint {
+  font-size: 12px;
+  color: #64748b;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px dashed #cbd5e1;
+}
+
+.cfg-json-only-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  padding: 16px 18px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+}
+
+.proto-json-only-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 12px;
+}
+
+.cfg-root-delete {
+  flex-shrink: 0;
+  margin-left: 4px;
 }
 </style>

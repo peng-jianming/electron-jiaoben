@@ -561,12 +561,12 @@ const handleAddImageToLibrary = async (payload) => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex-shrink: 0;
+  width: 100%;
+  /* 父级为纵向 flex 时用 flex:1 占满，height:100% 在嵌套 flex 中常失效 */
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   padding: 6px 8px;
-  width: 460px;
-  min-width: 460px;
-  max-width: 460px;
-  height: 882px;
   overflow: hidden;
   box-sizing: border-box;
   background: #f8fafc;
@@ -577,12 +577,14 @@ const handleAddImageToLibrary = async (payload) => {
   flex-shrink: 0;
 }
 
-/* Tabs 容器填满剩余高度 */
+/* Tabs 容器填满剩余高度（与 EP 默认样式叠加，保证根节点参与纵向 flex） */
 .right-panel > .el-tabs {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  display: flex !important;
+  flex-direction: column !important;
   overflow: hidden;
 }
 
@@ -626,16 +628,33 @@ const handleAddImageToLibrary = async (payload) => {
   background: #fff;
 }
 
+/* EP 默认仅 flex-grow:1，无 min-height:0，在固定高度侧栏里内容区无法收缩 → 内部永不出现滚动 */
 .el-tabs :deep(.el-tabs__content) {
-  padding: 6px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 6px !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
   background: #fff;
 }
 
-.el-tabs :deep(.el-tab-pane) {
-  height: 100%;
+/*
+ * 仅对当前激活的 pane 写 display:flex（须带 aria-hidden="false"）。
+ * 若对 .el-tab-pane 全局 display:flex !important，会压过 v-show 的 display:none，三个 Tab 会叠在一起且无法滚动。
+ */
+.el-tabs :deep(.el-tab-pane[aria-hidden="false"]) {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.el-tabs :deep(.el-tab-pane[aria-hidden="false"] > *) {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  align-self: stretch !important;
 }
 </style>
