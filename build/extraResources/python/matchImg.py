@@ -3,6 +3,39 @@ import json
 import numpy as np
 from PIL import Image
 
+# 彩图匹配：均方根误差（像素 0~255 量级）达到该值时「按误差相似度」归零
+_彩图匹配_RMSE满分标尺 = 40.0
+
+
+def _按区域裁剪(图像, 区域):
+    """按 (x,y,w,h) 从大图中裁搜索区；全 0 表示整图。无效区域返回 None。"""
+    x, y, w, h = 区域
+    高, 宽 = 图像.shape[:2]
+    if x == 0 and y == 0 and w == 0 and h == 0:
+        return 图像, 0, 0
+    x, y = max(0, x), max(0, y)
+    if w <= 0:
+        w = 宽 - x
+    if h <= 0:
+        h = 高 - y
+    cx, cy = max(0, x), max(0, y)
+    cw, ch = min(w, 宽 - cx), min(h, 高 - cy)
+    if cw <= 0 or ch <= 0:
+        return None
+    return 图像[cy : cy + ch, cx : cx + cw], cx, cy
+
+
+def _转为BGR(图像):
+    """统一为 3 通道 BGR，供彩图匹配使用。"""
+    if 图像 is None:
+        return None
+    维 = 图像.shape
+    if len(维) == 2 or (len(维) == 3 and 维[2] == 1):
+        return cv2.cvtColor(图像, cv2.COLOR_GRAY2BGR)
+    if len(维) == 3 and 维[2] == 4:
+        return cv2.cvtColor(图像, cv2.COLOR_BGRA2BGR)
+    return 图像
+
 
 def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=cv2.TM_CCOEFF_NORMED):
     """简单的 OpenCV 模板匹配封装。
@@ -27,35 +60,12 @@ def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=
     else:
         template_gray = template_array.copy()
 
-    H, W = large_gray.shape[:2]
     th, tw = template_gray.shape[:2]
 
-    x, y, width, height = region
-
-    # 解析检测区域
-    if x == 0 and y == 0 and width == 0 and height == 0:
-        search_area = large_gray
-        offset_x, offset_y = 0, 0
-    else:
-        if x < 0:
-            x = 0
-        if y < 0:
-            y = 0
-        if width <= 0:
-            width = W - x
-        if height <= 0:
-            height = H - y
-
-        crop_x = max(0, x)
-        crop_y = max(0, y)
-        crop_width = min(width, W - crop_x)
-        crop_height = min(height, H - crop_y)
-
-        if crop_width <= 0 or crop_height <= 0:
-            return None
-
-        search_area = large_gray[crop_y: crop_y + crop_height, crop_x: crop_x + crop_width]
-        offset_x, offset_y = crop_x, crop_y
+    裁剪 = _按区域裁剪(large_gray, region)
+    if 裁剪 is None:
+        return None
+    search_area, offset_x, offset_y = 裁剪
 
     # 模板不能比搜索区域大
     if th > search_area.shape[0] or tw > search_area.shape[1]:
@@ -83,6 +93,72 @@ def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=
         "h": int(th),
         "similarity": similarity,
     }
+
+
+def opencv彩图模板匹配(large_array, template_array, region=(0, 0, 0, 0)):
+    """彩图模板匹配：BGR 三通道平方差（TM_SQDIFF）之和定位；相似度 = 按误差相似度 × √清晰度。
+
+    按误差相似度：由均方根误差与 `_彩图匹配_RMSE满分标尺` 换算。清晰度：最优位置邻域外
+    次小平方差和与最小值的相对落差，用于抑制「全图多处差不多」时的误报。
+    """
+    if large_array is None or template_array is None:
+        return None
+
+    大图 = _转为BGR(large_array)
+    模板 = _转为BGR(template_array)
+    模板高, 模板宽 = 模板.shape[:2]
+
+    裁剪 = _按区域裁剪(大图, region)
+    if 裁剪 is None:
+        return None
+    搜索区, 偏移x, 偏移y = 裁剪
+
+    if 模板高 > 搜索区.shape[0] or 模板宽 > 搜索区.shape[1]:
+        return None
+
+    方差和图 = np.sum(
+        [
+            cv2.matchTemplate(大, 小, cv2.TM_SQDIFF)
+            for 大, 小 in zip(cv2.split(搜索区), cv2.split(模板))
+        ],
+        axis=0,
+    )
+
+    最小方差和, _, 最佳, _ = cv2.minMaxLoc(方差和图)
+    px, py = int(最佳[0]), int(最佳[1])
+
+    像素数 = float(模板高 * 模板宽 * 3)
+    均方根误差 = float(np.sqrt(max(0.0, float(最小方差和) / 像素数)))
+    标尺 = _彩图匹配_RMSE满分标尺
+    按误差相似度 = max(0.0, min(1.0, 1.0 - (均方根误差 / 标尺) ** 2))
+
+    结果高, 结果宽 = 方差和图.shape
+    半高, 半宽 = max(模板高 // 2, 2), max(模板宽 // 2, 2)
+    遮蔽 = 方差和图.astype(np.float64, copy=True)
+    遮蔽[
+        max(0, py - 半高) : min(结果高, py + 半高 + 1),
+        max(0, px - 半宽) : min(结果宽, px + 半宽 + 1),
+    ] = np.inf
+    外围 = 遮蔽[np.isfinite(遮蔽)]
+    if 外围.size == 0:
+        清晰度 = 1.0
+    else:
+        次小 = float(np.min(外围))
+        清晰度 = max(
+            0.0,
+            min(1.0, (次小 - float(最小方差和)) / (次小 + 1e-12)),
+        )
+
+    相似度 = float(max(0.0, min(1.0, 按误差相似度 * np.sqrt(清晰度))))
+
+    return {
+        "x": px + 偏移x,
+        "y": py + 偏移y,
+        "w": int(模板宽),
+        "h": int(模板高),
+        "similarity": 相似度,
+    }
+
 
 def opencv字库找图(large_image_path, font_library_info_array, region=(0, 0, 0, 0), similarity=0.8):
     """

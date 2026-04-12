@@ -440,17 +440,18 @@ onUnmounted(() => {
 
 // 处理从 ConfigTab 发起的“图片测试”：用图片库中与配置项同名的图片打开模板匹配测试弹窗
 // 弹窗 teleported 到 body，不切换 tab，用户可留在「配置」页操作
-const handleOpenImageTest = ({ name, similarity, region } = {}) => {
+const handleOpenImageTest = ({ name, similarity, region, matchMode } = {}) => {
   imageLibraryTabRef.value?.openTestByImageName?.(name, {
     similarity,
     region,
+    matchMode,
   });
 };
 
 // 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）
 const handleDeleteLibraryResource = async ({ type, name } = {}) => {
   if (!name) return;
-  if (type === "图片") {
+  if (type === "图片" || type === "彩图") {
     const deleted = imageLibraryTabRef.value?.deleteByName?.(name);
     if (!deleted) {
       ElMessage.info("图片库中未找到同名资源，或已删除");

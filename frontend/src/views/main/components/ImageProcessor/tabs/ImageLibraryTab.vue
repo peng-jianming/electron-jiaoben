@@ -97,7 +97,7 @@
     <!-- 模板匹配测试弹窗 -->
     <el-dialog
       v-model="testDialogVisible"
-      title="模板匹配测试"
+      :title="testDialogTitle"
       width="600px"
       destroy-on-close
       :close-on-click-modal="false"
@@ -212,7 +212,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { io } from "socket.io-client";
 import { ipc } from "@/utils/ipcRenderer";
@@ -245,7 +245,13 @@ const largeImageUrl = ref(null);
 const largeImageFile = ref(null);
 const regionInput = ref("");
 const similarity = ref(0.8);
+/** gray：灰度相关匹配；color：BGR 三通道平方差（配置项「彩图」测试时传入） */
+const matchMode = ref("gray");
 const matching = ref(false);
+
+const testDialogTitle = computed(() =>
+  matchMode.value === "color" ? "模板匹配测试（彩图 · 平方差）" : "模板匹配测试"
+);
 const resultImageUrl = ref(null);
 const screenshotLoading = ref(false);
 const isScreenshotPending = ref(false);
@@ -549,6 +555,7 @@ function openTestWithRows(rows, options = {}) {
     options.similarity != null && !Number.isNaN(Number(options.similarity))
       ? Number(options.similarity)
       : 0.8;
+  matchMode.value = options.matchMode === "color" ? "color" : "gray";
   resultImageUrl.value = null;
   matching.value = false;
   testDialogVisible.value = true;
@@ -679,6 +686,7 @@ async function handleMatch() {
       largeImage: largeBase64,
       region,
       similarity: similarity.value,
+      matchMode: matchMode.value,
     });
 
     setTimeout(() => {

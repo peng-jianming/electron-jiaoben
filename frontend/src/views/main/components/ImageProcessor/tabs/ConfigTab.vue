@@ -721,7 +721,7 @@ const handleAddItem = (node) => {
     itemNode = currentNode.value;
     
   }
-  // 类型（仅按钮需要）：固定区域 / 点阵 / 图片
+  // 类型（仅按钮需要）：固定区域 / 点阵 / 图片 / 彩图（BGR 平方差匹配，对底色差异敏感）
   const type = ref("图片");
   // 名字
   const name = ref("");
@@ -771,6 +771,11 @@ const handleAddItem = (node) => {
                       { label: "图片" },
                       () => "图片"
                     ),
+                    h(
+                      ElRadio,
+                      { label: "彩图" },
+                      () => "彩图"
+                    ),
                   ]
                 ),
               ]
@@ -806,6 +811,11 @@ const handleAddItem = (node) => {
                       ElRadio,
                       { label: "图片" },
                       () => "图片"
+                    ),
+                    h(
+                      ElRadio,
+                      { label: "彩图" },
+                      () => "彩图"
                     ),
                   ]
                 ),
@@ -909,8 +919,8 @@ const handleAddConfig = (node) => {
   currentNode.value = getCurrentNode(node);
   const keys = getPathKeys(node.path);
   currentName.value = keys.join("_");
-  if (currentNode.value.类型 == "图片") {
-    // 图片类型：将当前图片或圈选区域添加到图片库（由右侧面板统一处理）
+  if (currentNode.value.类型 == "图片" || currentNode.value.类型 == "彩图") {
+    // 图片 / 彩图：将当前图片或圈选区域添加到图片库（由右侧面板统一处理）
     if (!props.currentImage || !props.currentImage.url) {
       ElMessage.warning("当前没有图片，无法添加到图片库");
       return;
@@ -1401,11 +1411,12 @@ const handleTest = (node) => {
       ? String(configItem.查找区域).trim()
       : "";
 
-  if (configItem?.类型 === "图片") {
+  if (configItem?.类型 === "图片" || configItem?.类型 === "彩图") {
     emit("open-image-test", {
       name,
       similarity,
       region,
+      matchMode: configItem.类型 === "彩图" ? "color" : "gray",
     });
     return;
   }
@@ -1451,7 +1462,7 @@ const handleDelete = (node) => {
       delete parent[keyToDelete];
       ElMessage.success("已删除");
 
-      if (类型 === "图片" || 类型 === "点阵") {
+      if (类型 === "图片" || 类型 === "彩图" || 类型 === "点阵") {
         ElMessageBox.confirm(`是否删除「${keyToDelete}」对应的资源？`, "删除确认", {
           confirmButtonText: "删除",
           cancelButtonText: "取消",

@@ -8,7 +8,7 @@ import subprocess
 
 import cv2
 import numpy as np
-from matchImg import opencv模板匹配, opencv字库找图
+from matchImg import opencv模板匹配, opencv彩图模板匹配, opencv字库找图
 
 
 def _构造事件结果(event: str, message: dict):
@@ -269,6 +269,7 @@ def 图片库模板匹配(data):
     仅支持前端提供：
       - templateImages: 模板图片数组，元素为 {name, image}
       - largeImage:    大图 base64
+      - matchMode:     可选，"gray"（默认，灰度相关匹配）或 "color"（BGR 三通道平方差匹配）
     返回事件: image-match-result
     """
     try:
@@ -276,6 +277,7 @@ def 图片库模板匹配(data):
         large_b64 = data.get("largeImage")
         region = data.get("region") or None
         similarity_threshold = float(data.get("similarity", 0.8))
+        match_mode = str(data.get("matchMode") or "gray").strip().lower()
 
         if not isinstance(template_images, list) or not template_images:
             return _构造事件结果(
@@ -358,7 +360,14 @@ def 图片库模板匹配(data):
                 continue
             if template_img is None:
                 continue
-            cur_match = opencv模板匹配(large_img, template_img, region=region_tuple)
+            if match_mode == "color":
+                cur_match = opencv彩图模板匹配(
+                    large_img, template_img, region=region_tuple
+                )
+            else:
+                cur_match = opencv模板匹配(
+                    large_img, template_img, region=region_tuple
+                )
             if not cur_match:
                 continue
             cur_similarity = float(cur_match.get("similarity", 0))
