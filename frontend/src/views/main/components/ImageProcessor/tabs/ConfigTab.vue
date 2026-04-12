@@ -1,76 +1,27 @@
 <template>
   <div class="config-tab-container">
-    <!-- 顶部工具栏 -->
-    <div class="cfg-toolbar">
-      <div class="cfg-toolbar-left">
-        <el-button
-          type="primary"
-          class="cfg-toolbar-btn cfg-toolbar-btn--primary"
-          size="small"
-          @click="handleNewScreen"
-        >
-          <el-icon class="cfg-btn-icon"><Plus /></el-icon>
-          新建界面
-        </el-button>
-        <el-button
-          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-          size="small"
-          @click="handleSelectConfigFile"
-        >
-          <el-icon class="cfg-btn-icon"><FolderOpened /></el-icon>
+    <!-- 文件选择区域（与字库 Tab 一致） -->
+    <el-input
+      v-model="configForm.configPath"
+      placeholder="请选择配置 JSON 文件"
+      readonly
+      class="file-input"
+      size="small"
+    >
+      <template #prepend>
+        <el-button @click="handleSelectConfigFile" :loading="configFileLoading">
           选择配置
         </el-button>
+      </template>
+      <template #append>
         <el-button
-          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-          size="small"
-          :disabled="!configForm.configPath"
           @click="handleOpenConfigFile"
+          :disabled="!configForm.configPath"
         >
-          <el-icon class="cfg-btn-icon"><Document /></el-icon>
-          打开文件
+          打开配置
         </el-button>
-        <el-button
-          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-          size="small"
-          :disabled="!data"
-          @click="handleExportConfig"
-        >
-          <el-icon class="cfg-btn-icon"><Download /></el-icon>
-          导出 JSON
-        </el-button>
-        <el-button
-          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-          size="small"
-          @click="handleImportConfig"
-        >
-          <el-icon class="cfg-btn-icon"><Upload /></el-icon>
-          导入配置
-        </el-button>
-        <el-button
-          class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-          size="small"
-          @click="loadDemoConfig"
-        >
-          加载示例
-        </el-button>
-      </div>
-      <div class="cfg-toolbar-right">
-        <span class="cfg-badge">
-          <el-icon><Check /></el-icon>
-          编辑后自动保存
-        </span>
-      </div>
-    </div>
-
-    <div class="cfg-toolbar-path-row">
-      <el-input
-        v-model="configForm.configPath"
-        placeholder="请选择配置 JSON 文件"
-        readonly
-        size="small"
-        class="cfg-path-input"
-      />
-    </div>
+      </template>
+    </el-input>
 
     <div class="cfg-workspace">
       <!-- 左侧：顶层配置项（无缩略图，仅占位图标） -->
@@ -80,6 +31,15 @@
             <el-icon><Grid /></el-icon>
             界面列表
           </span>
+          <el-button
+          type="primary"
+          class="cfg-toolbar-btn cfg-toolbar-btn--primary"
+          size="small"
+          @click="handleNewScreen"
+        >
+          <el-icon class="cfg-btn-icon"><Plus /></el-icon>
+          新建界面
+        </el-button>
           <span class="cfg-badge cfg-badge--muted">{{ rootKeys.length }} 个界面</span>
         </div>
         <div class="cfg-sidebar-list">
@@ -759,12 +719,8 @@ import {
   Close,
   Picture,
   FolderOpened,
-  Document,
-  Check,
   Grid,
   Plus,
-  Download,
-  Upload,
   Delete,
 } from "@element-plus/icons-vue";
 import { ipc } from "@/utils/ipcRenderer";
@@ -1203,114 +1159,6 @@ const handleDeleteRootScreen = (key) => {
     .catch(() => {});
 };
 
-const handleExportConfig = async () => {
-  if (!data.value) {
-    ElMessage.warning("没有可导出的配置");
-    return;
-  }
-  try {
-    const res = await ipc.invoke(ipcApiRoute.openSaveDialog, {
-      defaultName: `图色配置_${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.json`,
-    });
-    if (!res || !res.success || res.canceled || !res.filePath) return;
-    const content = JSON.stringify(data.value, null, 2);
-    await ipc.invoke(ipcApiRoute.writeTextFile, {
-      filePath: res.filePath,
-      content,
-    });
-    ElMessage.success("已导出");
-  } catch (e) {
-    ElMessage.error("导出失败: " + (e?.message || "未知错误"));
-  }
-};
-
-const handleImportConfig = async () => {
-  try {
-    await ElMessageBox.confirm(
-      "导入将替换当前内存中的全部配置（未写入文件的修改会丢失）。是否继续？",
-      "导入配置",
-      { type: "warning", confirmButtonText: "继续", cancelButtonText: "取消" }
-    );
-  } catch {
-    return;
-  }
-  try {
-    const dialogResult = await ipc.invoke(ipcApiRoute.openFileDialog, {
-      title: "选择要导入的 JSON",
-      defaultPath: configForm.value.configPath || "",
-      filters: [
-        { name: "JSON 文件", extensions: ["json"] },
-        { name: "所有文件", extensions: ["*"] },
-      ],
-    });
-    if (
-      !dialogResult ||
-      !dialogResult.success ||
-      dialogResult.canceled ||
-      !dialogResult.filePath
-    ) {
-      return;
-    }
-    const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
-      filePath: dialogResult.filePath,
-    });
-    if (!readResult || !readResult.success) {
-      throw new Error(readResult?.message || "读取失败");
-    }
-    const parsed = JSON.parse(readResult.content || "{}");
-    if (parsed == null || typeof parsed !== "object") {
-      ElMessage.error("JSON 根节点必须是对象");
-      return;
-    }
-    data.value = parsed;
-    ElMessage.success("已导入（可再「选择配置」指定保存路径）");
-  } catch (e) {
-    ElMessage.error("导入失败: " + (e?.message || "未知错误"));
-  }
-};
-
-const loadDemoConfig = () => {
-  data.value = {
-    登录界面: {
-      类型: "图片",
-      查找区域: "0,0,1280,720",
-      相似度: 0.85,
-      状态: {},
-      按钮: {
-        登录按钮: {
-          类型: "点阵",
-          查找区域: "",
-          偏移点击区域: "",
-          相似度: 0.9,
-        },
-        注册按钮: {
-          类型: "图片",
-          查找区域: "",
-          偏移点击区域: "",
-          相似度: 0.88,
-        },
-      },
-      滑动区域: {},
-      识字区域: {},
-      误触区域: "",
-    },
-    主城界面: {
-      类型: "图片",
-      查找区域: "",
-      相似度: 0.8,
-      状态: {},
-      按钮: {
-        背包: { 类型: "图片", 查找区域: "", 偏移点击区域: "", 相似度: 0.9 },
-      },
-      滑动区域: {},
-      识字区域: {},
-      误触区域: "",
-    },
-  };
-  selectedRootKey.value = "登录界面";
-  ElMessage.success("已加载示例（未绑定文件路径，请选择配置后保存）");
-};
-
 watch(
   data,
   (newVal) => {
@@ -1323,6 +1171,7 @@ const configForm = ref({
   configPath: "",
 });
 const selectedConfigPath = ref("");
+const configFileLoading = ref(false);
 
 // 自动保存当前配置到文件（无提示）
 const autoSaveConfigFile = async () => {
@@ -1343,6 +1192,7 @@ const autoSaveConfigFile = async () => {
 
 // 选择配置 JSON 文件并加载到 data.value
 const handleSelectConfigFile = async () => {
+  configFileLoading.value = true;
   try {
     const dialogResult = await ipc.invoke(ipcApiRoute.openFileDialog, {
       title: "选择配置 JSON 文件",
@@ -1387,13 +1237,15 @@ const handleSelectConfigFile = async () => {
   } catch (error) {
     console.error("选择或读取配置文件失败:", error);
     ElMessage.error("选择或读取配置文件失败: " + (error.message || "未知错误"));
+  } finally {
+    configFileLoading.value = false;
   }
 };
 
 // 打开当前配置文件
 const handleOpenConfigFile = async () => {
   if (!configForm.value.configPath) {
-    ElMessage.warning("请先选择配置文件");
+    ElMessage.warning("请先选择配置 JSON 文件");
     return;
   }
 
@@ -2391,26 +2243,10 @@ defineExpose({
   color: #1e293b;
 }
 
-/* —— 工具栏 —— */
-.cfg-toolbar {
+/* —— 侧栏等仍使用的圆角按钮 —— */
+.file-input {
+  margin-bottom: 6px;
   flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 18px;
-  background: #fff;
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.cfg-toolbar-left,
-.cfg-toolbar-right {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
 }
 
 .cfg-toolbar-btn {
@@ -2453,19 +2289,6 @@ defineExpose({
 .cfg-badge--muted {
   background: #f1f5f9;
   color: #64748b;
-}
-
-.cfg-toolbar-path-row {
-  flex-shrink: 0;
-}
-
-.cfg-path-input :deep(.el-input__wrapper) {
-  border-radius: 14px;
-  box-shadow: 0 0 0 1px #cbd5e1 inset;
-}
-
-.cfg-path-input :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #3b82f6 inset, 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 /* —— 主工作区：侧栏 + 编辑 —— */
