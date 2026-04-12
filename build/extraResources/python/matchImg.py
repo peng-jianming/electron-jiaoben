@@ -3,9 +3,6 @@ import json
 import numpy as np
 from PIL import Image
 
-# 彩图匹配：均方根误差（像素 0~255 量级）达到该值时「按误差相似度」归零
-_彩图匹配_RMSE满分标尺 = 40.0
-
 
 def _按区域裁剪(图像, 区域):
     """按 (x,y,w,h) 从大图中裁搜索区；全 0 表示整图。无效区域返回 None。"""
@@ -96,22 +93,53 @@ def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=
 
 
 def opencv彩图模板匹配(large_array, template_array, region=(0, 0, 0, 0)):
-    """彩图模板匹配：BGR 三通道平方差（TM_SQDIFF）之和定位；相似度 = 按误差相似度 × √清晰度。
+    """彩图模板匹配：BGR 三通道平方差（TM_SQDIFF）之和定位。
 
-    按误差相似度：由均方根误差与 `_彩图匹配_RMSE满分标尺` 换算。清晰度：最优位置邻域外
-    次小平方差和与最小值的相对落差，用于抑制「全图多处差不多」时的误报。
+    本函数自包含，仅依赖 numpy、OpenCV 及入参；便于复制到其他项目。
+
+    按误差相似度：由均方根误差与「误差满分标尺」换算。清晰度：最优邻域外次小方差和相对最优
+    的落差；均方根误差较高时参与得分（×√清晰度），误差很低时不乘清晰度以免误伤。
     """
+    # 以下参数与算法绑定，复制到其他项目时可按需修改
+    误差满分标尺 = 40.0
+    极低误差免清晰度_RMSE上限 = 12.0
+
     if large_array is None or template_array is None:
         return None
 
-    大图 = _转为BGR(large_array)
-    模板 = _转为BGR(template_array)
+    维大 = large_array.shape
+    if len(维大) == 2 or (len(维大) == 3 and 维大[2] == 1):
+        大图 = cv2.cvtColor(large_array, cv2.COLOR_GRAY2BGR)
+    elif len(维大) == 3 and 维大[2] == 4:
+        大图 = cv2.cvtColor(large_array, cv2.COLOR_BGRA2BGR)
+    else:
+        大图 = large_array
+
+    维模 = template_array.shape
+    if len(维模) == 2 or (len(维模) == 3 and 维模[2] == 1):
+        模板 = cv2.cvtColor(template_array, cv2.COLOR_GRAY2BGR)
+    elif len(维模) == 3 and 维模[2] == 4:
+        模板 = cv2.cvtColor(template_array, cv2.COLOR_BGRA2BGR)
+    else:
+        模板 = template_array
     模板高, 模板宽 = 模板.shape[:2]
 
-    裁剪 = _按区域裁剪(大图, region)
-    if 裁剪 is None:
-        return None
-    搜索区, 偏移x, 偏移y = 裁剪
+    rx, ry, rw, rh = region
+    图高, 图宽 = 大图.shape[:2]
+    if rx == 0 and ry == 0 and rw == 0 and rh == 0:
+        搜索区, 偏移x, 偏移y = 大图, 0, 0
+    else:
+        rx, ry = max(0, rx), max(0, ry)
+        if rw <= 0:
+            rw = 图宽 - rx
+        if rh <= 0:
+            rh = 图高 - ry
+        cx, cy = max(0, rx), max(0, ry)
+        cw, ch = min(rw, 图宽 - cx), min(rh, 图高 - cy)
+        if cw <= 0 or ch <= 0:
+            return None
+        搜索区 = 大图[cy : cy + ch, cx : cx + cw]
+        偏移x, 偏移y = cx, cy
 
     if 模板高 > 搜索区.shape[0] or 模板宽 > 搜索区.shape[1]:
         return None
@@ -129,8 +157,7 @@ def opencv彩图模板匹配(large_array, template_array, region=(0, 0, 0, 0)):
 
     像素数 = float(模板高 * 模板宽 * 3)
     均方根误差 = float(np.sqrt(max(0.0, float(最小方差和) / 像素数)))
-    标尺 = _彩图匹配_RMSE满分标尺
-    按误差相似度 = max(0.0, min(1.0, 1.0 - (均方根误差 / 标尺) ** 2))
+    按误差相似度 = max(0.0, min(1.0, 1.0 - (均方根误差 / 误差满分标尺) ** 2))
 
     结果高, 结果宽 = 方差和图.shape
     半高, 半宽 = max(模板高 // 2, 2), max(模板宽 // 2, 2)
@@ -149,7 +176,10 @@ def opencv彩图模板匹配(large_array, template_array, region=(0, 0, 0, 0)):
             min(1.0, (次小 - float(最小方差和)) / (次小 + 1e-12)),
         )
 
-    相似度 = float(max(0.0, min(1.0, 按误差相似度 * np.sqrt(清晰度))))
+    if 均方根误差 <= 极低误差免清晰度_RMSE上限:
+        相似度 = float(max(0.0, min(1.0, 按误差相似度)))
+    else:
+        相似度 = float(max(0.0, min(1.0, 按误差相似度 * np.sqrt(清晰度))))
 
     return {
         "x": px + 偏移x,
