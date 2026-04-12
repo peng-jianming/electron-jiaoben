@@ -12,6 +12,8 @@ from core.日志管理器 import 日志管理器类
 from core.账号管理器 import 账号管理器类
 from core.通信管理器 import 通信管理器类
 from core.设备池管理器 import 设备池管理器类
+from core.轮流执行门闩 import 全局轮流门闩
+from 设置 import 启用轮流单执行
 
 # 账号(无绑定) -> 等待设备空闲(随意设备) -> 运行,
 # 账号(绑定设备) -> 等待设备空闲(绑定的那台) -> 运行
@@ -59,7 +61,9 @@ class 主程序:
         处理器 = {
             "打开日志": lambda d: self.日志管理器.打开日志(d.get("账号")),
             "获取设备列表": self._刷新设备列表并调度,
-            "获取任务列表": lambda d: self.通信管理器.发送到Electron("task-list",list(任务管理器类.获取所有任务列表().keys())),
+            "获取任务列表": lambda d: self.通信管理器.发送到Electron(
+                "task-list", list(任务管理器类.获取所有任务列表().keys())
+            ),
             "获取账号列表": lambda d: self._发送账号列表(),
             "重置账号任务进度": lambda d: self._重置账号任务进度(d.get("id")),
             "禁用设备": lambda d: self.设备池管理器.禁用设备(d.get("设备ID")),
@@ -102,13 +106,67 @@ class 主程序:
             {"id": id_key, "绑定设备": 设备ID},
         )
 
-    def _获取账号绑定设备(self, id_key):
-        """从账号列表获取该账号绑定的设备ID，未绑定返回空字符串。"""
-        账号列表 = self.账号管理器.获取账号列表()
-        for 项 in 账号列表:
-            if 项.get("id") == id_key:
-                return 项.get("绑定设备", "")
-        return ""
+    def _推送账号空闲(self, id_key, 日志=None):
+        """状态置空闲并清空界面设备ID；可选写一条日志。"""
+        self.更新账号数据(id_key, "状态", "空闲")
+        self.更新账号数据(id_key, "设备ID", "")
+        if 日志 is not None:
+            self.更新账号数据(id_key, "日志", 日志)
+
+    def _锁内_尝试开始任务(self, id_key, 数据, 绑定设备):
+        """
+        必须在已持有 _池锁 时调用。
+        返回 (延后更新, 启动项)；启动项 为 (id_key, 设备ID, 数据) 或 None。
+        注意：持锁期间禁止 启动线程 / 更新账号数据，否则可能与 线程结束回调 死锁。
+        """
+        if self.设备池管理器.查找账号设备(id_key):
+            return [("日志", "任务已在运行中")], None
+
+        if any(k == id_key for k, _ in self.等待队列):
+            # 已在排队：不再写日志，避免覆盖「绑定设备未连接」等说明
+            return [], None
+
+        if 绑定设备:
+            return self._锁内_绑定设备路径(id_key, 数据, 绑定设备)
+        return self._锁内_未绑定设备路径(id_key, 数据)
+
+    def _锁内_绑定设备路径(self, id_key, 数据, 绑定设备):
+        延后更新 = []
+        池 = self.设备池管理器
+        if not 池.设备是否在池中(绑定设备):
+            self.等待队列.append((id_key, 数据))
+            return [
+                ("状态", "等待设备"),
+                (
+                    "日志",
+                    f"绑定设备未连接（{绑定设备} 不在当前设备池），请连接 USB 后点「刷新设备」",
+                ),
+            ], None
+
+        if 池.指定设备是否空闲(绑定设备):
+            池.分配设备(绑定设备, id_key)
+            return [], (id_key, 绑定设备, 数据)
+
+        条目 = 池.获取设备条目(绑定设备)
+        已禁用 = 条目 and (条目.get("是否禁用") or 条目.get("状态") == "禁用")
+        self.等待队列.append((id_key, 数据))
+        日志 = (
+            f"绑定设备 {绑定设备} 已禁用，请启用后再运行"
+            if 已禁用
+            else f"绑定设备 {绑定设备} 忙碌中，排队等待..."
+        )
+        return [("状态", "等待设备"), ("日志", 日志)], None
+
+    def _锁内_未绑定设备路径(self, id_key, 数据):
+        设备ID = self.设备池管理器.获取空闲设备()
+        if not 设备ID:
+            self.等待队列.append((id_key, 数据))
+            return [
+                ("状态", "等待设备"),
+                ("日志", "没有空闲设备，排队等待中..."),
+            ], None
+        self.设备池管理器.分配设备(设备ID, id_key)
+        return [], (id_key, 设备ID, 数据)
 
     def 账号开始任务(self, 数据):
         id_key = 数据.get("id")
@@ -123,62 +181,9 @@ class 主程序:
 
         数据["账号信息"] = 账号信息
         绑定设备 = 账号信息.get("绑定设备", "")
-        
-        # 注意：持锁期间禁止 启动线程 / 更新账号数据。
-        # 否则任务线程结束时 线程结束回调 也要拿 _池锁，会与 Socket worker 死锁（表现为全部按钮无响应）。
-        延后更新 = []  # [(字段, 值), ...]
-        启动项 = None  # (id_key, 设备ID, 数据) 表示已在锁内完成 分配设备
 
         with self._池锁:
-            if self.设备池管理器.查找账号设备(id_key):
-                延后更新.append(("日志", "任务已在运行中"))
-            elif any(k == id_key for k, _ in self.等待队列):
-                # 已在排队：不再写日志，避免覆盖「绑定设备未连接」等说明，
-                # 否则前端会误判为普通「等待空闲设备」。
-                pass
-            elif 绑定设备:
-                if not self.设备池管理器.设备是否在池中(绑定设备):
-                    self.等待队列.append((id_key, 数据))
-                    延后更新.append(("状态", "等待设备"))
-                    延后更新.append(
-                        (
-                            "日志",
-                            f"绑定设备未连接（{绑定设备} 不在当前设备池），请连接 USB 后点「刷新设备」",
-                        )
-                    )
-                elif self.设备池管理器.指定设备是否空闲(绑定设备):
-                    self.设备池管理器.分配设备(绑定设备, id_key)
-                    启动项 = (id_key, 绑定设备, 数据)
-                else:
-                    条目 = self.设备池管理器.获取设备条目(绑定设备)
-                    已禁用 = 条目 and (
-                        条目.get("是否禁用") or 条目.get("状态") == "禁用"
-                    )
-                    self.等待队列.append((id_key, 数据))
-                    延后更新.append(("状态", "等待设备"))
-                    if 已禁用:
-                        延后更新.append(
-                            (
-                                "日志",
-                                f"绑定设备 {绑定设备} 已禁用，请启用后再运行",
-                            )
-                        )
-                    else:
-                        延后更新.append(
-                            (
-                                "日志",
-                                f"绑定设备 {绑定设备} 忙碌中，排队等待...",
-                            )
-                        )
-            else:
-                设备ID = self.设备池管理器.获取空闲设备()
-                if 设备ID:
-                    self.设备池管理器.分配设备(设备ID, id_key)
-                    启动项 = (id_key, 设备ID, 数据)
-                else:
-                    self.等待队列.append((id_key, 数据))
-                    延后更新.append(("状态", "等待设备"))
-                    延后更新.append(("日志", "没有空闲设备，排队等待中..."))
+            延后更新, 启动项 = self._锁内_尝试开始任务(id_key, 数据, 绑定设备)
 
         for 字段, 值 in 延后更新:
             self.更新账号数据(id_key, 字段, 值)
@@ -204,24 +209,20 @@ class 主程序:
             已在等待队列 = len(self.等待队列) < 原长
 
         if 已在等待队列:
-            self.更新账号数据(id_key, "状态", "空闲")
-            self.更新账号数据(id_key, "设备ID", "")
-            self.更新账号数据(id_key, "日志", "任务已结束")
+            self._推送账号空闲(id_key, 日志="任务已结束")
             return
 
         if self.设备池管理器.查找账号设备(id_key):
             self.线程控制器.停止线程(id_key)
         else:
-            self.更新账号数据(id_key, "状态", "空闲")
-            self.更新账号数据(id_key, "设备ID", "")
+            self._推送账号空闲(id_key)
 
     def 账号暂停任务(self, 数据):
         id_key = 数据.get("id")
         if not id_key:
             return
         if not self.设备池管理器.查找账号设备(id_key):
-            self.更新账号数据(id_key, "状态", "空闲")
-            self.更新账号数据(id_key, "设备ID", "")
+            self._推送账号空闲(id_key)
             return
         if self.线程控制器.暂停线程(id_key) == 1:
             self.更新账号数据(id_key, "状态", "已暂停")
@@ -231,8 +232,7 @@ class 主程序:
         if not id_key:
             return
         if not self.设备池管理器.查找账号设备(id_key):
-            self.更新账号数据(id_key, "状态", "空闲")
-            self.更新账号数据(id_key, "设备ID", "")
+            self._推送账号空闲(id_key)
             return
         if self.线程控制器.恢复线程(id_key) == 1:
             self.更新账号数据(id_key, "状态", "运行中")
@@ -253,8 +253,7 @@ class 主程序:
             等待中 = [k for k, _ in self.等待队列]
             self.等待队列.clear()
         for id_key in 等待中:
-            self.更新账号数据(id_key, "状态", "空闲")
-            self.更新账号数据(id_key, "设备ID", "")
+            self._推送账号空闲(id_key)
         self.线程控制器.停止全部线程()
 
         兜底账号 = []
@@ -265,8 +264,7 @@ class 主程序:
                     self.设备池管理器.释放设备(设备["设备ID"])
                     兜底账号.append(账号key)
         for 账号key in 兜底账号:
-            self.更新账号数据(账号key, "状态", "空闲")
-            self.更新账号数据(账号key, "设备ID", "")
+            self._推送账号空闲(账号key)
 
     def 全部暂停(self):
         for 线程key in list(self.线程控制器.线程集合.keys()):
@@ -281,6 +279,8 @@ class 主程序:
     # ─── 回调 ──────────────────────────────────
 
     def 线程结束回调(self, id_key):
+        if 启用轮流单执行:
+            全局轮流门闩.注销(id_key)
         with self._池锁:
             设备ID = self.设备池管理器.查找账号设备(id_key)
             if 设备ID:
@@ -290,6 +290,51 @@ class 主程序:
         self.更新账号数据(id_key, "状态", "空闲")
         self.处理账号等待队列()
 
+    @staticmethod
+    def _等待队列项绑定设备(数据):
+        """与前端 payload 一致：优先顶层「绑定设备」，否则用入队前写入的「账号信息」。"""
+        return 数据.get("绑定设备") or (数据.get("账号信息") or {}).get("绑定设备", "")
+
+    def _锁内_从等待队列调度一单(self):
+        """
+        已持 _池锁。能从队列里配到一单则返回 (id_key, 设备ID, 数据)，否则 None。
+        对每台空闲设备：优先等该设备的绑定账号，否则取未绑定账号。
+        """
+        if not self.等待队列:
+            return None
+        空闲设备列表 = self.设备池管理器.获取所有空闲设备()
+        if not 空闲设备列表:
+            return None
+
+        for 设备ID in 空闲设备列表:
+            绑定索引 = next(
+                (
+                    i
+                    for i, (_, d) in enumerate(self.等待队列)
+                    if self._等待队列项绑定设备(d) == 设备ID
+                ),
+                None,
+            )
+            if 绑定索引 is not None:
+                id_key, 数据 = self.等待队列.pop(绑定索引)
+                self.设备池管理器.分配设备(设备ID, id_key)
+                return (id_key, 设备ID, 数据)
+
+            未绑定索引 = next(
+                (
+                    i
+                    for i, (_, d) in enumerate(self.等待队列)
+                    if not self._等待队列项绑定设备(d)
+                ),
+                None,
+            )
+            if 未绑定索引 is not None:
+                id_key, 数据 = self.等待队列.pop(未绑定索引)
+                self.设备池管理器.分配设备(设备ID, id_key)
+                return (id_key, 设备ID, 数据)
+
+        return None
+
     def 处理账号等待队列(self):
         """
         调度等待队列中的账号到空闲设备：
@@ -297,47 +342,11 @@ class 主程序:
         绑定了其他设备的账号只能等待自己绑定的那台。
         """
         while True:
-            一项 = None
             with self._池锁:
-                if not self.等待队列:
-                    break
-                空闲设备列表 = self.设备池管理器.获取所有空闲设备()
-                if not 空闲设备列表:
-                    break
-
-                本轮已分配 = False
-                for 设备ID in 空闲设备列表:
-                    绑定索引 = next(
-                        (i for i, (_, d) in enumerate(self.等待队列)
-                         if d.get("绑定设备") == 设备ID),
-                        None,
-                    )
-                    if 绑定索引 is not None:
-                        id_key, 数据 = self.等待队列.pop(绑定索引)
-                        self.设备池管理器.分配设备(设备ID, id_key)
-                        一项 = (id_key, 设备ID, 数据)
-                        本轮已分配 = True
-                        break
-
-                    未绑定索引 = next(
-                        (i for i, (_, d) in enumerate(self.等待队列)
-                         if not d.get("绑定设备")),
-                        None,
-                    )
-                    if 未绑定索引 is not None:
-                        id_key, 数据 = self.等待队列.pop(未绑定索引)
-                        self.设备池管理器.分配设备(设备ID, id_key)
-                        一项 = (id_key, 设备ID, 数据)
-                        本轮已分配 = True
-                        break
-
-                if not 本轮已分配:
-                    break
-
-            if 一项:
-                self._启动已分配账号任务(*一项)
-            else:
+                一项 = self._锁内_从等待队列调度一单()
+            if not 一项:
                 break
+            self._启动已分配账号任务(*一项)
 
     def _发送设备状态到前端(self, 设备列表):
         """供设备池管理器回调，将设备列表推送到前端。"""
