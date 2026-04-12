@@ -855,12 +855,41 @@ function deleteByName(name) {
   return true;
 }
 
+/** 仅删除一条：配置页特征列表用，避免前缀族误删 */
+function deleteById(id) {
+  if (id == null) return false;
+  const i = imageList.value.findIndex((item) => item.id === id);
+  if (i < 0) return false;
+  const removedUrl = imageList.value[i]?.fullUrl;
+  imageList.value.splice(i, 1);
+  if (previewUrl.value && previewUrl.value === removedUrl) {
+    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
+  }
+  return true;
+}
+
+/** 无 id 时按名称精确匹配删一条 */
+function deleteByExactName(name) {
+  if (!name || typeof name !== "string") return false;
+  const t = name.trim();
+  const i = imageList.value.findIndex((item) => (item.name || "").trim() === t);
+  if (i < 0) return false;
+  const removedUrl = imageList.value[i]?.fullUrl;
+  imageList.value.splice(i, 1);
+  if (previewUrl.value && previewUrl.value === removedUrl) {
+    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
+  }
+  return true;
+}
+
 // 暴露给父组件的方法
 defineExpose({
   /** 供配置页特征列表等订阅，保持与列表变更同步 */
   imageList,
   getNpzPath: () => npzPath.value || "",
   deleteByName,
+  deleteById,
+  deleteByExactName,
   /** 按图片名打开模板匹配测试弹框（名称与 testFontLibraryName 一致时由配置页调用） */
   openTestByImageName,
   // 从外部显式触发一次同步（例如 ConfigTab 制作点阵/添加图片完成后）

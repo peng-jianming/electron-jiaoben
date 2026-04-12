@@ -615,6 +615,76 @@ function nameMatchesDeletion(itemName, nameToDelete) {
     return n === t || n.startsWith(t + "_");
 }
 
+/** 仅删除一条：配置页特征列表用（与 handleDelete 写文件逻辑一致，不弹确认） */
+const deleteById = async (id) => {
+    if (id == null) return false;
+    const index = fontLibraryList.value.findIndex((item) => item.id === id);
+    if (index === -1) return false;
+    const itemToDelete = fontLibraryList.value[index];
+    if (!itemToDelete) return false;
+
+    if (selectedFilePath.value) {
+        try {
+            const readResult = await ipc.invoke(ipcApiRoute.readTextFile, {
+                filePath: selectedFilePath.value
+            });
+
+            if (readResult && readResult.success) {
+                let arr = [];
+                try {
+                    const parsed = JSON.parse(readResult.content);
+                    arr = Array.isArray(parsed) ? parsed : (parsed && parsed.data ? parsed.data : []);
+                } catch (e) {
+                    throw new Error("字库 JSON 格式无效");
+                }
+
+                const sizeStr = `${itemToDelete.width},${itemToDelete.height},${itemToDelete.totalCount}`;
+                const clickOffsetAreaExpected = itemToDelete.clickOffsetArea || "0,0,0,0";
+
+                const filteredArr = arr.filter((item) => {
+                    if (!item || item["点阵"] !== itemToDelete.matrix) return true;
+                    const itemSize = (item["长宽有效数量"] != null) ? String(item["长宽有效数量"]).trim() : "";
+                    if (itemSize !== sizeStr) return true;
+                    const itemDev = (item["偏色"] != null) ? String(item["偏色"]).trim() : "";
+                    if (itemDev !== itemToDelete.deviation) return true;
+                    const itemName = (item["名字"] != null) ? String(item["名字"]).trim() : "";
+                    if (itemName !== itemToDelete.name) return true;
+                    const itemOffset = (item["偏移点击区域"] != null && item["偏移点击区域"] !== "") ? String(item["偏移点击区域"]).trim() : "0,0,0,0";
+                    return itemOffset !== clickOffsetAreaExpected;
+                });
+
+                const content = JSON.stringify(filteredArr, null, 2);
+
+                const writeResult = await ipc.invoke(ipcApiRoute.writeTextFile, {
+                    filePath: selectedFilePath.value,
+                    content
+                });
+
+                if (!writeResult || !writeResult.success) {
+                    throw new Error(writeResult?.message || "删除文件内容失败");
+                }
+            }
+        } catch (error) {
+            console.error("从文件中删除字库失败:", error);
+            ElMessage.error("从文件中删除字库失败: " + (error.message || "未知错误"));
+            return false;
+        }
+    }
+
+    fontLibraryList.value.splice(index, 1);
+    return true;
+};
+
+/** 无 id 时按名称精确匹配删列表中第一条（特征列表兜底） */
+const deleteByExactName = async (name) => {
+    if (!name || typeof name !== "string") return false;
+    const t = String(name).trim();
+    const index = fontLibraryList.value.findIndex((item) => (item.name || "").trim() === t);
+    if (index === -1) return false;
+    const row = fontLibraryList.value[index];
+    return deleteById(row.id);
+};
+
 /** 按名称删除字库中与 name 相同的资源（供 ConfigTab 删除配置项后联动使用，不再弹确认） */
 const deleteByName = async (name) => {
     if (!name || typeof name !== "string") return false;
@@ -874,7 +944,9 @@ defineExpose({
     hasSelectedFile,
     getFontLibraryList,
     getFontLibraryPath,
-    deleteByName
+    deleteByName,
+    deleteById,
+    deleteByExactName,
 });
 
 // 组件挂载时加载保存的字库路径

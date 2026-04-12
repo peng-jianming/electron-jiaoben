@@ -108,7 +108,8 @@
                   <el-option label="字库（点阵）" value="字库" />
                 </el-select>
                 <div class="proto-feature-naming-hint">
-                  特征与字库/图片库通过名称关联：与界面同名，或多张时使用「界面名_1」「界面名_2」形式（与删除配置时联动规则一致）。
+                  界面特征仅匹配「界面名」与「界面名_数字」（如 主界面、主界面_1）；不会纳入
+                  主界面_按钮_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除字库/图片库。
                 </div>
               </div>
               <div class="proto-inline-group">
@@ -192,15 +193,26 @@
                       >
                         无预览
                       </div>
-                      <el-button
-                        type="primary"
-                        link
-                        size="small"
-                        class="proto-feature-test"
-                        @click="handleScreenLevelFeatureTest(item)"
-                      >
-                        测试
-                      </el-button>
+                      <div class="proto-feature-actions">
+                        <el-button
+                          type="primary"
+                          link
+                          size="small"
+                          class="proto-feature-action-btn"
+                          @click="handleScreenLevelFeatureTest(item)"
+                        >
+                          测试
+                        </el-button>
+                        <el-button
+                          type="danger"
+                          link
+                          size="small"
+                          class="proto-feature-action-btn"
+                          @click="handleScreenFeatureDelete(item)"
+                        >
+                          删除
+                        </el-button>
+                      </div>
                     </div>
                     <div class="proto-feature-name" :title="item.name">
                       {{ item.name }}
@@ -1071,21 +1083,19 @@ const screenAvoidRegionModel = computed({
   },
 });
 
-/** 与 ImageLibraryTab 删除联动一致：精确匹配或 `界面名_` 前缀 */
-const imageNameBelongsToScreen = (itemName, screenKey) => {
+/**
+ * 界面级特征命名：仅「界面名」或「界面名_纯数字」（如 主界面、主界面_1）。
+ * 排除 主界面_按钮_xxx 等配置路径型名称。
+ */
+const screenFeatureNameBelongsToScreen = (itemName, screenKey) => {
   const n = (itemName || "").trim();
   const t = String(screenKey || "").trim();
-  if (!t) return false;
-  return n === t || n.startsWith(`${t}_`);
-};
-
-/** 与 FontLibraryTab.deleteByName 一致：界面名含下划线时仅精确匹配，否则允许 `界面名_` 前缀 */
-const fontNameBelongsToScreen = (itemName, screenKey) => {
-  const n = (itemName || "").trim();
-  const t = String(screenKey || "").trim();
-  if (!t) return false;
-  if (t.includes("_")) return n === t;
-  return n === t || n.startsWith(`${t}_`);
+  if (!t || !n) return false;
+  if (n === t) return true;
+  const prefix = `${t}_`;
+  if (!n.startsWith(prefix)) return false;
+  const rest = n.slice(prefix.length);
+  return /^\d+$/.test(rest);
 };
 
 const fontMatrixRowToDataUrl = (row, scale = 4) => {
@@ -1128,13 +1138,25 @@ const fontMatrixRowToDataUrl = (row, scale = 4) => {
   }
 };
 
+const screenFeatureNumericSuffix = (name, screenKey) => {
+  const n = name || "";
+  const sk = screenKey || "";
+  const prefix = `${sk}_`;
+  if (!n.startsWith(prefix)) return null;
+  const rest = n.slice(prefix.length);
+  if (!/^\d+$/.test(rest)) return null;
+  return parseInt(rest, 10);
+};
+
 const sortScreenFeatureRows = (rows, screenKey) =>
   [...rows].sort((a, b) => {
     const an = a.name || "";
     const bn = b.name || "";
-    const ae = an === screenKey ? 0 : 1;
-    const be = bn === screenKey ? 0 : 1;
-    if (ae !== be) return ae - be;
+    if (an === screenKey && bn !== screenKey) return -1;
+    if (bn === screenKey && an !== screenKey) return 1;
+    const na = screenFeatureNumericSuffix(an, screenKey);
+    const nb = screenFeatureNumericSuffix(bn, screenKey);
+    if (na != null && nb != null) return na - nb;
     return an.localeCompare(bn, "zh-CN");
   });
 
@@ -1166,19 +1188,23 @@ const screenFeatureItems = computed(() => {
   if (!sk || mode === "none") return [];
   if (mode === "font") {
     const list = Array.isArray(props.fontLibraryList) ? props.fontLibraryList : [];
-    const matched = list.filter((row) => fontNameBelongsToScreen(row.name, sk));
+    const matched = list.filter((row) =>
+      screenFeatureNameBelongsToScreen(row.name, sk)
+    );
     return sortScreenFeatureRows(matched, sk).map((row) => ({
       kind: "font",
+      id: row.id,
       name: row.name,
       previewUrl: fontMatrixRowToDataUrl(row),
     }));
   }
-  
-  
   const list = Array.isArray(props.imageLibraryList) ? props.imageLibraryList : [];
-  const matched = list.filter((item) => imageNameBelongsToScreen(item.name, sk));
+  const matched = list.filter((item) =>
+    screenFeatureNameBelongsToScreen(item.name, sk)
+  );
   return sortScreenFeatureRows(matched, sk).map((item) => ({
     kind: "image",
+    id: item.id,
     name: item.name,
     previewUrl: item.thumbUrl || item.fullUrl || "",
   }));
@@ -1206,6 +1232,40 @@ const handleScreenLevelFeatureTest = (item) => {
   testSimilarity.value = similarity;
   testRegion.value = region;
   testDialogVisible.value = true;
+};
+
+/** 从特征列表删除字库/图片库中对应资源（与右侧面板 delete-library-resource 一致） */
+const handleScreenFeatureDelete = (item) => {
+  if (!item?.name) return;
+  const libLabel = item.kind === "font" ? "字库" : "图片库";
+  ElMessageBox.confirm(
+    `确定从${libLabel}中删除「${item.name}」？删除后需重新制作或导入才可再次使用。`,
+    "删除确认",
+    {
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(() => {
+      if (item.kind === "font") {
+        emit("delete-library-resource", {
+          type: "点阵",
+          name: item.name,
+          exactOnly: true,
+          id: item.id,
+        });
+        return;
+      }
+      const t = currentScreenObj.value?.类型 === "彩图" ? "彩图" : "图片";
+      emit("delete-library-resource", {
+        type: t,
+        name: item.name,
+        exactOnly: true,
+        id: item.id,
+      });
+    })
+    .catch(() => {});
 };
 
 const onScreenSimilarityCommit = () => {
@@ -3153,11 +3213,27 @@ defineExpose({
   color: #94a3b8;
 }
 
-.proto-feature-test {
+.proto-feature-actions {
   position: absolute;
+  left: 0;
   right: 0;
-  top: 0;
-  padding: 0 4px !important;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.96),
+    rgba(255, 255, 255, 0.75),
+    transparent
+  );
+  border-radius: 0 0 8px 8px;
+}
+
+.proto-feature-action-btn {
+  padding: 0 2px !important;
   min-height: auto !important;
   height: auto !important;
   font-size: 11px !important;

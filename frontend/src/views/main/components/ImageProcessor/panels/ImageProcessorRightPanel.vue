@@ -467,17 +467,75 @@ const handleOpenImageTest = ({ name, similarity, region, matchMode } = {}) => {
 };
 
 // 处理从 ConfigTab 发起的“删除配置项对应资源”（图片库或字库中同名资源）
-const handleDeleteLibraryResource = async ({ type, name } = {}) => {
+const handleDeleteLibraryResource = async ({
+  type,
+  name,
+  exactOnly,
+  id,
+} = {}) => {
+  // 特征列表：只删当前这一条（按 id，无 id 则按名称精确匹配一条）
+  if (exactOnly) {
+    if (type === "图片" || type === "彩图") {
+      const tab = imageLibraryTabRef.value;
+      let deleted =
+        id != null ? tab?.deleteById?.(id) : tab?.deleteByExactName?.(name);
+      if (!deleted && id != null && name) {
+        deleted = tab?.deleteByExactName?.(name);
+      }
+      if (deleted) {
+        ElMessage.success("已从图片库删除");
+        try {
+          await tab?.syncNow?.();
+        } catch (e) {
+          console.error("同步图片库到 .npz 失败:", e);
+        }
+      } else {
+        ElMessage.info("图片库中未找到该资源，或已删除");
+      }
+      return;
+    }
+    if (type === "点阵") {
+      try {
+        const tab = fontLibraryTabRef.value;
+        let deleted =
+          id != null
+            ? await tab?.deleteById?.(id)
+            : await tab?.deleteByExactName?.(name);
+        if (!deleted && id != null && name) {
+          deleted = await tab?.deleteByExactName?.(name);
+        }
+        if (deleted) {
+          ElMessage.success("已从字库删除");
+        } else {
+          ElMessage.info("字库中未找到该资源，或已删除");
+        }
+      } catch (e) {
+        ElMessage.error("删除字库资源失败: " + (e?.message || "未知错误"));
+      }
+      return;
+    }
+    return;
+  }
+
   if (!name) return;
   if (type === "图片" || type === "彩图") {
     const deleted = imageLibraryTabRef.value?.deleteByName?.(name);
-    if (!deleted) {
+    if (deleted) {
+      ElMessage.success("已从图片库删除");
+      try {
+        await imageLibraryTabRef.value?.syncNow?.();
+      } catch (e) {
+        console.error("同步图片库到 .npz 失败:", e);
+      }
+    } else {
       ElMessage.info("图片库中未找到同名资源，或已删除");
     }
   } else if (type === "点阵") {
     try {
       const deleted = await fontLibraryTabRef.value?.deleteByName?.(name);
-      if (!deleted) {
+      if (deleted) {
+        ElMessage.success("已从字库删除");
+      } else {
         ElMessage.info("字库中未找到同名资源，或已删除");
       }
     } catch (e) {
