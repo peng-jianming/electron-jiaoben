@@ -95,6 +95,22 @@
                   readonly
                 />
               </div>
+              <div class="proto-field-group">
+                <div class="proto-field-label">界面匹配类型</div>
+                <el-select
+                  v-model="screenTypeModel"
+                  size="small"
+                  class="proto-input"
+                  placeholder="选择类型"
+                >
+                  <el-option label="图片（灰度匹配）" value="图片" />
+                  <el-option label="彩图（BGR 匹配）" value="彩图" />
+                  <el-option label="字库（点阵）" value="字库" />
+                </el-select>
+                <div class="proto-feature-naming-hint">
+                  特征与字库/图片库通过名称关联：与界面同名，或多张时使用「界面名_1」「界面名_2」形式（与删除配置时联动规则一致）。
+                </div>
+              </div>
               <div class="proto-inline-group">
                 <div class="proto-inline-field">
                   <div class="proto-field-label">相似度 (0~1)</div>
@@ -135,6 +151,77 @@
                 />
               </div>
             </div>
+
+
+            <div class="proto-section-card">
+              <div class="proto-section-title proto-section-title--between">
+                <span>特征列表</span>
+                <el-button
+                  type="success"
+                  size="small"
+                  class="proto-add-btn"
+                  @click="
+                    handleAddConfig({
+                      path: buildJsonPath([selectedRootKey]),
+                    })
+                  "
+                >
+                  <el-icon><Plus /></el-icon>
+                  制作点阵/添加图片
+                </el-button>
+              </div>
+              <template v-if="screenFeatureItems.length">
+                <div class="proto-feature-grid">
+                  <div
+                    v-for="item in screenFeatureItems"
+                    :key="item.kind + '-' + item.name"
+                    class="proto-feature-cell"
+                  >
+                    <div class="proto-feature-thumb-wrap">
+                      <el-image
+                        v-if="item.previewUrl"
+                        :src="item.previewUrl"
+                        fit="contain"
+                        class="proto-feature-thumb"
+                        :preview-src-list="[item.previewUrl]"
+                        preview-teleported
+                      />
+                      <div
+                        v-else
+                        class="proto-feature-thumb proto-feature-thumb--empty"
+                      >
+                        无预览
+                      </div>
+                      <el-button
+                        type="primary"
+                        link
+                        size="small"
+                        class="proto-feature-test"
+                        @click="handleScreenLevelFeatureTest(item)"
+                      >
+                        测试
+                      </el-button>
+                    </div>
+                    <div class="proto-feature-name" :title="item.name">
+                      {{ item.name }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div v-else class="proto-empty-hint">
+                <template v-if="screenFeatureMode === 'font'">
+                  暂无点阵。可点击「制作点阵/添加图片」，或在字库中使用与界面同名、或「界面名_序号」命名。
+                </template>
+                <template v-else-if="screenFeatureMode === 'image'">
+                  暂无图片。可点击「制作点阵/添加图片」，或在图片库中使用与界面同名、或「界面名_序号」命名。
+                </template>
+                <template v-else>
+                  当前界面类型为「{{ currentScreenObj?.类型 ?? "-" }}」，仅 图片 / 彩图 / 字库 / 点阵
+                  会在此列出特征。
+                </template>
+              </div>
+            </div>
+
 
             <!-- 滑动区域：子项为 { 起始区域, 结束区域 } -->
             <div class="proto-section-card">
@@ -714,7 +801,16 @@
 
 <script setup>
 import { ref, watch, onMounted, computed, h } from "vue";
-import { ElMessage, ElMessageBox, ElInput, ElCheckbox, ElRadio, ElRadioGroup } from "element-plus";
+import {
+  ElMessage,
+  ElMessageBox,
+  ElInput,
+  ElCheckbox,
+  ElRadio,
+  ElRadioGroup,
+  ElSelect,
+  ElOption,
+} from "element-plus";
 import {
   Close,
   Picture,
@@ -736,6 +832,10 @@ const props = defineProps({
     default: null,
   },
   fontLibraryList: {
+    type: Array,
+    default: () => [],
+  },
+  imageLibraryList: {
     type: Array,
     default: () => [],
   },
@@ -971,6 +1071,143 @@ const screenAvoidRegionModel = computed({
   },
 });
 
+/** 与 ImageLibraryTab 删除联动一致：精确匹配或 `界面名_` 前缀 */
+const imageNameBelongsToScreen = (itemName, screenKey) => {
+  const n = (itemName || "").trim();
+  const t = String(screenKey || "").trim();
+  if (!t) return false;
+  return n === t || n.startsWith(`${t}_`);
+};
+
+/** 与 FontLibraryTab.deleteByName 一致：界面名含下划线时仅精确匹配，否则允许 `界面名_` 前缀 */
+const fontNameBelongsToScreen = (itemName, screenKey) => {
+  const n = (itemName || "").trim();
+  const t = String(screenKey || "").trim();
+  if (!t) return false;
+  if (t.includes("_")) return n === t;
+  return n === t || n.startsWith(`${t}_`);
+};
+
+const fontMatrixRowToDataUrl = (row, scale = 4) => {
+  if (!row) return "";
+  const w = Number(row.width);
+  const h = Number(row.height);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return "";
+  let pixels = row.binaryData;
+  if (!pixels || !pixels.length) {
+    const matrix = row.matrix;
+    if (!matrix || typeof matrix !== "string") return "";
+    const binaryData = [];
+    for (let i = 0; i < matrix.length; i++) {
+      const hexChar = matrix[i];
+      const bits = parseInt(hexChar, 16).toString(2).padStart(4, "0");
+      binaryData.push(...bits.split(""));
+    }
+    pixels = binaryData.slice(0, w * h);
+  }
+  if (!pixels || pixels.length < w * h) return "";
+  try {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = y * w + x;
+        const pixel = pixels[idx];
+        ctx.fillStyle = pixel === "1" || pixel === 1 ? "#000000" : "#808080";
+        ctx.fillRect(x * scale, y * scale, Math.max(1, scale - 1), Math.max(1, scale - 1));
+      }
+    }
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
+  }
+};
+
+const sortScreenFeatureRows = (rows, screenKey) =>
+  [...rows].sort((a, b) => {
+    const an = a.name || "";
+    const bn = b.name || "";
+    const ae = an === screenKey ? 0 : 1;
+    const be = bn === screenKey ? 0 : 1;
+    if (ae !== be) return ae - be;
+    return an.localeCompare(bn, "zh-CN");
+  });
+
+/** 下拉框与 JSON 中「点阵」兼容：展示为字库，写入仍为字库 */
+const screenTypeModel = computed({
+  get() {
+    const s = currentScreenObj.value;
+    const v = s?.类型;
+    if (v === "图片" || v === "彩图") return v;
+    if (v === "字库" || v === "点阵") return "字库";
+    return "图片";
+  },
+  set(val) {
+    const s = currentScreenObj.value;
+    if (s) s.类型 = val;
+  },
+});
+
+const screenFeatureMode = computed(() => {
+  const t = currentScreenObj.value?.类型;
+  if (t === "字库" || t === "点阵") return "font";
+  if (t === "图片" || t === "彩图") return "image";
+  return "none";
+});
+
+const screenFeatureItems = computed(() => {
+  const sk = selectedRootKey.value;
+  const mode = screenFeatureMode.value;
+  if (!sk || mode === "none") return [];
+  if (mode === "font") {
+    const list = Array.isArray(props.fontLibraryList) ? props.fontLibraryList : [];
+    const matched = list.filter((row) => fontNameBelongsToScreen(row.name, sk));
+    return sortScreenFeatureRows(matched, sk).map((row) => ({
+      kind: "font",
+      name: row.name,
+      previewUrl: fontMatrixRowToDataUrl(row),
+    }));
+  }
+  
+  
+  const list = Array.isArray(props.imageLibraryList) ? props.imageLibraryList : [];
+  const matched = list.filter((item) => imageNameBelongsToScreen(item.name, sk));
+  return sortScreenFeatureRows(matched, sk).map((item) => ({
+    kind: "image",
+    name: item.name,
+    previewUrl: item.thumbUrl || item.fullUrl || "",
+  }));
+});
+
+/** 特征列表中单张测试：使用当前界面的相似度、查找区域 */
+const handleScreenLevelFeatureTest = (item) => {
+  const s = currentScreenObj.value;
+  if (!s || !item?.name) return;
+  const similarity = s.相似度 != null ? Number(s.相似度) : undefined;
+  const region =
+    s.查找区域 != null && s.查找区域 !== ""
+      ? String(s.查找区域).trim()
+      : "";
+  if (item.kind === "image") {
+    emit("open-image-test", {
+      name: item.name,
+      similarity,
+      region,
+      matchMode: s.类型 === "彩图" ? "color" : "gray",
+    });
+    return;
+  }
+  testFontLibraryName.value = item.name;
+  testSimilarity.value = similarity;
+  testRegion.value = region;
+  testDialogVisible.value = true;
+};
+
 const onScreenSimilarityCommit = () => {
   const s = currentScreenObj.value;
   if (!s) return;
@@ -1096,6 +1333,7 @@ const handleDeleteByPath = (pathKeys) => {
 const ensureScreenShape = (k) => {
   const s = data.value?.[k];
   if (!k || !s || typeof s !== "object" || Array.isArray(s)) return;
+  if (s.类型 == null || s.类型 === "") s.类型 = "图片";
   if (!s.按钮 || typeof s.按钮 !== "object" || Array.isArray(s.按钮)) s.按钮 = {};
   if (!s.状态 || typeof s.状态 !== "object" || Array.isArray(s.状态)) s.状态 = {};
   if (!s.滑动区域 || typeof s.滑动区域 !== "object" || Array.isArray(s.滑动区域))
@@ -1656,7 +1894,12 @@ const handleAddConfig = (node) => {
   currentNode.value = getCurrentNode(node);
   const keys = getPathKeys(node.path);
   currentName.value = keys.join("_");
-  if (currentNode.value.类型 == "图片" || currentNode.value.类型 == "彩图") {
+  if (!currentNode.value || typeof currentNode.value !== "object") {
+    ElMessage.warning("无法定位当前配置节点");
+    return;
+  }
+  const typ = currentNode.value.类型;
+  if (typ === "图片" || typ === "彩图") {
     // 图片 / 彩图：将当前图片或圈选区域添加到图片库（由右侧面板统一处理）
     if (!props.currentImage || !props.currentImage.url) {
       ElMessage.warning("当前没有图片，无法添加到图片库");
@@ -1669,13 +1912,12 @@ const handleAddConfig = (node) => {
     });
     return;
   }
-  if (currentNode.value.类型 == "点阵") {
+  if (typ === "点阵" || typ === "字库") {
     fontClickOffsetAreaInput.value = "";
     // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
     enableAutoCrop.value = true;
     drawer.value = true;
   }
-
 };
 
 // 切换偏移点击区域圈选模式
@@ -2866,6 +3108,69 @@ defineExpose({
   padding: 20px;
   color: #94a3b8;
   font-size: 13px;
+}
+
+.proto-feature-naming-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.proto-feature-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.proto-feature-cell {
+  width: 104px;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.proto-feature-thumb-wrap {
+  position: relative;
+}
+
+.proto-feature-thumb {
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: block;
+}
+
+.proto-feature-thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.proto-feature-test {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 0 4px !important;
+  min-height: auto !important;
+  height: auto !important;
+  font-size: 11px !important;
+}
+
+.proto-feature-name {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #475569;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .proto-sz-object-hint {

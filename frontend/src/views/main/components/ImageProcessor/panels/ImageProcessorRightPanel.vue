@@ -16,11 +16,12 @@
       v-model="activeTab"
       @tab-change="handleTabChange"
     >
-    <el-tab-pane label="配置" name="config">
+    <el-tab-pane label="配置" name="config" :lazy="false">
         <ConfigTab
           :current-image="currentImage"
           :selection-rect="selectionRect"
           :font-library-list="fontLibraryList"
+          :image-library-list="imageLibraryList"
           :current-device-id="currentDeviceId"
           ref="configTabRef"
           @add-font-library="handleAddFontLibrary"
@@ -33,10 +34,10 @@
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
         />
       </el-tab-pane>
-      <el-tab-pane label="字库">
+      <el-tab-pane label="字库" :lazy="false">
         <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
       </el-tab-pane>
-      <el-tab-pane label="图片库" name="image-library">
+      <el-tab-pane label="图片库" name="image-library" :lazy="false">
         <ImageLibraryTab :current-device-id="currentDeviceId" ref="imageLibraryTabRef" />
       </el-tab-pane>
       <!-- <el-tab-pane label="偏色二值化" name="deviation">
@@ -222,12 +223,29 @@ const hasFontLibraryFile = computed(() => {
   return false;
 });
 
-// 获取字库列表
-const fontLibraryList = computed(() => {
-  if (fontLibraryTabRef.value) {
-    return fontLibraryTabRef.value.getFontLibraryList?.() || [];
+/** 子组件 defineExpose 的 ref，经父级 template ref 读取时可能被 Vue 自动解包为普通数组 */
+const unwrapExposedRef = (v) => {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v;
+  if (typeof v === "object" && "value" in v) {
+    const inner = v.value;
+    return Array.isArray(inner) ? inner : [];
   }
   return [];
+};
+
+// 获取字库列表（订阅子组件 ref，便于配置页特征列表随字库增删实时更新）
+const fontLibraryList = computed(() => {
+  const inst = fontLibraryTabRef.value;
+  if (!inst) return [];
+  if (inst.fontLibraryList != null) return unwrapExposedRef(inst.fontLibraryList);
+  return inst.getFontLibraryList?.() || [];
+});
+
+const imageLibraryList = computed(() => {
+  const inst = imageLibraryTabRef.value;
+  if (!inst) return [];
+  return unwrapExposedRef(inst.imageList);
 });
 
 // 获取字库路径（字库 tab 中选择的字库文件路径，供识字测试使用）

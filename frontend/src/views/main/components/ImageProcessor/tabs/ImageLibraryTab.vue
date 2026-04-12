@@ -857,6 +857,8 @@ function deleteByName(name) {
 
 // 暴露给父组件的方法
 defineExpose({
+  /** 供配置页特征列表等订阅，保持与列表变更同步 */
+  imageList,
   getNpzPath: () => npzPath.value || "",
   deleteByName,
   /** 按图片名打开模板匹配测试弹框（名称与 testFontLibraryName 一致时由配置页调用） */

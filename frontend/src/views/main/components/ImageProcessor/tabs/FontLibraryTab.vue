@@ -868,6 +868,8 @@ const getFontLibraryPath = () => {
 
 // 暴露方法供父组件调用
 defineExpose({
+    /** 供配置页特征列表等订阅，保持与列表变更同步 */
+    fontLibraryList,
     addFontLibraryItem,
     hasSelectedFile,
     getFontLibraryList,
