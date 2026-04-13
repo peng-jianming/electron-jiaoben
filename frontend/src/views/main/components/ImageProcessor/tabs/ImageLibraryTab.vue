@@ -898,9 +898,26 @@ defineExpose({
     const { name, width, height, base64 } = payload || {};
     if (!base64) return false;
     const baseName = (name || `图片${imageList.value.length + 1}`).trim();
-    const existingNames = new Set(imageList.value.map(item => (item.name || "").trim()));
+    const existingNames = new Set(
+      imageList.value.map((item) => (item.name || "").trim())
+    );
     let displayName = baseName;
-    if (existingNames.has(displayName)) {
+    // 统一命名：若包含偏移坐标，使用「基础名_序号_坐标」，确保序号在坐标前
+    const offsetWithSeqMatch = baseName.match(
+      /^(.*?)(?:_(\d+))?_(-?\d+,-?\d+,\d+,\d+)$/
+    );
+    if (offsetWithSeqMatch) {
+      const plainBase = (offsetWithSeqMatch[1] || "").trim();
+      const offsetPart = offsetWithSeqMatch[3];
+      let counter = Number(offsetWithSeqMatch[2] || 1);
+      if (!Number.isFinite(counter) || counter < 1) counter = 1;
+      let candidate = `${plainBase}_${counter}_${offsetPart}`;
+      while (existingNames.has(candidate)) {
+        counter++;
+        candidate = `${plainBase}_${counter}_${offsetPart}`;
+      }
+      displayName = candidate;
+    } else if (existingNames.has(displayName)) {
       let counter = 1;
       while (existingNames.has(`${baseName}_${counter}`)) {
         counter++;

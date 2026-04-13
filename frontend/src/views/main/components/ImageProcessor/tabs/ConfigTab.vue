@@ -117,7 +117,8 @@
                   <el-option label="点阵（字库匹配）" value="点阵" />
                 </el-select>
                 <div class="proto-feature-naming-hint">
-                  界面特征仅匹配「界面名」与「界面名_数字」（如 主界面、主界面_1）；不会纳入
+                  界面特征匹配「界面名 / 界面名_数字 / 界面名_偏移区域 /
+                  界面名_数字_偏移区域」（如 主界面、主界面_1、主界面_1,1,10,10、主界面_1_1,1,10,10）；不会纳入
                   主界面_按钮_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
                 </div>
               </div>
@@ -234,7 +235,8 @@
                   暂无点阵。可点击「制作点阵/添加图片」，或在点阵库中使用与界面同名、或「界面名_序号」命名。
                 </template>
                 <template v-else-if="screenFeatureMode === 'image'">
-                  暂无图片。可点击「制作点阵/添加图片」，或在图片库中使用与界面同名、或「界面名_序号」命名。
+                  暂无图片。可点击「制作点阵/添加图片」，或在图片库中使用与界面同名、或「界面名_序号」、
+                  「界面名_序号_偏移区域」命名。
                 </template>
                 <template v-else>
                   当前界面类型为「{{ currentScreenObj?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
@@ -730,28 +732,34 @@
 
     <transition name="config-drawer-slide">
       <div v-if="drawer" class="config-drawer-wrapper">
-        <div class="config-drawer-mask" @click="drawer = false"></div>
+        <div class="config-drawer-mask" @click="closeConfigDrawer"></div>
         <div class="config-drawer">
           <div class="config-drawer-header">
             <div class="config-drawer-title-wrap">
               <div class="config-drawer-title-main">
-                <span class="config-drawer-title">添加字库配置</span>
+                <span class="config-drawer-title">{{
+                  isImageDrawerMode ? "添加图片配置" : "添加字库配置"
+                }}</span>
               </div>
               <div class="config-drawer-subtitle">
-                基于当前图片与圈选区域生成字库点阵配置
+                {{
+                  isImageDrawerMode
+                    ? "基于当前圈选图片添加图片配置并设置偏移点击区域"
+                    : "基于当前图片与圈选区域生成字库点阵配置"
+                }}
               </div>
             </div>
             <el-button
               class="cfg-toolbar-btn cfg-toolbar-btn--outline"
               size="small"
-              @click="drawer = false"
+              @click="closeConfigDrawer"
             >
               关闭
             </el-button>
           </div>
           <div class="config-drawer-body">
             <!-- 颜色表格 -->
-            <div class="color-table-wrap">
+            <div v-if="isFontDrawerMode" class="color-table-wrap">
               <el-table
                 :data="selectedColors"
                 height="150"
@@ -827,7 +835,7 @@
             </div>
 
             <!-- 二值化预览 -->
-            <div class="result-section">
+            <div v-if="isFontDrawerMode" class="result-section">
               <el-image
                 v-if="processedImageUrl"
                 :src="processedImageUrl"
@@ -845,10 +853,26 @@
             </div>
 
             <div class="font-config-section">
-              <div class="font-row">
+              <div v-if="isFontDrawerMode" class="font-row">
                 <span class="font-label">是否裁剪</span>
                 <div class="font-field">
                   <el-checkbox v-model="enableAutoCrop" size="small" />
+                </div>
+              </div>
+              <div v-if="isImageDrawerMode" class="result-section">
+                <el-image
+                  v-if="drawerSelectedImageUrl"
+                  :src="drawerSelectedImageUrl"
+                  :preview-src-list="[drawerSelectedImageUrl]"
+                  fit="contain"
+                  preview-teleported
+                  style="height: 100%; width: 100%"
+                />
+                <div v-else class="result-placeholder">
+                  <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px">
+                    <Picture />
+                  </el-icon>
+                  当前圈选图片预览
                 </div>
               </div>
               <div class="font-row">
@@ -886,7 +910,7 @@
               type="primary"
               size="small"
               @click="handleConfirmAddConfig"
-              :disabled="!processedImageUrl"
+              :disabled="isFontDrawerMode ? !processedImageUrl : !drawerSelectedImageUrl"
             >
               确认添加
             </el-button>
@@ -1170,7 +1194,11 @@ const screenAvoidRegionModel = computed({
 });
 
 /**
- * 界面级特征命名：仅「界面名」或「界面名_纯数字」（如 主界面、主界面_1）。
+ * 界面级特征命名支持：
+ * - 基础名：主界面
+ * - 基础名_数字：主界面_1
+ * - 基础名_数字_偏移区域：主界面_1_1,1,10,10
+ * - （兼容历史）基础名_偏移区域：主界面_1,1,10,10
  * 排除 主界面_按钮_xxx 等配置路径型名称。
  */
 const featureNameBelongsToBase = (itemName, baseName) => {
@@ -1181,7 +1209,10 @@ const featureNameBelongsToBase = (itemName, baseName) => {
   const prefix = `${t}_`;
   if (!n.startsWith(prefix)) return false;
   const rest = n.slice(prefix.length);
-  return /^\d+$/.test(rest);
+  if (/^\d+$/.test(rest)) return true;
+  if (/^-?\d+,-?\d+,\d+,\d+$/.test(rest)) return true;
+  if (/^\d+_-?\d+,-?\d+,\d+,\d+$/.test(rest)) return true;
+  return false;
 };
 
 const fontMatrixRowToDataUrl = (row, scale = 4) => {
@@ -1230,8 +1261,10 @@ const featureNumericSuffix = (name, baseName) => {
   const prefix = `${base}_`;
   if (!n.startsWith(prefix)) return null;
   const rest = n.slice(prefix.length);
-  if (!/^\d+$/.test(rest)) return null;
-  return parseInt(rest, 10);
+  if (/^\d+$/.test(rest)) return parseInt(rest, 10);
+  const match = rest.match(/^(\d+)_-?\d+,-?\d+,\d+,\d+$/);
+  if (match) return parseInt(match[1], 10);
+  return null;
 };
 
 const sortFeatureRowsByBase = (rows, baseName) =>
@@ -1897,6 +1930,7 @@ const cascaderOptionsKey = computed(() =>
 
 
 const drawer = ref(false);
+const drawerMode = ref("font"); // "font" | "image"
 const currentNode = ref(null);
 
 const selectedCascader = ref([]);
@@ -1914,6 +1948,7 @@ const rowDeviations = ref([]); // 每行偏色值 0–100
 const processedImageUrl = ref(null);
 const enableAutoCrop = ref(true);
 const fontClickOffsetAreaInput = ref("");
+const drawerSelectedImageUrl = ref("");
 
 // 偏移点击区域圈选状态
 const fontClickOffsetAreaSelectionEnabled = ref(false);
@@ -1930,12 +1965,99 @@ const isDrawerFontClickOffsetAreaSelectionActive = computed(() => {
     offsetAreaSelectionTargetMode.value === "drawer"
   );
 });
+const isFontDrawerMode = computed(() => drawerMode.value === "font");
+const isImageDrawerMode = computed(() => drawerMode.value === "image");
 
 // 是否存在左侧圈选范围（用于偏移点击区域的基准）
 const hasSelectionRect = computed(() => {
   return props.selectionRect && props.selectionRect.w && props.selectionRect.h;
 });
 
+
+const parseClickOffsetAreaInput = () => {
+  let clickOffsetArea = "0,0,0,0";
+  if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
+    const raw = fontClickOffsetAreaInput.value.trim();
+    const parts = raw.split(",").map((s) => s.trim());
+    if (
+      parts.length !== 4 ||
+      parts.some((p) => p === "" || Number.isNaN(parseInt(p, 10)))
+    ) {
+      throw new Error("偏移点击区域格式不正确，应为：x,y,w,h");
+    }
+    const [x, y, w, h] = parts.map((p) => parseInt(p, 10));
+    if (w < 0 || h < 0) {
+      throw new Error("偏移点击区域宽高必须为非负整数");
+    }
+    clickOffsetArea = `${x},${y},${w},${h}`;
+  }
+  return clickOffsetArea;
+};
+
+const closeConfigDrawer = () => {
+  drawer.value = false;
+  fontClickOffsetAreaSelectionEnabled.value = false;
+  offsetAreaSelectionTargetMode.value = "drawer";
+  offsetAreaSelectionTargetNodePath.value = "";
+  emit("stop-code-generator-selection");
+};
+
+const buildSelectionPreviewUrl = async () => {
+  if (!props.currentImage?.url) return "";
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  return await new Promise((resolve, reject) => {
+    img.onload = () => {
+      try {
+        let startX = 0;
+        let startY = 0;
+        let width = img.width;
+        let height = img.height;
+        if (props.selectionRect?.w > 0 && props.selectionRect?.h > 0) {
+          startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
+          startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
+          width = Math.min(props.selectionRect.w, img.width - startX);
+          height = Math.min(props.selectionRect.h, img.height - startY);
+        }
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error("加载图片失败"));
+    img.src = props.currentImage.url;
+  });
+};
+
+const handleConfirmAddImageConfig = async () => {
+  if (!props.currentImage?.url) {
+    ElMessage.warning("当前没有图片，无法添加到图片库");
+    return;
+  }
+  const baseName = (currentName.value || "").trim();
+  if (!baseName) {
+    ElMessage.warning("图片名称为空，无法添加");
+    return;
+  }
+  let clickOffsetArea = "0,0,0,0";
+  try {
+    clickOffsetArea = parseClickOffsetAreaInput();
+  } catch (error) {
+    ElMessage.warning(error.message || "偏移点击区域格式不正确");
+    return;
+  }
+  emit("add-image-to-library", {
+    name: `${baseName}_1_${clickOffsetArea}`,
+    selectionRect: props.selectionRect || null,
+    currentImageUrl: props.currentImage.url,
+  });
+  closeConfigDrawer();
+};
 
 // 供外部（图片点击）调用的添加颜色方法
 const addColor = (colorInfo) => {
@@ -2215,22 +2337,28 @@ const handleAddConfig = (node) => {
   }
   const typ = currentNode.value.类型;
   if (typ === "图片" || typ === "彩图") {
-    // 图片 / 彩图：将当前图片或圈选区域添加到图片库（由右侧面板统一处理）
     if (!props.currentImage || !props.currentImage.url) {
       ElMessage.warning("当前没有图片，无法添加到图片库");
       return;
     }
-    emit("add-image-to-library", {
-      name: currentName.value,
-      selectionRect: props.selectionRect || null,
-      currentImageUrl: props.currentImage.url,
-    });
+    fontClickOffsetAreaInput.value = "";
+    drawerMode.value = "image";
+    buildSelectionPreviewUrl()
+      .then((url) => {
+        drawerSelectedImageUrl.value = url;
+        drawer.value = true;
+      })
+      .catch((error) => {
+        console.error("生成圈选预览失败:", error);
+        ElMessage.error("生成圈选预览失败: " + (error.message || "未知错误"));
+      });
     return;
   }
   if (typ === "点阵") {
     fontClickOffsetAreaInput.value = "";
     // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
     enableAutoCrop.value = true;
+    drawerMode.value = "font";
     drawer.value = true;
   }
 };
@@ -2449,6 +2577,10 @@ const runBinarizationFromTable = () => {
 
 // ========== 确认添加配置 ==========
 const handleConfirmAddConfig = async () => {
+  if (isImageDrawerMode.value) {
+    await handleConfirmAddImageConfig();
+    return;
+  }
   if (!processedImageUrl.value) {
     ElMessage.warning("请先生成点阵");
     return;
@@ -2549,26 +2681,13 @@ const handleConfirmAddConfig = async () => {
           // 点阵 = hex&width,height,count
           const matrixStr = `${matrixHex}&${width},${height},${whitePixelCount}`;
           
-          // 处理偏移点击区域，格式为 x,y,w,h，若未填写则默认 0,0,0,0
           let clickOffsetArea = "0,0,0,0";
-          if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
-            const raw = fontClickOffsetAreaInput.value.trim();
-            const parts = raw.split(",").map((s) => s.trim());
-            if (
-              parts.length !== 4 ||
-              parts.some((p) => p === "" || Number.isNaN(parseInt(p, 10)))
-            ) {
-              ElMessage.warning("偏移点击区域格式不正确，应为：x,y,w,h");
-              reject(new Error("偏移点击区域格式不正确"));
-              return;
-            }
-            const [x, y, w, h] = parts.map((p) => parseInt(p, 10));
-            if (w < 0 || h < 0) {
-              ElMessage.warning("偏移点击区域宽高必须为非负整数");
-              reject(new Error("偏移点击区域宽高必须为非负整数"));
-              return;
-            }
-            clickOffsetArea = `${x},${y},${w},${h}`;
+          try {
+            clickOffsetArea = parseClickOffsetAreaInput();
+          } catch (error) {
+            ElMessage.warning(error.message || "偏移点击区域格式不正确");
+            reject(error);
+            return;
           }
 
           // 使用 currentName 作为字库名称
@@ -2599,7 +2718,7 @@ const handleConfirmAddConfig = async () => {
           }
 
           // ElMessage.success(`配置 添加成功`);
-          drawer.value = false;
+          closeConfigDrawer();
           resolve();
         } catch (error) {
           console.error("处理点阵时出错:", error);
