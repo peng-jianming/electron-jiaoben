@@ -397,6 +397,7 @@
                     <span class="proto-button-name">{{ stName }}</span>
                     <div class="proto-button-actions">
                       <el-button
+                        v-if="!isFixedAreaType(st?.类型)"
                         type="primary"
                         size="small"
                         link
@@ -559,6 +560,7 @@
                     <span class="proto-button-name">{{ btnName }}</span>
                     <div class="proto-button-actions">
                       <el-button
+                        v-if="!isFixedAreaType(btn?.类型)"
                         type="primary"
                         size="small"
                         link
