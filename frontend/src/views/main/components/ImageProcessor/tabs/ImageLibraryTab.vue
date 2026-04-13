@@ -510,12 +510,21 @@ function openTestByImageName(name, options = {}) {
     return false;
   }
   const escaped = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`^${escaped}(?:_\\d+)?$`);
+  // 支持：
+  // - 基础名
+  // - 基础名_数字
+  // - 基础名_数字_偏移坐标（新规则）
+  // - 基础名_偏移坐标（历史兼容）
+  const pattern = new RegExp(
+    `^${escaped}(?:_\\d+)?(?:_-?\\d+,-?\\d+,\\d+,\\d+)?$`
+  );
   const matchedRows = imageList.value.filter((item) =>
     pattern.test((item.name || "").trim())
   );
   if (!matchedRows.length) {
-    ElMessage.warning(`图片库中未找到名为「${trimmedName}」或「${trimmedName}_数字」的图片`);
+    ElMessage.warning(
+      `图片库中未找到名为「${trimmedName}」前缀（含序号/偏移坐标后缀）的图片`
+    );
     return false;
   }
   openTestWithRows(matchedRows, options);
@@ -902,21 +911,29 @@ defineExpose({
       imageList.value.map((item) => (item.name || "").trim())
     );
     let displayName = baseName;
-    // 统一命名：若包含偏移坐标，使用「基础名_序号_坐标」，确保序号在坐标前
+    // 统一命名：若包含偏移坐标，使用「基础名_序号_坐标」，且序号在同一基础名下全局唯一
     const offsetWithSeqMatch = baseName.match(
       /^(.*?)(?:_(\d+))?_(-?\d+,-?\d+,\d+,\d+)$/
     );
     if (offsetWithSeqMatch) {
       const plainBase = (offsetWithSeqMatch[1] || "").trim();
       const offsetPart = offsetWithSeqMatch[3];
+      const usedSeq = new Set();
+      const seqReg = new RegExp(
+        `^${plainBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_(\\d+)(?:_|$)`
+      );
+      existingNames.forEach((n) => {
+        const m = String(n || "").match(seqReg);
+        if (!m) return;
+        const seq = Number(m[1]);
+        if (Number.isFinite(seq) && seq > 0) usedSeq.add(seq);
+      });
       let counter = Number(offsetWithSeqMatch[2] || 1);
       if (!Number.isFinite(counter) || counter < 1) counter = 1;
-      let candidate = `${plainBase}_${counter}_${offsetPart}`;
-      while (existingNames.has(candidate)) {
+      while (usedSeq.has(counter)) {
         counter++;
-        candidate = `${plainBase}_${counter}_${offsetPart}`;
       }
-      displayName = candidate;
+      displayName = `${plainBase}_${counter}_${offsetPart}`;
     } else if (existingNames.has(displayName)) {
       let counter = 1;
       while (existingNames.has(`${baseName}_${counter}`)) {
