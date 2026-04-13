@@ -37,10 +37,9 @@
           size="small"
           @click="handleNewScreen"
         >
-          <el-icon class="cfg-btn-icon"><Plus /></el-icon>
           新建界面
         </el-button>
-          <span class="cfg-badge cfg-badge--muted">{{ rootKeys.length }} 个界面</span>
+          <!-- <span class="cfg-badge cfg-badge--muted">{{ rootKeys.length }} 个界面</span> -->
         </div>
         <div class="cfg-sidebar-list">
           <template v-if="data && rootKeys.length">
@@ -60,15 +59,6 @@
                   {{ screenButtonCount(key) }} 按钮 · {{ screenStateCount(key) }} 状态
                 </div>
               </div>
-              <el-button
-                class="cfg-root-delete"
-                type="danger"
-                link
-                size="small"
-                @click.stop="handleDeleteRootScreen(key)"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
             </div>
           </template>
           <div v-else class="cfg-sidebar-empty">
@@ -465,48 +455,6 @@
                       </div>
                     </div>
                     <div class="proto-field-group">
-                      <div class="proto-field-label">偏移点击区域</div>
-                      <el-input
-                        v-model="st.偏移点击区域"
-                        size="small"
-                        class="proto-input"
-                        @blur="onStateFieldBlur(stName, '偏移点击区域', st.偏移点击区域)"
-                      >
-                        <template #append>
-                          <el-button
-                            :type="
-                              isOffsetActiveForPath(
-                                buildJsonPath(
-                                  buildPathKeysForState(stName, '偏移点击区域')
-                                )
-                              )
-                                ? 'warning'
-                                : 'primary'
-                            "
-                            :disabled="!hasSelectionRect"
-                            size="small"
-                            @click="
-                              toggleFontClickOffsetAreaSelectionForNode({
-                                path: buildJsonPath(
-                                  buildPathKeysForState(stName, '偏移点击区域')
-                                ),
-                              })
-                            "
-                          >
-                            {{
-                              isOffsetActiveForPath(
-                                buildJsonPath(
-                                  buildPathKeysForState(stName, '偏移点击区域')
-                                )
-                              )
-                                ? "取消"
-                                : "圈选"
-                            }}
-                          </el-button>
-                        </template>
-                      </el-input>
-                    </div>
-                    <div class="proto-field-group">
                     <div class="proto-field-label">
                     <div>特征列表</div>
                       <el-button
@@ -667,44 +615,6 @@
                           @blur="onButtonFieldBlur(btnName, '查找区域', btn.查找区域)"
                         />
                       </div>
-                    </div>
-                    <div class="proto-field-group">
-                      <div class="proto-field-label">偏移点击区域</div>
-                      <el-input
-                        v-model="btn.偏移点击区域"
-                        size="small"
-                        class="proto-input"
-                        @blur="onButtonFieldBlur(btnName, '偏移点击区域', btn.偏移点击区域)"
-                      >
-                        <template #append>
-                          <el-button
-                            :type="
-                              isOffsetActiveForPath(
-                                buildJsonPath(buildPathKeysForButton(btnName, '偏移点击区域'))
-                              )
-                                ? 'warning'
-                                : 'primary'
-                            "
-                            :disabled="!hasSelectionRect"
-                            size="small"
-                            @click="
-                              toggleFontClickOffsetAreaSelectionForNode({
-                                path: buildJsonPath(
-                                  buildPathKeysForButton(btnName, '偏移点击区域')
-                                ),
-                              })
-                            "
-                          >
-                            {{
-                              isOffsetActiveForPath(
-                                buildJsonPath(buildPathKeysForButton(btnName, '偏移点击区域'))
-                              )
-                                ? "取消"
-                                : "圈选"
-                            }}
-                          </el-button>
-                        </template>
-                      </el-input>
                     </div>
                     <div class="proto-field-group">
                     <div class="proto-field-label"><div>特征列表</div> <el-button
