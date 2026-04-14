@@ -133,21 +133,6 @@
                   </el-button>
                 </div>
               </div>
-              <div class="proto-field-group">
-                <div class="proto-field-label">界面匹配类型</div>
-                <el-select
-                  v-model="screenTypeModel"
-                  size="small"
-                  class="proto-input"
-                  placeholder="选择类型"
-                >
-                  <el-option label="固定区域" value="固定区域" />
-                  <el-option label="图片（灰度匹配）" value="图片" />
-                  <el-option label="彩图（BGR 匹配）" value="彩图" />
-                  <el-option label="点阵（字库匹配）" value="点阵" />
-                </el-select>
-              
-              </div>
               <div class="proto-inline-group">
                 <div class="proto-inline-field">
                   <div class="proto-field-label">相似度 (0~1)</div>
@@ -191,8 +176,13 @@
 
 
             <div class="proto-section-card">
-              <div class="proto-section-title proto-section-title--between">
-                <span>特征列表</span>
+              <div class="proto-feature-header">
+                <div class="proto-feature-header-left">
+                  <span>特征列表</span>
+                  <span class="proto-feature-type-tag">
+                    {{ currentScreenObj?.类型 ?? "-" }}
+                  </span>
+                </div>
                 <el-button
                   type="success"
                   size="small"
@@ -458,11 +448,7 @@
                       />
                     </div>
                   </template>
-                  <template v-else>
-                    <div class="proto-field-row">
-                      <span class="proto-mini-label">类型</span>
-                      <span class="proto-type-tag">{{ element?.类型 ?? "-" }}</span>
-                    </div>
+              <template v-else>
                     <div class="proto-inline-group">
                       <div class="proto-inline-field">
                         <div class="proto-field-label">相似度</div>
@@ -495,8 +481,13 @@
                       </div>
                     </div>
                     <div class="proto-field-group">
-                      <div class="proto-field-label">
-                        <div>特征列表</div>
+                      <div class="proto-feature-header">
+                        <div class="proto-feature-header-left">
+                          <span>特征列表</span>
+                          <span class="proto-feature-type-tag">
+                            {{ element?.类型 ?? "-" }}
+                          </span>
+                        </div>
                         <el-button
                           type="primary"
                           size="small"
@@ -1167,17 +1158,6 @@ const normalizeConfigType = (t, fallback = "图片") => {
   return fallback;
 };
 
-const screenTypeModel = computed({
-  get() {
-    const s = currentScreenObj.value;
-    return normalizeConfigType(s?.类型, "图片");
-  },
-  set(val) {
-    const s = currentScreenObj.value;
-    if (s) s.类型 = normalizeConfigType(val, "图片");
-  },
-});
-
 const screenFeatureMode = computed(() => {
   const t = normalizeConfigType(currentScreenObj.value?.类型, "图片");
   if (t === "点阵") return "font";
@@ -1540,13 +1520,80 @@ const handleNewScreen = () => {
   if (!data.value || typeof data.value !== "object" || Array.isArray(data.value)) {
     data.value = {};
   }
-  ElMessageBox.prompt("", "新建界面", {
+  const type = ref("图片");
+  const name = ref("");
+
+  const content = () =>
+    h(
+      "div",
+      {
+        style: "display:flex;flex-direction:column;gap:12px;",
+      },
+      [
+        h(
+          "div",
+          {
+            style: "display:flex;align-items:center;gap:8px;",
+          },
+          [
+            h(
+              "span",
+              {
+                style: "width:80px;text-align:right;",
+              },
+              "类型："
+            ),
+            h(
+              ElRadioGroup,
+              {
+                modelValue: type.value,
+                "onUpdate:modelValue": (val) => {
+                  type.value = val;
+                },
+              },
+              () => [
+                h(ElRadio, { label: "固定区域" }, () => "固定区域"),
+                h(ElRadio, { label: "点阵" }, () => "点阵"),
+                h(ElRadio, { label: "图片" }, () => "图片"),
+                h(ElRadio, { label: "彩图" }, () => "彩图"),
+              ]
+            ),
+          ]
+        ),
+        h(
+          "div",
+          {
+            style: "display:flex;align-items:center;gap:8px;",
+          },
+          [
+            h(
+              "span",
+              {
+                style: "width:80px;text-align:right;flex-shrink:0;",
+              },
+              "界面名称："
+            ),
+            h(ElInput, {
+              modelValue: name.value,
+              "onUpdate:modelValue": (val) => {
+                name.value = val;
+              },
+              placeholder: "请输入界面名称",
+            }),
+          ]
+        ),
+      ]
+    );
+
+  ElMessageBox({
+    title: "新建界面",
+    message: content,
+    showCancelButton: true,
     confirmButtonText: "确定",
     cancelButtonText: "取消",
-    inputPlaceholder: "请输入界面名称",
   })
-    .then(({ value }) => {
-      const key = (value || "").trim();
+    .then(() => {
+      const key = name.value.trim();
       if (!key) {
         ElMessage.error("界面名称不能为空");
         return;
@@ -1556,7 +1603,7 @@ const handleNewScreen = () => {
         return;
       }
       data.value[key] = {
-        类型: "图片",
+        类型: type.value,
         查找区域: "",
         相似度: 0.9,
         元素: {},
@@ -3438,21 +3485,27 @@ defineExpose({
   gap: 4px;
 }
 
-.proto-field-row {
+.proto-feature-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
-.proto-mini-label {
-  font-size: 11px;
-  color: var(--cfg-text-muted);
-  width: 40px;
+.proto-feature-header-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cfg-text);
 }
 
-.proto-type-tag {
+.proto-feature-type-tag {
   font-size: 11px;
+  font-weight: 500;
   color: var(--cfg-accent);
   background: var(--cfg-accent-soft);
   padding: 2px 8px;
