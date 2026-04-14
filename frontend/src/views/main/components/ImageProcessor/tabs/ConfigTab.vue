@@ -117,7 +117,7 @@
                 <div class="proto-feature-naming-hint">
                   界面特征匹配「界面名 / 界面名_数字 / 界面名_偏移区域 /
                   界面名_数字_偏移区域」（如 主界面、主界面_1、主界面_1,1,10,10、主界面_1_1,1,10,10）；不会纳入
-                  主界面_元素_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
+                  主界面_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
                 </div>
               </div>
               <div class="proto-inline-group">
@@ -1025,7 +1025,7 @@ const screenAvoidRegionModel = computed({
  * - 基础名_数字：主界面_1
  * - 基础名_数字_偏移区域：主界面_1_1,1,10,10
  * - （兼容历史）基础名_偏移区域：主界面_1,1,10,10
- * 排除 主界面_元素_xxx 等配置路径型名称。
+ * 排除 主界面_xxx（界面级特征命名）等配置路径型名称。
  */
 const featureNameBelongsToBase = (itemName, baseName) => {
   const n = (itemName || "").trim();
@@ -1181,7 +1181,7 @@ const elementFeatureItemMap = computed(() => {
   if (!sk) return {};
   return elementEntriesForScreen.value.reduce((acc, [elementName, element]) => {
     const mode = resolveFeatureModeByType(element?.类型);
-    acc[elementName] = collectFeatureItemsByBase(`${sk}_元素_${elementName}`, mode);
+    acc[elementName] = collectFeatureItemsByBase(`${sk}_${elementName}`, mode);
     return acc;
   }, {});
 });
@@ -1334,7 +1334,7 @@ const collectCascadeDeletePayloadsForScreen = (screenKey, screenObj) => {
   if (elements && typeof elements === "object" && !Array.isArray(elements)) {
     Object.entries(elements).forEach(([elementName, elementCfg]) => {
       const mode = resolveFeatureModeByType(elementCfg?.类型);
-      const baseName = `${screenKey}_元素_${elementName}`;
+      const baseName = `${screenKey}_${elementName}`;
       allPayloads.push(
         ...collectResourceDeletePayloadsByBase(baseName, mode, elementCfg?.类型)
       );
@@ -1351,14 +1351,18 @@ const collectCascadeDeletePayloadsForNode = (keys, deletingValue) => {
   if (!deletingValue || typeof deletingValue !== "object") return [];
   if (keys.length === 3 && keys[1] === "元素") {
     const mode = resolveFeatureModeByType(deletingValue?.类型);
-    const baseName = `${keys[0]}_元素_${keys[2]}`;
+    const baseName = `${keys[0]}_${keys[2]}`;
     return dedupeDeletePayloads(
       collectResourceDeletePayloadsByBase(baseName, mode, deletingValue?.类型)
     );
   }
   const mode = resolveFeatureModeByType(deletingValue?.类型);
   return dedupeDeletePayloads(
-    collectResourceDeletePayloadsByBase(keys.join("_"), mode, deletingValue?.类型)
+    collectResourceDeletePayloadsByBase(
+      buildResourceBaseNameFromPathKeys(keys),
+      mode,
+      deletingValue?.类型
+    )
   );
 };
 
@@ -2047,7 +2051,7 @@ const currentName = ref("");
 const handleAddConfig = (node) => {
   currentNode.value = getCurrentNode(node);
   const keys = getPathKeys(node.path);
-  currentName.value = keys.join("_");
+  currentName.value = buildResourceBaseNameFromPathKeys(keys);
   if (!currentNode.value || typeof currentNode.value !== "object") {
     ElMessage.warning("无法定位当前配置节点");
     return;
@@ -2517,6 +2521,15 @@ const getPathKeys = (path) => {
   return keys[0] === 'root' ? keys.slice(1) : keys;
 };
 
+/** 将配置路径键转换为资源基准名：界面_元素（去掉中间“元素”分段） */
+const buildResourceBaseNameFromPathKeys = (keys) => {
+  if (!Array.isArray(keys) || !keys.length) return "";
+  if (keys.length >= 3 && keys[1] === "元素") {
+    return [keys[0], ...keys.slice(2)].join("_");
+  }
+  return keys.join("_");
+};
+
 /** 点击测试：点阵则弹出找字测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
 const handleTest = (node) => {
   if (!node?.path) return;
@@ -2527,7 +2540,7 @@ const handleTest = (node) => {
     configItem = configItem?.[key];
   }
 
-  const name = path.join("_");
+  const name = buildResourceBaseNameFromPathKeys(path);
   const similarity =
     configItem?.相似度 != null ? Number(configItem.相似度) : undefined;
   const region =
