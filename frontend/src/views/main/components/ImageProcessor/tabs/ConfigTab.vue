@@ -78,7 +78,7 @@
           <div class="cfg-visual-scroll">
             <div class="proto-section-card">
               <div class="proto-section-title proto-section-title--between">
-                <span>界面配置</span>
+                <span>基础信息</span>
                 <div class="proto-toolbar-row">
                   <el-button
                     type="primary"
@@ -132,15 +132,6 @@
                     添加界面缩略图
                   </el-button>
                 </div>
-              </div>
-              <div class="proto-field-group">
-                <div class="proto-field-label">界面名称</div>
-                <el-input
-                  size="small"
-                  class="proto-input"
-                  :model-value="selectedRootKey"
-                  readonly
-                />
               </div>
               <div class="proto-field-group">
                 <div class="proto-field-label">界面匹配类型</div>
@@ -411,7 +402,7 @@
 
             <div class="proto-section-card">
               <div class="proto-section-title proto-section-title--between">
-                <span>元素属性列表</span>
+                <span>元素列表</span>
                 <el-button
                   type="success"
                   size="small"
