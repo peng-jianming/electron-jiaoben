@@ -139,7 +139,7 @@ def 字库找图(
     return None
 
 
-def 图片找图(
+def 灰度找图(
     大图: Any,
     图片名: str,
     图片库集合: dict,
@@ -147,7 +147,7 @@ def 图片找图(
     区域: str = "",
     日志回调: 日志回调类型 = None,
 ) -> dict | None:
-    """模板匹配。返回 x/y/w/h/相似度，未找到返回 None。"""
+    """模板匹配。返回目标 x/y/w/h/相似度，未找到返回 None。"""
     if 图片名 not in 图片库集合:
         _写日志(日志回调, f"未找到图片库: {图片名}")
         return None
@@ -191,7 +191,16 @@ def 图片找图(
         搜索区域 = 大图数组[裁剪y : 裁剪y + 裁剪高, 裁剪x : 裁剪x + 裁剪宽]
         偏移x, 偏移y = 裁剪x, 裁剪y
 
-    for 模板 in 模板列表:
+    for 模板项 in 模板列表:
+        if isinstance(模板项, dict):
+            模板 = 模板项.get("当前图片数据")
+            目标偏移x = int(模板项.get("目标偏移x", 0))
+            目标偏移y = int(模板项.get("目标偏移y", 0))
+            目标偏移宽 = 模板项.get("目标偏移宽")
+            目标偏移高 = 模板项.get("目标偏移高")
+        else:
+            raise ValueError(f"图片库 {图片名} 的模板项 {模板项} 格式错误")
+
         if 模板 is None or not hasattr(模板, "shape"):
             continue
 
@@ -215,13 +224,173 @@ def 图片找图(
 
         if 最大值 >= 相似度:
             模板高, 模板宽 = 模板图.shape[:2]
+            if 目标偏移宽 is None:
+                目标偏移宽 = 模板宽
+            if 目标偏移高 is None:
+                目标偏移高 = 模板高
             return {
-                "x": 最大位置[0] + 偏移x,
-                "y": 最大位置[1] + 偏移y,
-                "w": 模板宽,
-                "h": 模板高,
+                "原始x": 最大位置[0] + 偏移x,
+                "原始y": 最大位置[1] + 偏移y,
+                "原始宽": 模板宽,
+                "原始高": 模板高,
+                "x": 最大位置[0] + 偏移x + int(目标偏移x),
+                "y": 最大位置[1] + 偏移y + int(目标偏移y),
+                "w": int(目标偏移宽),
+                "h": int(目标偏移高),
                 "相似度": float(最大值),
             }
+    return None
+
+
+def 彩图找图(
+    大图: Any,
+    图片名: str,
+    图片库集合: dict,
+    相似度: float = 0.9,
+    区域: str = "",
+    日志回调: 日志回调类型 = None,
+) -> dict | None:
+    """基于彩图模板匹配的找图。返回结构与 灰度找图 保持一致。"""
+    if 图片名 not in 图片库集合:
+        _写日志(日志回调, f"未找到图片库: {图片名}")
+        return None
+
+    模板列表 = 图片库集合[图片名]
+    if not isinstance(模板列表, list) or not 模板列表:
+        _写日志(日志回调, f"图片库 {图片名} 的模板列表无效")
+        return None
+
+    if isinstance(大图, Image.Image):
+        大图数组 = np.array(大图.convert("RGB"))
+        大图数组 = cv2.cvtColor(大图数组, cv2.COLOR_RGB2BGR)
+    else:
+        大图数组 = np.array(Image.open(大图).convert("RGB"))
+        大图数组 = cv2.cvtColor(大图数组, cv2.COLOR_RGB2BGR)
+
+    if 大图数组 is None:
+        return None
+
+    区域值 = [int(v) for v in 区域.split(",")] if 区域 else [0, 0, 0, 0]
+    区域四元组 = (区域值[0], 区域值[1], 区域值[2], 区域值[3])
+
+    for 模板项 in 模板列表:
+        if isinstance(模板项, dict):
+            模板 = 模板项.get("当前图片数据")
+            目标偏移x = int(模板项.get("目标偏移x", 0))
+            目标偏移y = int(模板项.get("目标偏移y", 0))
+            目标偏移宽 = 模板项.get("目标偏移宽")
+            目标偏移高 = 模板项.get("目标偏移高")
+        else:
+            raise ValueError(f"图片库 {图片名} 的模板项 {模板项} 格式错误")
+
+        if 模板 is None or not hasattr(模板, "shape"):
+            continue
+        模板图 = np.asarray(模板, dtype=np.uint8)
+        误差满分标尺 = 40.0
+        极低误差免清晰度_RMSE上限 = 12.0
+
+        维大 = 大图数组.shape
+        if len(维大) == 2 or (len(维大) == 3 and 维大[2] == 1):
+            大图BGR = cv2.cvtColor(大图数组, cv2.COLOR_GRAY2BGR)
+        elif len(维大) == 3 and 维大[2] == 4:
+            大图BGR = cv2.cvtColor(大图数组, cv2.COLOR_BGRA2BGR)
+        else:
+            大图BGR = 大图数组
+
+        维模 = 模板图.shape
+        if len(维模) == 2 or (len(维模) == 3 and 维模[2] == 1):
+            模板BGR = cv2.cvtColor(模板图, cv2.COLOR_GRAY2BGR)
+        elif len(维模) == 3 and 维模[2] == 4:
+            模板BGR = cv2.cvtColor(模板图, cv2.COLOR_BGRA2BGR)
+        else:
+            模板BGR = 模板图
+        模板高, 模板宽 = 模板BGR.shape[:2]
+
+        rx, ry, rw, rh = 区域四元组
+        图高, 图宽 = 大图BGR.shape[:2]
+        if rx == 0 and ry == 0 and rw == 0 and rh == 0:
+            搜索区, 偏移x, 偏移y = 大图BGR, 0, 0
+        else:
+            rx, ry = max(0, rx), max(0, ry)
+            if rw <= 0:
+                rw = 图宽 - rx
+            if rh <= 0:
+                rh = 图高 - ry
+            cx, cy = max(0, rx), max(0, ry)
+            cw, ch = min(rw, 图宽 - cx), min(rh, 图高 - cy)
+            if cw <= 0 or ch <= 0:
+                continue
+            搜索区 = 大图BGR[cy : cy + ch, cx : cx + cw]
+            偏移x, 偏移y = cx, cy
+
+        if 模板高 > 搜索区.shape[0] or 模板宽 > 搜索区.shape[1]:
+            continue
+
+        方差和图 = np.sum(
+            [
+                cv2.matchTemplate(大, 小, cv2.TM_SQDIFF)
+                for 大, 小 in zip(cv2.split(搜索区), cv2.split(模板BGR))
+            ],
+            axis=0,
+        )
+
+        最小方差和, _, 最佳, _ = cv2.minMaxLoc(方差和图)
+        px, py = int(最佳[0]), int(最佳[1])
+
+        像素数 = float(模板高 * 模板宽 * 3)
+        均方根误差 = float(np.sqrt(max(0.0, float(最小方差和) / 像素数)))
+        按误差相似度 = max(0.0, min(1.0, 1.0 - (均方根误差 / 误差满分标尺) ** 2))
+
+        结果高, 结果宽 = 方差和图.shape
+        半高, 半宽 = max(模板高 // 2, 2), max(模板宽 // 2, 2)
+        遮蔽 = 方差和图.astype(np.float64, copy=True)
+        遮蔽[
+            max(0, py - 半高) : min(结果高, py + 半高 + 1),
+            max(0, px - 半宽) : min(结果宽, px + 半宽 + 1),
+        ] = np.inf
+        外围 = 遮蔽[np.isfinite(遮蔽)]
+        if 外围.size == 0:
+            清晰度 = 1.0
+        else:
+            次小 = float(np.min(外围))
+            清晰度 = max(
+                0.0,
+                min(1.0, (次小 - float(最小方差和)) / (次小 + 1e-12)),
+            )
+
+        if 均方根误差 <= 极低误差免清晰度_RMSE上限:
+            相似度值 = float(max(0.0, min(1.0, 按误差相似度)))
+        else:
+            相似度值 = float(max(0.0, min(1.0, 按误差相似度 * np.sqrt(清晰度))))
+
+        匹配 = {
+            "x": px + 偏移x,
+            "y": py + 偏移y,
+            "w": int(模板宽),
+            "h": int(模板高),
+            "similarity": 相似度值,
+        }
+        if not 匹配:
+            continue
+        if float(匹配["similarity"]) < 相似度:
+            continue
+
+        if 目标偏移宽 is None:
+            目标偏移宽 = int(匹配["w"])
+        if 目标偏移高 is None:
+            目标偏移高 = int(匹配["h"])
+
+        return {
+            "原始x": int(匹配["x"]),
+            "原始y": int(匹配["y"]),
+            "原始宽": int(匹配["w"]),
+            "原始高": int(匹配["h"]),
+            "x": int(匹配["x"]) + int(目标偏移x),
+            "y": int(匹配["y"]) + int(目标偏移y),
+            "w": int(目标偏移宽),
+            "h": int(目标偏移高),
+            "相似度": float(匹配["similarity"]),
+        }
     return None
 
 
@@ -259,7 +428,7 @@ def yolo检测(图像: Any, 模型: Any, 置信度阈值: float = 0.6) -> list[d
 
 
 def 解析查找结果矩形(结果: dict | None) -> tuple[int, int, int, int] | None:
-    """统一 图片找图 与 字库找图 的返回，得到 (x, y, w, h)。"""
+    """统一 灰度找图 与 字库找图 的返回，得到 (x, y, w, h)。"""
     if not 结果:
         return None
     if "目标x" in 结果:
@@ -283,7 +452,7 @@ def 按矩形随机点击(
 
 
 def 从查找结果随机点击(控制器: Any, 结果: dict | None) -> bool:
-    """根据 图片找图 / 字库找图 的返回值点击；无效结果返回 False。"""
+    """根据 灰度找图 / 字库找图 的返回值点击；无效结果返回 False。"""
     矩形 = 解析查找结果矩形(结果)
     if not 矩形:
         return False
@@ -450,7 +619,7 @@ class 图色工具包类:
             self._截图上下文.新轮次()
         return self._截图上下文.获取截图()
 
-    def 图片找图(
+    def 灰度找图(
         self,
         图片名: str,
         大图: Any | None = None,
@@ -459,7 +628,25 @@ class 图色工具包类:
         新截图: bool = False,
     ) -> dict | None:
         图 = 大图 if 大图 is not None else self.当前截图(新截图)
-        return 图片找图(
+        return 灰度找图(
+            图,
+            图片名,
+            self.图片库集合,
+            相似度,
+            区域,
+            self._日志,
+        )
+
+    def 彩图找图(
+        self,
+        图片名: str,
+        大图: Any | None = None,
+        相似度: float = 0.9,
+        区域: str = "",
+        新截图: bool = False,
+    ) -> dict | None:
+        图 = 大图 if 大图 is not None else self.当前截图(新截图)
+        return 彩图找图(
             图,
             图片名,
             self.图片库集合,
@@ -544,7 +731,7 @@ class 图色工具包类:
         新截图: bool = False,
         延时: tuple[float, float] = (0.5, 1),
     ) -> bool:
-        结果 = self.图片找图(图片名, 相似度=相似度, 区域=区域, 新截图=新截图)
+        结果 = self.灰度找图(图片名, 相似度=相似度, 区域=区域, 新截图=新截图)
         return self.点击查找结果(结果, 日志=日志, 延时=延时)
 
     def 识别文字(
