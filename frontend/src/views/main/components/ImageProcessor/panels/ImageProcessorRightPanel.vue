@@ -1,14 +1,5 @@
 <template>
   <div class="right-panel">
-    <!-- 放大镜 -->
-    <MagnifierCard
-      :magnifier-visible="magnifierVisible"
-      :current-image="currentImage"
-      :current-position="currentPosition"
-      :current-color="currentColor"
-      ref="magnifierCardRef"
-    />
-
     <!-- 选中颜色列表 -->
     <el-tabs
       type="border-card"
@@ -113,7 +104,6 @@ import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
-import MagnifierCard from "../cards/MagnifierCard.vue";
 import ColorSelectionTab from "../tabs/ColorSelectionTab.vue";
 import ImageUploadTab from "../tabs/ImageUploadTab.vue";
 import ImageMatchDebug from "../tabs/ImageMatchDebug.vue";
@@ -176,7 +166,6 @@ const emit = defineEmits([
   "stop-code-generator-selection",
 ]);
 
-const magnifierCardRef = ref(null);
 const colorSelectionTabRef = ref(null);
 const imageUploadTabRef = ref(null);
 const codeGeneratorTabRef = ref(null);
@@ -411,7 +400,6 @@ async function handleScreenshotClick() {
 // 暴露放大镜 canvas 给父组件，用于绘制
 // 同时暴露截图状态，让父组件可以检查
 defineExpose({
-  getMagnifierCanvas: () => magnifierCardRef.value?.getMagnifierCanvas(),
   get isRightPanelScreenshotPending() {
     return isRightPanelScreenshotPending.value;
   },
@@ -646,11 +634,6 @@ const handleAddImageToLibrary = async (payload) => {
   overflow: hidden;
   box-sizing: border-box;
   background: #f8fafc;
-}
-
-/* 放大镜卡片不允许被压缩 */
-.right-panel > :first-child {
-  flex-shrink: 0;
 }
 
 /* Tabs 容器填满剩余高度（与 EP 默认样式叠加，保证根节点参与纵向 flex） */

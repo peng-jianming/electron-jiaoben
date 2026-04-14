@@ -81,15 +81,17 @@ defineExpose({
 
 .magnifier-body {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   padding: 10px;
-  gap: 12px;
-  height: 180px;
+  gap: 8px;
+  height: auto;
 }
 
 /* 放大镜区域 */
 .magnifier-area {
   flex-shrink: 0;
+  align-self: center;
 }
 
 .magnifier {
@@ -136,11 +138,11 @@ defineExpose({
 
 /* 颜色信息区 */
 .color-info-area {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
 }
 
@@ -166,6 +168,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .color-hex-display {
@@ -175,20 +178,23 @@ defineExpose({
   color: #1e293b;
   letter-spacing: 0.5px;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .color-rgb-display {
   font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: #64748b;
   font-weight: 500;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 
 .info-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: nowrap;
   padding: 4px 8px;
   background: rgba(99, 102, 241, 0.04);
   border-radius: 6px;
@@ -205,6 +211,7 @@ defineExpose({
   font-size: 12px;
   color: #475569;
   font-weight: 600;
+  white-space: nowrap;
 }
 </style>
 

@@ -63,6 +63,16 @@
           @click="handleImageClick"
           @wheel="handleWheel"
         >
+          <MagnifierCard
+            v-show="magnifierVisible && currentImage"
+            class="floating-magnifier"
+            :style="magnifierOverlayStyle"
+            :magnifier-visible="magnifierVisible"
+            :current-image="currentImage"
+            :current-position="currentPosition"
+            :current-color="currentColor"
+            ref="magnifierCardRef"
+          />
           <div v-if="currentImage" class="image-wrapper" :style="imageWrapperStyle">
             <img
               :src="currentImage.url"
@@ -143,6 +153,7 @@ import { ElMessage } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import { io } from "socket.io-client";
+import MagnifierCard from "./cards/MagnifierCard.vue";
 import ImageProcessorLeftPanel from "./panels/ImageProcessorLeftPanel.vue";
 import ImageProcessorRightPanel from "./panels/ImageProcessorRightPanel.vue";
 import ImageProcessorDeviceDialog from "./dialogs/ImageProcessorDeviceDialog.vue";
@@ -153,6 +164,7 @@ const imageRef = ref(null);
 const imageContainerRef = ref(null);
 const imageWrapperRef = ref(null);
 const rightPanelRef = ref(null);
+const magnifierCardRef = ref(null);
 
 // 图片数组
 const images = ref([]);
@@ -205,6 +217,7 @@ const magnifierVisible = ref(false);
 const mousePosition = ref({ x: 0, y: 0 });
 const currentColor = ref(null);
 const currentPosition = ref({ x: 0, y: 0 }); // 当前鼠标位置的图片坐标
+const magnifierOffset = { x: 18, y: 18 };
 
 // 圈选相关
 const isSelecting = ref(false);
@@ -416,6 +429,27 @@ const imageStyle = computed(() => {
     transform: `scale(${imageScale.value})`,
     transformOrigin: "top left",
     display: "block",
+  };
+});
+
+const magnifierOverlayStyle = computed(() => {
+  if (!imageContainerRef.value) return { left: "0px", top: "0px" };
+  const container = imageContainerRef.value.getBoundingClientRect();
+  const cardWidth = 300;
+  const cardHeight = 280;
+  let left = mousePosition.value.x + magnifierOffset.x;
+  let top = mousePosition.value.y + magnifierOffset.y;
+  if (left + cardWidth > container.width - 8) {
+    left = mousePosition.value.x - cardWidth - 10;
+  }
+  if (top + cardHeight > container.height - 8) {
+    top = mousePosition.value.y - cardHeight - 10;
+  }
+  left = Math.max(8, left);
+  top = Math.max(8, top);
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
   };
 });
 
@@ -783,17 +817,22 @@ function handleContainerMouseMove(event) {
     }
   }
 
-  // 更新当前坐标和放大镜（无论鼠标是否在图片上，都显示放大镜）
-  currentPosition.value = {
-    x: Math.floor(clampedNaturalX),
-    y: Math.floor(clampedNaturalY),
-  };
-  magnifierVisible.value = true;
-  // 使用 nextTick 确保 canvas 已渲染
-  nextTick(() => {
-    updateMagnifier(clampedNaturalX, clampedNaturalY);
-  });
-  updateCurrentColor(clampedNaturalX, clampedNaturalY);
+  // 仅在图片区域内显示放大镜，并跟随鼠标移动
+  if (isOnImage) {
+    currentPosition.value = {
+      x: Math.floor(clampedNaturalX),
+      y: Math.floor(clampedNaturalY),
+    };
+    magnifierVisible.value = true;
+    // 使用 nextTick 确保 canvas 已渲染
+    nextTick(() => {
+      updateMagnifier(clampedNaturalX, clampedNaturalY);
+    });
+    updateCurrentColor(clampedNaturalX, clampedNaturalY);
+  } else {
+    magnifierVisible.value = false;
+    currentColor.value = null;
+  }
 }
 
 // 鼠标进入容器
@@ -1464,16 +1503,16 @@ function updateSelectionRectsByResize(imageX, imageY) {
 
 // 更新放大镜（x, y 是图片原始尺寸的坐标）
 function updateMagnifier(x, y) {
-  if (!rightPanelRef.value || !imageRef.value) return;
+  if (!magnifierCardRef.value || !imageRef.value) return;
 
   // 确保图片已加载
   if (imageRef.value.naturalWidth === 0 || imageRef.value.naturalHeight === 0) return;
 
-  const canvas = rightPanelRef.value.getMagnifierCanvas?.();
+  const canvas = magnifierCardRef.value.getMagnifierCanvas?.();
   if (!canvas) {
     // 如果 canvas 还未渲染，延迟重试
     setTimeout(() => {
-      const retryCanvas = rightPanelRef.value?.getMagnifierCanvas?.();
+      const retryCanvas = magnifierCardRef.value?.getMagnifierCanvas?.();
       if (retryCanvas) {
         drawMagnifier(retryCanvas, x, y);
       }
@@ -2604,6 +2643,13 @@ onUnmounted(() => {
   box-sizing: border-box;
   padding-bottom: 8px;
   border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+}
+
+.floating-magnifier {
+  position: absolute;
+  z-index: 20;
+  width: 300px;
+  pointer-events: none;
 }
 
 .image-wrapper {
