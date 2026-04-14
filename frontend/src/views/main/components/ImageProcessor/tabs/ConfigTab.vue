@@ -1,6 +1,5 @@
 <template>
   <div class="config-tab-container">
-    <!-- 文件选择区域（与字库 Tab 一致） -->
     <el-input
       v-model="configForm.configPath"
       placeholder="请选择配置 JSON 文件"
@@ -39,7 +38,6 @@
         >
           新建界面
         </el-button>
-          <!-- <span class="cfg-badge cfg-badge--muted">{{ rootKeys.length }} 个界面</span> -->
         </div>
         <div class="cfg-sidebar-list">
           <template v-if="data && rootKeys.length">
@@ -114,11 +112,7 @@
                   <el-option label="彩图（BGR 匹配）" value="彩图" />
                   <el-option label="点阵（字库匹配）" value="点阵" />
                 </el-select>
-                <div class="proto-feature-naming-hint">
-                  界面特征匹配「界面名 / 界面名_数字 / 界面名_偏移区域 /
-                  界面名_数字_偏移区域」（如 主界面、主界面_1、主界面_1,1,10,10、主界面_1_1,1,10,10）；不会纳入
-                  主界面_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
-                </div>
+              
               </div>
               <div class="proto-inline-group">
                 <div class="proto-inline-field">
@@ -2622,6 +2616,25 @@ defineExpose({
 
 <style scoped>
 .config-tab-container {
+  /* 布局与层级色板：收紧间距，模块用白底 + 实线边框与页面底衬区分 */
+  --cfg-page: #d8dee8;
+  --cfg-panel: #ffffff;
+  --cfg-panel-muted: #f3f5f8;
+  --cfg-nested: #eef1f6;
+  --cfg-border: #aeb8c6;
+  --cfg-border-soft: #c8d0db;
+  --cfg-text: #1c2430;
+  --cfg-text-muted: #5a6370;
+  --cfg-accent: #1663df;
+  --cfg-accent-border: rgba(22, 99, 223, 0.35);
+  --cfg-radius: 8px;
+  --cfg-radius-sm: 6px;
+  --cfg-gap: 8px;
+  --cfg-gap-scroll: 10px;
+  --cfg-pad-outer: 8px 10px;
+  --cfg-shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 1px 2px rgba(15, 23, 42, 0.06);
+
   position: relative;
   overflow: hidden;
   /* 作为 el-tab-pane 的 flex 子项时须参与收缩，否则 height:100% 无参照且侧栏/主区无法内部滚动 */
@@ -2631,39 +2644,39 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--cfg-gap);
   box-sizing: border-box;
-  padding: 12px 14px;
-  background: #f0f2f5;
+  padding: var(--cfg-pad-outer);
+  background: var(--cfg-page);
   font-size: 13px;
-  color: #1e293b;
+  color: var(--cfg-text);
 }
 
 /* —— 侧栏等仍使用的圆角按钮 —— */
 .file-input {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
 .cfg-toolbar-btn {
-  border-radius: 40px !important;
+  border-radius: var(--cfg-radius-sm) !important;
   font-weight: 500;
-  padding: 8px 16px !important;
+  padding: 5px 10px !important;
 }
 
 .cfg-toolbar-btn--primary {
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 1px 3px rgba(22, 99, 223, 0.22);
 }
 
 .cfg-toolbar-btn--outline {
-  background: #fff !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #1e293b !important;
+  background: var(--cfg-panel) !important;
+  border: 1px solid var(--cfg-border-soft) !important;
+  color: var(--cfg-text) !important;
 }
 
 .cfg-toolbar-btn--outline:hover {
-  background: #f8fafc !important;
-  border-color: #94a3b8 !important;
+  background: var(--cfg-panel-muted) !important;
+  border-color: var(--cfg-border) !important;
 }
 
 .cfg-btn-icon {
@@ -2674,17 +2687,18 @@ defineExpose({
 .cfg-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 30px;
-  font-size: 12px;
-  color: #475569;
-  background: #e2e8f0;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--cfg-radius-sm);
+  font-size: 11px;
+  color: var(--cfg-text-muted);
+  background: var(--cfg-nested);
+  border: 1px solid var(--cfg-border-soft);
 }
 
 .cfg-badge--muted {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--cfg-panel-muted);
+  color: var(--cfg-text-muted);
 }
 
 /* —— 主工作区：侧栏 + 编辑 —— */
@@ -2693,7 +2707,7 @@ defineExpose({
   min-height: 0;
   overflow: hidden;
   display: flex;
-  gap: 16px;
+  gap: 10px;
   flex-wrap: nowrap;
   align-items: stretch;
 }
@@ -2705,9 +2719,10 @@ defineExpose({
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius);
+  border: 1px solid var(--cfg-border);
+  box-shadow: var(--cfg-shadow-panel);
   overflow: hidden;
   align-self: stretch;
 }
@@ -2717,65 +2732,68 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 16px 18px;
-  border-bottom: 1px solid #e9eef3;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--cfg-border-soft);
+  background: var(--cfg-panel-muted);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .cfg-sidebar-title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  color: var(--cfg-text);
 }
 
 .cfg-sidebar-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 0 12px;
+  padding: 6px 0 8px;
 }
 
 .cfg-root-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 4px 10px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  gap: 8px;
+  margin: 3px 6px;
+  padding: 8px 10px;
+  border-radius: var(--cfg-radius-sm);
   cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-  background: #fefefe;
-  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  background: var(--cfg-panel);
+  border: 1px solid var(--cfg-border-soft);
 }
 
 .cfg-root-item:hover {
-  background: #f8fafc;
+  background: var(--cfg-panel-muted);
+  border-color: var(--cfg-border);
 }
 
 .cfg-root-item.is-active {
-  background: #eef2ff;
-  border-color: rgba(59, 130, 246, 0.25);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid #3b82f6;
-  padding-left: 11px;
+  background: var(--cfg-accent-soft);
+  border-color: var(--cfg-accent-border);
+  box-shadow: 0 0 0 1px var(--cfg-accent-border);
+  border-left: 3px solid var(--cfg-accent);
+  padding-left: 8px;
 }
 
 .cfg-root-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--cfg-radius-sm);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 16px;
-  color: #3b82f6;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  font-size: 14px;
+  color: var(--cfg-accent);
+  background: var(--cfg-accent-soft);
+  border: 1px solid var(--cfg-accent-border);
 }
 
 .cfg-root-info {
@@ -2785,26 +2803,26 @@ defineExpose({
 
 .cfg-root-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   word-break: break-word;
-  color: #0f172a;
+  color: var(--cfg-text);
 }
 
 .cfg-root-meta {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
-  color: #64748b;
+  color: var(--cfg-text-muted);
 }
 
 .cfg-sidebar-empty {
-  padding: 40px 16px;
+  padding: 24px 12px;
   text-align: center;
-  color: #94a3b8;
-  font-size: 13px;
+  color: var(--cfg-text-muted);
+  font-size: 12px;
 }
 
 .cfg-sidebar-empty p {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
 }
 
 .cfg-main {
@@ -2817,14 +2835,15 @@ defineExpose({
 }
 
 .cfg-section-card {
-  background: #f9fafb;
-  border-radius: 20px;
-  padding: 18px 20px;
-  border: 1px solid #edf2f7;
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius);
+  padding: 10px 12px;
+  border: 1px solid var(--cfg-border);
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--cfg-shadow-panel);
 }
 
 .cfg-section-title {
@@ -2833,18 +2852,19 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  font-size: 16px;
+  gap: 6px;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 14px;
-  padding-left: 12px;
-  border-left: 4px solid #3b82f6;
+  margin-bottom: 8px;
+  padding: 4px 0 4px 10px;
+  border-left: 3px solid var(--cfg-accent);
+  color: var(--cfg-text);
 }
 
 .cfg-section-hint {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--cfg-text-muted);
 }
 
 .cfg-empty-state {
@@ -2854,28 +2874,29 @@ defineExpose({
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 48px 24px;
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
-  color: #94a3b8;
+  padding: 28px 16px;
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius);
+  border: 1px solid var(--cfg-border);
+  box-shadow: var(--cfg-shadow-panel);
+  color: var(--cfg-text-muted);
 }
 
 .cfg-empty-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-  opacity: 0.45;
+  font-size: 40px;
+  margin-bottom: 8px;
+  opacity: 0.5;
 }
 
 .cfg-empty-state p {
   margin: 0;
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .cfg-empty-sub {
-  margin-top: 8px !important;
-  font-size: 12px !important;
-  color: #cbd5e1;
+  margin-top: 6px !important;
+  font-size: 11px !important;
+  color: var(--cfg-text-muted);
 }
 
 .config-drawer-wrapper {
@@ -2897,30 +2918,30 @@ defineExpose({
   height: 100%;
   width: 380px;
   max-width: min(380px, 100%);
-  background-color: #ffffff;
+  background-color: var(--cfg-panel);
   display: flex;
   flex-direction: column;
   z-index: 1;
-  border-left: 1px solid #e2e8f0;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
-  border-radius: 20px 0 0 20px;
+  border-left: 1px solid var(--cfg-border);
+  box-shadow: -4px 0 16px rgba(15, 23, 42, 0.12);
+  border-radius: var(--cfg-radius) 0 0 var(--cfg-radius);
 }
 
 .config-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 8px 10px;
   flex-shrink: 0;
-  border-bottom: 1px solid #e2e8f0;
-  background: radial-gradient(circle at top left, #e0f2fe 0, #f8fafc 45%, #ffffff 100%);
+  border-bottom: 1px solid var(--cfg-border-soft);
+  background: linear-gradient(180deg, var(--cfg-panel-muted) 0%, var(--cfg-panel) 100%);
 }
 
 .config-drawer-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--cfg-text);
 }
 
 .config-drawer-title-wrap {
@@ -2939,37 +2960,37 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 6px;
-  border-radius: 999px;
+  padding: 0 5px;
+  border-radius: var(--cfg-radius-sm);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: #0369a1;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--cfg-accent);
+  background: var(--cfg-accent-soft);
+  border: 1px solid var(--cfg-accent-border);
 }
 
 .config-drawer-subtitle {
   font-size: 11px;
-  color: #64748b;
+  color: var(--cfg-text-muted);
 }
 
 .config-drawer-body {
   flex: 1;
-  padding: 12px 14px;
+  padding: 8px 10px;
   overflow: auto;
   font-size: 13px;
-  color: #475569;
+  color: var(--cfg-text-muted);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .config-drawer-footer {
   flex-shrink: 0;
-  padding: 12px 16px;
-  border-top: 1px solid #e2e8f0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--cfg-border-soft);
   display: flex;
   justify-content: flex-end;
 }
@@ -2980,7 +3001,7 @@ defineExpose({
 }
 
 .color-table-wrap :deep(.el-table) {
-  --el-table-border-color: #e8ecf1;
+  --el-table-border-color: var(--cfg-border-soft);
 }
 
 .color-table-wrap :deep(.el-table td.el-table__cell),
@@ -2998,17 +3019,17 @@ defineExpose({
 }
 
 .table-footer {
-  padding: 3px 6px;
+  padding: 2px 6px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafbfc;
+  border-bottom: 1px solid var(--cfg-border-soft);
+  background: var(--cfg-panel-muted);
 }
 
 .table-count {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--cfg-text-muted);
   font-weight: 500;
 }
 
@@ -3036,7 +3057,7 @@ defineExpose({
 .slider-value {
   font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--cfg-text-muted);
   min-width: 20px;
   text-align: right;
 }
@@ -3070,10 +3091,10 @@ defineExpose({
   align-items: center;
   height: 100%;
   width: 100%;
-  color: #475569;
+  color: var(--cfg-text-muted);
   font-size: 11px;
-  letter-spacing: 0.3px;
-  padding: 20px 0;
+  letter-spacing: 0.2px;
+  padding: 12px 0;
 }
 
 /* 字库配置区 */
@@ -3081,10 +3102,10 @@ defineExpose({
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 4px;
-  margin-top: 4px;
-  border-top: 1px solid #e2e8f0;
+  gap: 4px;
+  padding: 6px 0 2px;
+  margin-top: 2px;
+  border-top: 1px solid var(--cfg-border-soft);
 }
 
 .font-row {
@@ -3095,8 +3116,8 @@ defineExpose({
 
 .font-label {
   width: 80px;
-  font-size: 12px;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--cfg-text-muted);
   text-align: right;
   flex-shrink: 0;
 }
@@ -3124,7 +3145,7 @@ defineExpose({
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--cfg-gap);
 }
 
 .cfg-visual-scroll {
@@ -3135,47 +3156,52 @@ defineExpose({
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-right: 4px;
+  gap: var(--cfg-gap-scroll);
+  padding: 2px 4px 4px 2px;
 }
 
 .proto-section-card {
-  background: #f9fafb;
-  border-radius: 20px;
-  padding: 18px 20px;
-  border: 1px solid #edf2f7;
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius);
+  padding: 10px 12px;
+  border: 1px solid var(--cfg-border);
+  box-shadow: var(--cfg-shadow-panel);
 }
 
 .proto-section-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
-  margin-bottom: 14px;
-  padding-left: 12px;
-  border-left: 4px solid #3b82f6;
-  color: #0f172a;
+  margin-bottom: 8px;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--cfg-accent);
+  color: var(--cfg-text);
 }
 
 .proto-section-title--between {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .proto-add-btn {
-  border-radius: 40px !important;
+  border-radius: var(--cfg-radius-sm) !important;
 }
 
 .proto-field-group {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
+}
+
+.proto-field-group:last-child {
+  margin-bottom: 0;
 }
 
 .proto-field-label {
   font-weight: 500;
-  font-size: 12px;
-  margin-bottom: 6px;
-  color: #334155;
+  font-size: 11px;
+  margin-bottom: 4px;
+  color: var(--cfg-text-muted);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3188,9 +3214,13 @@ defineExpose({
 
 .proto-inline-group {
   display: flex;
-  gap: 14px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
+}
+
+.proto-inline-group:last-child {
+  margin-bottom: 0;
 }
 
 .proto-inline-field {
@@ -3206,31 +3236,37 @@ defineExpose({
 .proto-toolbar-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .proto-button-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  background: var(--cfg-nested);
+  border-radius: var(--cfg-radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--cfg-border-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.proto-button-card:last-child {
+  margin-bottom: 0;
 }
 
 .proto-button-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--cfg-border-soft);
 }
 
 .proto-button-name {
   font-weight: 600;
-  font-size: 14px;
-  color: #0f172a;
+  font-size: 13px;
+  color: var(--cfg-text);
 }
 
 .proto-button-actions {
@@ -3242,52 +3278,56 @@ defineExpose({
 .proto-field-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .proto-mini-label {
-  font-size: 12px;
-  color: #64748b;
+  font-size: 11px;
+  color: var(--cfg-text-muted);
   width: 40px;
 }
 
 .proto-type-tag {
-  font-size: 12px;
-  color: #0369a1;
-  background: #e0f2fe;
-  padding: 2px 10px;
-  border-radius: 20px;
+  font-size: 11px;
+  color: var(--cfg-accent);
+  background: var(--cfg-accent-soft);
+  padding: 2px 8px;
+  border-radius: var(--cfg-radius-sm);
+  border: 1px solid var(--cfg-accent-border);
 }
 
 .proto-empty-hint {
   text-align: center;
-  padding: 20px;
-  color: #94a3b8;
-  font-size: 13px;
+  padding: 12px 10px;
+  color: var(--cfg-text-muted);
+  font-size: 12px;
+  background: var(--cfg-panel-muted);
+  border: 1px dashed var(--cfg-border-soft);
+  border-radius: var(--cfg-radius-sm);
 }
 
 .proto-feature-naming-hint {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 11px;
-  color: #94a3b8;
-  line-height: 1.45;
+  color: var(--cfg-text-muted);
+  line-height: 1.4;
 }
 
 .proto-feature-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .proto-feature-cell {
-  width: 104px;
+  width: 100px;
   flex-shrink: 0;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  padding: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius-sm);
+  border: 1px solid var(--cfg-border-soft);
+  padding: 6px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .proto-feature-thumb-wrap {
@@ -3295,19 +3335,20 @@ defineExpose({
 }
 
 .proto-feature-thumb {
-  width: 88px;
-  height: 88px;
-  border-radius: 8px;
-  background: #f1f5f9;
+  width: 84px;
+  height: 84px;
+  border-radius: var(--cfg-radius-sm);
+  background: var(--cfg-panel-muted);
   display: block;
+  border: 1px solid var(--cfg-border-soft);
 }
 
 .proto-feature-thumb--empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 10px;
+  color: var(--cfg-text-muted);
 }
 
 .proto-feature-actions {
@@ -3337,9 +3378,9 @@ defineExpose({
 }
 
 .proto-feature-name {
-  margin-top: 6px;
-  font-size: 11px;
-  color: #475569;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--cfg-text-muted);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3347,12 +3388,12 @@ defineExpose({
 }
 
 .proto-sz-object-hint {
-  font-size: 12px;
-  color: #64748b;
-  padding: 8px 10px;
-  background: #f8fafc;
-  border-radius: 10px;
-  border: 1px dashed #cbd5e1;
+  font-size: 11px;
+  color: var(--cfg-text-muted);
+  padding: 6px 8px;
+  background: var(--cfg-panel-muted);
+  border-radius: var(--cfg-radius-sm);
+  border: 1px dashed var(--cfg-border);
 }
 
 .cfg-json-only-card {
@@ -3360,17 +3401,17 @@ defineExpose({
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 20px;
-  border: 1px solid #e2e8f0;
-  padding: 16px 18px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  background: var(--cfg-panel);
+  border-radius: var(--cfg-radius);
+  border: 1px solid var(--cfg-border);
+  padding: 10px 12px;
+  box-shadow: var(--cfg-shadow-panel);
 }
 
 .proto-json-only-hint {
-  font-size: 12px;
-  color: #64748b;
-  margin: 0 0 12px;
+  font-size: 11px;
+  color: var(--cfg-text-muted);
+  margin: 0 0 8px;
 }
 
 .cfg-root-delete {
