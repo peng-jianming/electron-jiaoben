@@ -55,9 +55,7 @@
               </div>
               <div class="cfg-root-info">
                 <div class="cfg-root-name" :title="key">{{ key }}</div>
-                <div class="cfg-root-meta">
-                  {{ screenButtonCount(key) }} 按钮 · {{ screenStateCount(key) }} 状态
-                </div>
+                <div class="cfg-root-meta">{{ screenElementCount(key) }} 元素</div>
               </div>
             </div>
           </template>
@@ -119,7 +117,7 @@
                 <div class="proto-feature-naming-hint">
                   界面特征匹配「界面名 / 界面名_数字 / 界面名_偏移区域 /
                   界面名_数字_偏移区域」（如 主界面、主界面_1、主界面_1,1,10,10、主界面_1_1,1,10,10）；不会纳入
-                  主界面_按钮_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
+                  主界面_元素_xxx 等子配置路径名。删除配置项时仍按前缀族联动删除点阵库/图片库。
                 </div>
               </div>
               <div class="proto-inline-group">
@@ -376,67 +374,72 @@
 
             <div class="proto-section-card">
               <div class="proto-section-title proto-section-title--between">
-                <span>状态属性列表</span>
+                <span>元素属性列表</span>
                 <el-button
                   type="success"
                   size="small"
                   class="proto-add-btn"
-                  @click="handleAddItem({ path: buildJsonPath([selectedRootKey, '状态']) })"
+                  @click="handleAddItem({ path: buildJsonPath([selectedRootKey, '元素']) })"
                 >
                   <el-icon><Plus /></el-icon>
-                  添加状态
+                  添加元素
                 </el-button>
               </div>
-              <template v-if="stateEntriesForScreen.length">
+              <template v-if="elementEntriesForScreen.length">
                 <div
-                  v-for="[stName, st] in stateEntriesForScreen"
-                  :key="'st-' + stName"
+                  v-for="[elementName, element] in elementEntriesForScreen"
+                  :key="elementName"
                   class="proto-button-card"
                 >
                   <div class="proto-button-header">
-                    <span class="proto-button-name">{{ stName }}</span>
+                    <span class="proto-button-name">{{ elementName }}</span>
                     <div class="proto-button-actions">
                       <el-button
-                        v-if="!isFixedAreaType(st?.类型)"
+                        v-if="!isFixedAreaType(element?.类型)"
                         type="primary"
                         size="small"
                         link
-                        @click="handleTestByPath(buildPathKeysForState(stName))"
+                        @click="handleTestByPath(buildPathKeysForElement(elementName))"
                       >
                         测试
                       </el-button>
-                     
                       <el-button
                         type="danger"
                         size="small"
                         link
-                        @click="handleDeleteByPath(buildPathKeysForState(stName))"
+                        @click="handleDeleteByPath(buildPathKeysForElement(elementName))"
                       >
                         删除
                       </el-button>
                     </div>
                   </div>
-                  <template v-if="isFixedAreaType(st?.类型)">
+                  <template v-if="isFixedAreaType(element?.类型)">
                     <div class="proto-field-group">
                       <div class="proto-field-label">固定点击区域</div>
                       <el-input
-                        v-model="st.固定点击区域"
+                        v-model="element.固定点击区域"
                         size="small"
                         class="proto-input"
-                        @blur="onStateFieldBlur(stName, '固定点击区域', st.固定点击区域)"
+                        @blur="
+                          onElementFieldBlur(
+                            elementName,
+                            '固定点击区域',
+                            element.固定点击区域
+                          )
+                        "
                       />
                     </div>
                   </template>
                   <template v-else>
                     <div class="proto-field-row">
                       <span class="proto-mini-label">类型</span>
-                      <span class="proto-type-tag">{{ st?.类型 ?? "-" }}</span>
+                      <span class="proto-type-tag">{{ element?.类型 ?? "-" }}</span>
                     </div>
                     <div class="proto-inline-group">
                       <div class="proto-inline-field">
                         <div class="proto-field-label">相似度</div>
                         <el-input-number
-                          :model-value="Number(st?.相似度 ?? 0.9)"
+                          :model-value="Number(element?.相似度 ?? 0.9)"
                           :min="0"
                           :max="1"
                           :step="0.01"
@@ -444,257 +447,103 @@
                           size="small"
                           class="proto-input-full"
                           controls-position="right"
-                          @change="(v) => onStateSimilarityCommit(stName, v)"
+                          @change="(v) => onElementSimilarityCommit(elementName, v)"
                         />
                       </div>
                       <div class="proto-inline-field proto-inline-field--grow">
                         <div class="proto-field-label">查询范围</div>
                         <el-input
-                          v-model="st.查找区域"
+                          v-model="element.查找区域"
                           size="small"
                           class="proto-input"
-                          @blur="onStateFieldBlur(stName, '查找区域', st.查找区域)"
+                          @blur="
+                            onElementFieldBlur(
+                              elementName,
+                              '查找区域',
+                              element.查找区域
+                            )
+                          "
                         />
                       </div>
                     </div>
                     <div class="proto-field-group">
-                    <div class="proto-field-label">
-                    <div>特征列表</div>
-                      <el-button
-                        type="primary"
-                        size="small"
-                        link
-                        @click="handleAddConfigByPath(buildPathKeysForState(stName))"
-                      >
-                        制作点阵/添加图片
-                      </el-button>
-                    </div>
-                    <template v-if="getStateFeatureItems(stName).length">
-                      <div class="proto-feature-grid">
-                        <div
-                          v-for="item in getStateFeatureItems(stName)"
-                          :key="item.kind + '-' + item.name"
-                          class="proto-feature-cell"
+                      <div class="proto-field-label">
+                        <div>特征列表</div>
+                        <el-button
+                          type="primary"
+                          size="small"
+                          link
+                          @click="handleAddConfigByPath(buildPathKeysForElement(elementName))"
                         >
-                          <div class="proto-feature-thumb-wrap">
-                            <el-image
-                              v-if="item.previewUrl"
-                              :src="item.previewUrl"
-                              fit="contain"
-                              class="proto-feature-thumb"
-                              :preview-src-list="[item.previewUrl]"
-                              preview-teleported
-                            />
-                            <div
-                              v-else
-                              class="proto-feature-thumb proto-feature-thumb--empty"
-                            >
-                              无预览
-                            </div>
-                            <div class="proto-feature-actions">
-                              <el-button
-                                type="primary"
-                                link
-                                size="small"
-                                class="proto-feature-action-btn"
-                                @click="handleNodeLevelFeatureTest(item, st)"
+                          制作点阵/添加图片
+                        </el-button>
+                      </div>
+                      <template v-if="getElementFeatureItems(elementName).length">
+                        <div class="proto-feature-grid">
+                          <div
+                            v-for="item in getElementFeatureItems(elementName)"
+                            :key="item.kind + '-' + item.name"
+                            class="proto-feature-cell"
+                          >
+                            <div class="proto-feature-thumb-wrap">
+                              <el-image
+                                v-if="item.previewUrl"
+                                :src="item.previewUrl"
+                                fit="contain"
+                                class="proto-feature-thumb"
+                                :preview-src-list="[item.previewUrl]"
+                                preview-teleported
+                              />
+                              <div
+                                v-else
+                                class="proto-feature-thumb proto-feature-thumb--empty"
                               >
-                                测试
-                              </el-button>
-                              <el-button
-                                type="danger"
-                                link
-                                size="small"
-                                class="proto-feature-action-btn"
-                                @click="handleNodeFeatureDelete(item, st)"
-                              >
-                                删除
-                              </el-button>
+                                无预览
+                              </div>
+                              <div class="proto-feature-actions">
+                                <el-button
+                                  type="primary"
+                                  link
+                                  size="small"
+                                  class="proto-feature-action-btn"
+                                  @click="handleNodeLevelFeatureTest(item, element)"
+                                >
+                                  测试
+                                </el-button>
+                                <el-button
+                                  type="danger"
+                                  link
+                                  size="small"
+                                  class="proto-feature-action-btn"
+                                  @click="handleNodeFeatureDelete(item, element)"
+                                >
+                                  删除
+                                </el-button>
+                              </div>
                             </div>
-                          </div>
-                          <div class="proto-feature-name" :title="item.name">
-                            {{ item.name }}
+                            <div class="proto-feature-name" :title="item.name">
+                              {{ item.name }}
+                            </div>
                           </div>
                         </div>
+                      </template>
+                      <div v-else class="proto-empty-hint">
+                        <template v-if="resolveFeatureModeByType(element?.类型) === 'font'">
+                          暂无点阵，可点击上方「制作点阵/添加图片」后在此查看。
+                        </template>
+                        <template v-else-if="resolveFeatureModeByType(element?.类型) === 'image'">
+                          暂无图片，可点击上方「制作点阵/添加图片」后在此查看。
+                        </template>
+                        <template v-else>
+                          当前类型为「{{ element?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
+                          会在此列出特征。
+                        </template>
                       </div>
-                    </template>
-                    <div v-else class="proto-empty-hint">
-                      <template v-if="resolveFeatureModeByType(st?.类型) === 'font'">
-                        暂无点阵，可点击上方「制作点阵/添加图片」后在此查看。
-                      </template>
-                      <template v-else-if="resolveFeatureModeByType(st?.类型) === 'image'">
-                        暂无图片，可点击上方「制作点阵/添加图片」后在此查看。
-                      </template>
-                      <template v-else>
-                        当前类型为「{{ st?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
-                        会在此列出特征。
-                      </template>
-                    </div>
                     </div>
                   </template>
                 </div>
               </template>
-              <div v-else class="proto-empty-hint">暂无状态，点击「添加状态」</div>
-            </div>
-
-            <div class="proto-section-card">
-              <div class="proto-section-title proto-section-title--between">
-                <span>按钮属性列表</span>
-                <el-button
-                  type="success"
-                  size="small"
-                  class="proto-add-btn"
-                  @click="handleAddItem({ path: buildJsonPath([selectedRootKey, '按钮']) })"
-                >
-                  <el-icon><Plus /></el-icon>
-                  添加按钮
-                </el-button>
-              </div>
-              <template v-if="buttonEntriesForScreen.length">
-                <div
-                  v-for="[btnName, btn] in buttonEntriesForScreen"
-                  :key="btnName"
-                  class="proto-button-card"
-                >
-                  <div class="proto-button-header">
-                    <span class="proto-button-name">{{ btnName }}</span>
-                    <div class="proto-button-actions">
-                      <el-button
-                        v-if="!isFixedAreaType(btn?.类型)"
-                        type="primary"
-                        size="small"
-                        link
-                        @click="handleTestByPath(buildPathKeysForButton(btnName))"
-                      >
-                        测试
-                      </el-button>
-                      
-                      <el-button
-                        type="danger"
-                        size="small"
-                        link
-                        @click="handleDeleteByPath(buildPathKeysForButton(btnName))"
-                      >
-                        删除
-                      </el-button>
-                    </div>
-                  </div>
-                  <template v-if="isFixedAreaType(btn?.类型)">
-                    <div class="proto-field-group">
-                      <div class="proto-field-label">固定点击区域</div>
-                      <el-input
-                        v-model="btn.固定点击区域"
-                        size="small"
-                        class="proto-input"
-                        @blur="onButtonFieldBlur(btnName, '固定点击区域', btn.固定点击区域)"
-                      />
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div class="proto-field-row">
-                      <span class="proto-mini-label">类型</span>
-                      <span class="proto-type-tag">{{ btn?.类型 ?? "-" }}</span>
-                    </div>
-                    <div class="proto-inline-group">
-                      <div class="proto-inline-field">
-                        <div class="proto-field-label">相似度</div>
-                        <el-input-number
-                          :model-value="Number(btn?.相似度 ?? 0.9)"
-                          :min="0"
-                          :max="1"
-                          :step="0.01"
-                          :precision="2"
-                          size="small"
-                          class="proto-input-full"
-                          controls-position="right"
-                          @change="(v) => onButtonSimilarityCommit(btnName, v)"
-                        />
-                      </div>
-                      <div class="proto-inline-field proto-inline-field--grow">
-                        <div class="proto-field-label">查询范围</div>
-                        <el-input
-                          v-model="btn.查找区域"
-                          size="small"
-                          class="proto-input"
-                          @blur="onButtonFieldBlur(btnName, '查找区域', btn.查找区域)"
-                        />
-                      </div>
-                    </div>
-                    <div class="proto-field-group">
-                    <div class="proto-field-label"><div>特征列表</div> <el-button
-                        type="primary"
-                        size="small"
-                        link
-                        @click="handleAddConfigByPath(buildPathKeysForButton(btnName))"
-                      >
-                        制作点阵/添加图片
-                      </el-button></div>
-                    <template v-if="getButtonFeatureItems(btnName).length">
-                      <div class="proto-feature-grid">
-                        <div
-                          v-for="item in getButtonFeatureItems(btnName)"
-                          :key="item.kind + '-' + item.name"
-                          class="proto-feature-cell"
-                        >
-                          <div class="proto-feature-thumb-wrap">
-                            <el-image
-                              v-if="item.previewUrl"
-                              :src="item.previewUrl"
-                              fit="contain"
-                              class="proto-feature-thumb"
-                              :preview-src-list="[item.previewUrl]"
-                              preview-teleported
-                            />
-                            <div
-                              v-else
-                              class="proto-feature-thumb proto-feature-thumb--empty"
-                            >
-                              无预览
-                            </div>
-                            <div class="proto-feature-actions">
-                              <el-button
-                                type="primary"
-                                link
-                                size="small"
-                                class="proto-feature-action-btn"
-                                @click="handleNodeLevelFeatureTest(item, btn)"
-                              >
-                                测试
-                              </el-button>
-                              <el-button
-                                type="danger"
-                                link
-                                size="small"
-                                class="proto-feature-action-btn"
-                                @click="handleNodeFeatureDelete(item, btn)"
-                              >
-                                删除
-                              </el-button>
-                            </div>
-                          </div>
-                          <div class="proto-feature-name" :title="item.name">
-                            {{ item.name }}
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-                    <div v-else class="proto-empty-hint">
-                      <template v-if="resolveFeatureModeByType(btn?.类型) === 'font'">
-                        暂无点阵，可点击上方「制作点阵/添加图片」后在此查看。
-                      </template>
-                      <template v-else-if="resolveFeatureModeByType(btn?.类型) === 'image'">
-                        暂无图片，可点击上方「制作点阵/添加图片」后在此查看。
-                      </template>
-                      <template v-else>
-                        当前类型为「{{ btn?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
-                        会在此列出特征。
-                      </template>
-                    </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-              <div v-else class="proto-empty-hint">暂无按钮，点击「添加按钮」</div>
+              <div v-else class="proto-empty-hint">暂无元素，点击「添加元素」</div>
             </div>
           </div>
         </div>
@@ -707,7 +556,7 @@
         <div v-else class="cfg-empty-state">
           <el-icon class="cfg-empty-icon"><FolderOpened /></el-icon>
           <p>请选择 JSON 配置文件</p>
-          <p class="cfg-empty-sub">支持界面、按钮、状态等结构化编辑</p>
+          <p class="cfg-empty-sub">支持界面、元素等结构化编辑</p>
         </div>
       </main>
     </div>
@@ -1047,52 +896,27 @@ const currentScreenObj = computed(() => {
   return null;
 });
 
-const buttonEntriesForScreen = computed(() => {
+const elementEntriesForScreen = computed(() => {
   const s = currentScreenObj.value;
-  const b = s?.按钮;
-  if (!b || typeof b !== "object" || Array.isArray(b)) return [];
-  return Object.keys(b)
+  const elements = s?.元素;
+  if (!elements || typeof elements !== "object" || Array.isArray(elements)) return [];
+  return Object.keys(elements)
     .sort()
-    .map((k) => [k, b[k]])
+    .map((k) => [k, elements[k]])
     .filter(
       ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
     );
 });
 
-/** 与按钮列表一致：仅展示值为「普通对象」的状态项（排除字符串坐标等） */
-const stateEntriesForScreen = computed(() => {
-  const s = currentScreenObj.value;
-  const st = s?.状态;
-  if (!st || typeof st !== "object" || Array.isArray(st)) return [];
-  return Object.keys(st)
-    .sort()
-    .map((k) => [k, st[k]])
-    .filter(
-      ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
-    );
-});
-
-const screenButtonCount = (screenKey) => {
-  const b = data.value?.[screenKey]?.按钮;
-  if (!b || typeof b !== "object" || Array.isArray(b)) return 0;
-  return Object.keys(b).length;
+const screenElementCount = (screenKey) => {
+  const elements = data.value?.[screenKey]?.元素;
+  if (!elements || typeof elements !== "object" || Array.isArray(elements)) return 0;
+  return Object.keys(elements).length;
 };
 
-const screenStateCount = (screenKey) => {
-  const st = data.value?.[screenKey]?.状态;
-  if (!st || typeof st !== "object" || Array.isArray(st)) return 0;
-  return Object.keys(st).length;
-};
-
-const buildPathKeysForButton = (btnName, tail) => {
+const buildPathKeysForElement = (elementName, tail) => {
   const sk = selectedRootKey.value;
-  const base = [sk, "按钮", btnName];
-  return tail ? [...base, tail] : base;
-};
-
-const buildPathKeysForState = (stateName, tail) => {
-  const sk = selectedRootKey.value;
-  const base = [sk, "状态", stateName];
+  const base = [sk, "元素", elementName];
   return tail ? [...base, tail] : base;
 };
 
@@ -1201,7 +1025,7 @@ const screenAvoidRegionModel = computed({
  * - 基础名_数字：主界面_1
  * - 基础名_数字_偏移区域：主界面_1_1,1,10,10
  * - （兼容历史）基础名_偏移区域：主界面_1,1,10,10
- * 排除 主界面_按钮_xxx 等配置路径型名称。
+ * 排除 主界面_元素_xxx 等配置路径型名称。
  */
 const featureNameBelongsToBase = (itemName, baseName) => {
   const n = (itemName || "").trim();
@@ -1352,28 +1176,18 @@ const screenFeatureItems = computed(() => {
   return collectFeatureItemsByBase(sk, mode);
 });
 
-const buttonFeatureItemMap = computed(() => {
+const elementFeatureItemMap = computed(() => {
   const sk = selectedRootKey.value;
   if (!sk) return {};
-  return buttonEntriesForScreen.value.reduce((acc, [btnName, btn]) => {
-    const mode = resolveFeatureModeByType(btn?.类型);
-    acc[btnName] = collectFeatureItemsByBase(`${sk}_按钮_${btnName}`, mode);
+  return elementEntriesForScreen.value.reduce((acc, [elementName, element]) => {
+    const mode = resolveFeatureModeByType(element?.类型);
+    acc[elementName] = collectFeatureItemsByBase(`${sk}_元素_${elementName}`, mode);
     return acc;
   }, {});
 });
 
-const stateFeatureItemMap = computed(() => {
-  const sk = selectedRootKey.value;
-  if (!sk) return {};
-  return stateEntriesForScreen.value.reduce((acc, [stateName, st]) => {
-    const mode = resolveFeatureModeByType(st?.类型);
-    acc[stateName] = collectFeatureItemsByBase(`${sk}_状态_${stateName}`, mode);
-    return acc;
-  }, {});
-});
-
-const getButtonFeatureItems = (btnName) => buttonFeatureItemMap.value?.[btnName] || [];
-const getStateFeatureItems = (stateName) => stateFeatureItemMap.value?.[stateName] || [];
+const getElementFeatureItems = (elementName) =>
+  elementFeatureItemMap.value?.[elementName] || [];
 
 /** 特征列表中单张测试：使用当前界面的相似度、查找区域 */
 const handleScreenLevelFeatureTest = (item) => {
@@ -1516,24 +1330,13 @@ const collectCascadeDeletePayloadsForScreen = (screenKey, screenObj) => {
     ...collectResourceDeletePayloadsByBase(screenKey, screenMode, screenType)
   );
 
-  const buttons = screenObj?.按钮;
-  if (buttons && typeof buttons === "object" && !Array.isArray(buttons)) {
-    Object.entries(buttons).forEach(([btnName, btnCfg]) => {
-      const mode = resolveFeatureModeByType(btnCfg?.类型);
-      const baseName = `${screenKey}_按钮_${btnName}`;
+  const elements = screenObj?.元素;
+  if (elements && typeof elements === "object" && !Array.isArray(elements)) {
+    Object.entries(elements).forEach(([elementName, elementCfg]) => {
+      const mode = resolveFeatureModeByType(elementCfg?.类型);
+      const baseName = `${screenKey}_元素_${elementName}`;
       allPayloads.push(
-        ...collectResourceDeletePayloadsByBase(baseName, mode, btnCfg?.类型)
-      );
-    });
-  }
-
-  const states = screenObj?.状态;
-  if (states && typeof states === "object" && !Array.isArray(states)) {
-    Object.entries(states).forEach(([stateName, stateCfg]) => {
-      const mode = resolveFeatureModeByType(stateCfg?.类型);
-      const baseName = `${screenKey}_状态_${stateName}`;
-      allPayloads.push(
-        ...collectResourceDeletePayloadsByBase(baseName, mode, stateCfg?.类型)
+        ...collectResourceDeletePayloadsByBase(baseName, mode, elementCfg?.类型)
       );
     });
   }
@@ -1546,16 +1349,9 @@ const collectCascadeDeletePayloadsForNode = (keys, deletingValue) => {
     return collectCascadeDeletePayloadsForScreen(keys[0], deletingValue);
   }
   if (!deletingValue || typeof deletingValue !== "object") return [];
-  if (keys.length === 3 && keys[1] === "按钮") {
+  if (keys.length === 3 && keys[1] === "元素") {
     const mode = resolveFeatureModeByType(deletingValue?.类型);
-    const baseName = `${keys[0]}_按钮_${keys[2]}`;
-    return dedupeDeletePayloads(
-      collectResourceDeletePayloadsByBase(baseName, mode, deletingValue?.类型)
-    );
-  }
-  if (keys.length === 3 && keys[1] === "状态") {
-    const mode = resolveFeatureModeByType(deletingValue?.类型);
-    const baseName = `${keys[0]}_状态_${keys[2]}`;
+    const baseName = `${keys[0]}_元素_${keys[2]}`;
     return dedupeDeletePayloads(
       collectResourceDeletePayloadsByBase(baseName, mode, deletingValue?.类型)
     );
@@ -1605,8 +1401,8 @@ const onScreenAvoidRegionBlur = () => {
   }
 };
 
-const onButtonSimilarityCommit = (btnName, v) => {
-  const s = currentScreenObj.value?.按钮?.[btnName];
+const onElementSimilarityCommit = (elementName, v) => {
+  const s = currentScreenObj.value?.元素?.[elementName];
   if (!s) return;
   const num = Number(v);
   if (Number.isNaN(num) || num < 0 || num > 1) {
@@ -1616,39 +1412,8 @@ const onButtonSimilarityCommit = (btnName, v) => {
   s.相似度 = num;
 };
 
-const onButtonFieldBlur = (btnName, fieldKey, raw) => {
-  const s = currentScreenObj.value?.按钮?.[btnName];
-  if (!s) return;
-  const newStr = raw == null ? "" : String(raw);
-  const trimmed = newStr.trim();
-  if (fieldKey === "查找区域") {
-    if (!validateRegionLike(trimmed, "查询范围")) return;
-    s.查找区域 = trimmed;
-    return;
-  }
-  if (fieldKey === "偏移点击区域") {
-    if (trimmed === "") {
-      s.偏移点击区域 = "";
-      return;
-    }
-    if (!validateRegionLike(trimmed, "偏移点击区域")) return;
-    s.偏移点击区域 = trimmed;
-  }
-};
-
-const onStateSimilarityCommit = (stateName, v) => {
-  const s = currentScreenObj.value?.状态?.[stateName];
-  if (!s) return;
-  const num = Number(v);
-  if (Number.isNaN(num) || num < 0 || num > 1) {
-    ElMessage.error("相似度必须在 0 到 1 之间");
-    return;
-  }
-  s.相似度 = num;
-};
-
-const onStateFieldBlur = (stateName, fieldKey, raw) => {
-  const s = currentScreenObj.value?.状态?.[stateName];
+const onElementFieldBlur = (elementName, fieldKey, raw) => {
+  const s = currentScreenObj.value?.元素?.[elementName];
   if (!s) return;
   const newStr = raw == null ? "" : String(raw);
   const trimmed = newStr.trim();
@@ -1692,20 +1457,14 @@ const ensureScreenShape = (k) => {
   const s = data.value?.[k];
   if (!k || !s || typeof s !== "object" || Array.isArray(s)) return;
   s.类型 = normalizeConfigType(s.类型, "图片");
-  if (!s.按钮 || typeof s.按钮 !== "object" || Array.isArray(s.按钮)) s.按钮 = {};
-  if (!s.状态 || typeof s.状态 !== "object" || Array.isArray(s.状态)) s.状态 = {};
+  if (!s.元素 || typeof s.元素 !== "object" || Array.isArray(s.元素)) s.元素 = {};
   if (!s.滑动区域 || typeof s.滑动区域 !== "object" || Array.isArray(s.滑动区域))
     s.滑动区域 = {};
   if (!s.识字区域 || typeof s.识字区域 !== "object" || Array.isArray(s.识字区域))
     s.识字区域 = {};
-  Object.values(s.按钮).forEach((btn) => {
-    if (btn && typeof btn === "object" && !Array.isArray(btn)) {
-      btn.类型 = normalizeConfigType(btn.类型, "图片");
-    }
-  });
-  Object.values(s.状态).forEach((st) => {
-    if (st && typeof st === "object" && !Array.isArray(st)) {
-      st.类型 = normalizeConfigType(st.类型, "图片");
+  Object.values(s.元素).forEach((element) => {
+    if (element && typeof element === "object" && !Array.isArray(element)) {
+      element.类型 = normalizeConfigType(element.类型, "图片");
     }
   });
 };
@@ -1737,8 +1496,7 @@ const handleNewScreen = () => {
         类型: "图片",
         查找区域: "",
         相似度: 0.9,
-        状态: {},
-        按钮: {},
+        元素: {},
         滑动区域: {},
         识字区域: {},
         误触区域: "",
@@ -2146,7 +1904,7 @@ const handleAddItem = (node) => {
     itemNode = currentNode.value;
     
   }
-  // 类型（仅按钮需要）：固定区域 / 点阵 / 图片 / 彩图（BGR 平方差匹配，对底色差异敏感）
+  // 类型：固定区域 / 点阵 / 图片 / 彩图（BGR 平方差匹配，对底色差异敏感）
   const type = ref("图片");
   // 名字
   const name = ref("");
@@ -2158,94 +1916,52 @@ const handleAddItem = (node) => {
         style: "display:flex;flex-direction:column;gap:12px;",
       },
       [
-        node.key === "按钮"
-          ? h(
-              "div",
+        h(
+          "div",
+          {
+            style: "display:flex;align-items:center;gap:8px;",
+          },
+          [
+            h(
+              "span",
               {
-                style: "display:flex;align-items:center;gap:8px;",
+                style: "width:80px;text-align:right;",
               },
-              [
-                h(
-                  "span",
-                  {
-                    style: "width:80px;text-align:right;",
-                  },
-                  "类型："
-                ),
-                h(
-                  ElRadioGroup,
-                  {
-                    modelValue: type.value,
-                    "onUpdate:modelValue": (val) => {
-                      type.value = val;
-                    },
-                  },
-                  () => [
-                    h(
-                      ElRadio,
-                      { label: "固定区域" },
-                      () => "固定区域"
-                    ),
-                    h(
-                      ElRadio,
-                      { label: "点阵" },
-                      () => "点阵"
-                    ),
-                    h(
-                      ElRadio,
-                      { label: "图片" },
-                      () => "图片"
-                    ),
-                    h(
-                      ElRadio,
-                      { label: "彩图" },
-                      () => "彩图"
-                    ),
-                  ]
-                ),
-              ]
-            )
-          : h(
-              "div",
+              "类型："
+            ),
+            h(
+              ElRadioGroup,
               {
-                style: "display:flex;align-items:center;gap:8px;",
+                modelValue: type.value,
+                "onUpdate:modelValue": (val) => {
+                  type.value = val;
+                },
               },
-              [
+              () => [
                 h(
-                  "span",
-                  {
-                    style: "width:80px;text-align:right;",
-                  },
-                  "类型："
+                  ElRadio,
+                  { label: "固定区域" },
+                  () => "固定区域"
                 ),
                 h(
-                  ElRadioGroup,
-                  {
-                    modelValue: type.value,
-                    "onUpdate:modelValue": (val) => {
-                      type.value = val;
-                    },
-                  },
-                  () => [
-                    h(
-                      ElRadio,
-                      { label: "点阵" },
-                      () => "点阵"
-                    ),
-                    h(
-                      ElRadio,
-                      { label: "图片" },
-                      () => "图片"
-                    ),
-                    h(
-                      ElRadio,
-                      { label: "彩图" },
-                      () => "彩图"
-                    ),
-                  ]
+                  ElRadio,
+                  { label: "点阵" },
+                  () => "点阵"
+                ),
+                h(
+                  ElRadio,
+                  { label: "图片" },
+                  () => "图片"
+                ),
+                h(
+                  ElRadio,
+                  { label: "彩图" },
+                  () => "彩图"
                 ),
               ]
             ),
+          ]
+        ),
         h(
           "div",
           {
@@ -2294,8 +2010,7 @@ const handleAddItem = (node) => {
             类型: type.value,
             查找区域: "",
             相似度: 0.9,
-            状态: {},
-            按钮: {},
+            元素: {},
             滑动区域: {},
             识字区域: {},
             误触区域: ""
@@ -2787,7 +2502,7 @@ const setFontClickOffsetAreaFromSelection = (rect) => {
   offsetAreaSelectionTargetNodePath.value = "";
 };
 
-/** 从 node.path 解析出键路径，如 "主界面"."按钮"."某名称" -> ['主界面','按钮','某名称'] */
+/** 从 node.path 解析出键路径，如 "主界面"."元素"."某名称" -> ['主界面','元素','某名称'] */
 // root.abc["123"].ddd.ccc['nihao'], ['abc', '123', 'ddd', 'ccc', 'nihao']
 const getPathKeys = (path) => {
   if (!path || typeof path !== "string") return [];
