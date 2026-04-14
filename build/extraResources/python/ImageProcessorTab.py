@@ -8,7 +8,12 @@ import subprocess
 
 import cv2
 import numpy as np
-from matchImg import opencv模板匹配, opencv彩图模板匹配, opencv字库找图
+from matchImg import (
+    opencv模板匹配,
+    opencv彩图模板匹配,
+    opencv字库找图,
+    图片库匹配结果应用偏移点击区域,
+)
 
 
 def _构造事件结果(event: str, message: dict):
@@ -374,7 +379,7 @@ def 图片库模板匹配(data):
             if cur_similarity > best_similarity:
                 best_similarity = cur_similarity
             if cur_similarity >= similarity_threshold:
-                match = cur_match
+                match = 图片库匹配结果应用偏移点击区域(cur_match, cur_name)
                 matched_template_name = cur_name
                 break
 

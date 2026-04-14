@@ -1,5 +1,6 @@
 import cv2
 import json
+import re
 import numpy as np
 from PIL import Image
 
@@ -32,6 +33,57 @@ def _转为BGR(图像):
     if len(维) == 3 and 维[2] == 4:
         return cv2.cvtColor(图像, cv2.COLOR_BGRA2BGR)
     return 图像
+
+
+def 解析图片库模板名中的偏移点击区域(模板名):
+    """
+    从图片库 .npz 键名解析「相对模板左上角」的偏移点击区域 x,y,w,h。
+    与前端 ImageLibraryTab 命名规则一致：..._序号_x,y,w,h 或 ..._x,y,w,h。
+    解析失败或未带坐标后缀时返回 (0, 0, 0, 0)。
+    """
+    if not 模板名 or not isinstance(模板名, str):
+        return (0, 0, 0, 0)
+    s = 模板名.strip()
+    m = re.match(r"^(.*?)(?:_(\d+))?_(-?\d+,-?\d+,\d+,\d+)$", s)
+    if not m:
+        return (0, 0, 0, 0)
+    coord = m.group(3)
+    parts = coord.split(",")
+    if len(parts) != 4:
+        return (0, 0, 0, 0)
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]))
+    except ValueError:
+        return (0, 0, 0, 0)
+
+
+def 图片库匹配结果应用偏移点击区域(match, 模板名):
+    """
+    在模板匹配结果（大图上的模板外接矩形 x,y,w,h）上叠加名称中的偏移点击区域，
+    与字库 _字库找图单个2_在图上 的语义一致：
+    - origin_x/y/w/h：模板命中矩形
+    - x/y/w/h：偏移后的点击区域（宽高为 0 时用模板宽高）
+    """
+    if not match or not isinstance(match, dict):
+        return match
+    mx = int(match["x"])
+    my = int(match["y"])
+    mw = int(match["w"])
+    mh = int(match["h"])
+    tx, ty, tw, th = 解析图片库模板名中的偏移点击区域(模板名)
+    origin = {
+        "origin_x": mx,
+        "origin_y": my,
+        "origin_w": mw,
+        "origin_h": mh,
+    }
+    if tx == 0 and ty == 0 and tw == 0 and th == 0:
+        return {**match, **origin}
+    cx = mx + tx
+    cy = my + ty
+    cw = tw if tw != 0 else mw
+    ch = th if th != 0 else mh
+    return {**match, **origin, "x": cx, "y": cy, "w": cw, "h": ch}
 
 
 def opencv模板匹配(large_array, template_array, region=(0, 0, 0, 0), method=cv2.TM_CCOEFF_NORMED):
