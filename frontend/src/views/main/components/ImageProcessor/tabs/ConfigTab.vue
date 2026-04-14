@@ -23,7 +23,7 @@
     </el-input>
 
     <div class="cfg-workspace">
-      <!-- 左侧：顶层配置项（无缩略图，仅占位图标） -->
+      <!-- 左侧：顶层配置项（含界面缩略图） -->
       <aside class="cfg-sidebar">
         <div class="cfg-sidebar-header">
           <span class="cfg-sidebar-title">
@@ -49,7 +49,15 @@
               @click="selectedRootKey = key"
             >
               <div class="cfg-root-icon" aria-hidden="true">
-                {{ rootInitial(key) }}
+                <el-image
+                  v-if="getScreenThumbnailByName(key)?.previewUrl"
+                  :src="getScreenThumbnailByName(key).previewUrl"
+                  fit="cover"
+                  class="cfg-root-thumb-image"
+                  :preview-src-list="[getScreenThumbnailByName(key).previewUrl]"
+                  preview-teleported
+                />
+                <span v-else>{{ rootInitial(key) }}</span>
               </div>
               <div class="cfg-root-info">
                 <div class="cfg-root-name" :title="key">{{ key }}</div>
@@ -87,6 +95,41 @@
                     @click="handleDeleteRootScreen(selectedRootKey)"
                   >
                     删除
+                  </el-button>
+                </div>
+              </div>
+              <!-- 界面缩略图 -->
+              <div class="proto-field-group">
+                <div class="proto-screen-thumb-wrap">
+                  <template v-if="currentScreenThumbnail?.previewUrl">
+                    <div class="proto-screen-thumb-box">
+                      <el-image
+                        :src="currentScreenThumbnail.previewUrl"
+                        fit="cover"
+                        class="proto-screen-thumb-image"
+                        :preview-src-list="[currentScreenThumbnail.previewUrl]"
+                        preview-teleported
+                      />
+                      <el-button
+                        type="danger"
+                        circle
+                        size="small"
+                        class="proto-screen-thumb-delete-icon"
+                        @click.stop="handleDeleteCurrentScreenThumbnail"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </el-button>
+                    </div>
+                  </template>
+                  <el-button
+                    v-else
+                    type="primary"
+                    size="small"
+                    class="proto-screen-thumb-add"
+                    @click="handleAddCurrentScreenThumbnail"
+                  >
+                    <el-icon><Plus /></el-icon>
+                    添加界面缩略图
                   </el-button>
                 </div>
               </div>
@@ -859,6 +902,31 @@ const rootInitial = (key) => {
   return s ? s.charAt(0).toUpperCase() : "?";
 };
 
+const buildScreenThumbnailName = (screenName) => {
+  const name = String(screenName || "").trim();
+  return name ? `缩略图_${name}` : "";
+};
+
+const screenThumbnailMap = computed(() => {
+  const list = Array.isArray(props.imageLibraryList) ? props.imageLibraryList : [];
+  return list.reduce((acc, item) => {
+    const n = String(item?.name || "").trim();
+    if (!n.startsWith("缩略图_")) return acc;
+    acc[n] = {
+      id: item?.id,
+      name: n,
+      previewUrl: item?.thumbUrl || item?.fullUrl || "",
+    };
+    return acc;
+  }, {});
+});
+
+const getScreenThumbnailByName = (screenName) => {
+  const name = buildScreenThumbnailName(screenName);
+  if (!name) return null;
+  return screenThumbnailMap.value?.[name] || null;
+};
+
 const rootChildCount = (key) => {
   const d = data.value?.[key];
   if (d != null && typeof d === "object" && !Array.isArray(d)) {
@@ -1168,6 +1236,12 @@ const screenFeatureItems = computed(() => {
   const mode = screenFeatureMode.value;
   if (!sk) return [];
   return collectFeatureItemsByBase(sk, mode);
+});
+
+const currentScreenThumbnail = computed(() => {
+  const sk = selectedRootKey.value;
+  if (!sk) return null;
+  return getScreenThumbnailByName(sk);
 });
 
 const elementFeatureItemMap = computed(() => {
@@ -1815,6 +1889,60 @@ const handleConfirmAddImageConfig = async () => {
     currentImageUrl: props.currentImage.url,
   });
   closeConfigDrawer();
+};
+
+const handleAddCurrentScreenThumbnail = () => {
+  const screenName = String(selectedRootKey.value || "").trim();
+  if (!screenName) {
+    ElMessage.warning("请先选择界面");
+    return;
+  }
+  if (!props.currentImage?.url) {
+    ElMessage.warning("当前没有图片，无法添加缩略图");
+    return;
+  }
+  const thumbName = buildScreenThumbnailName(screenName);
+  if (!thumbName) {
+    ElMessage.warning("界面名称为空，无法添加缩略图");
+    return;
+  }
+  emit("add-image-to-library", {
+    name: thumbName,
+    selectionRect:
+      props.selectionRect?.w > 0 && props.selectionRect?.h > 0
+        ? props.selectionRect
+        : null,
+    currentImageUrl: props.currentImage.url,
+  });
+  ElMessage.success("已添加界面缩略图");
+};
+
+const handleDeleteCurrentScreenThumbnail = () => {
+  const thumb = currentScreenThumbnail.value;
+  const screenName = String(selectedRootKey.value || "").trim();
+  if (!thumb?.name) {
+    ElMessage.warning("当前界面暂无缩略图");
+    return;
+  }
+  ElMessageBox.confirm(
+    `确定删除界面「${screenName || "-"}」的缩略图吗？`,
+    "删除确认",
+    {
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(() => {
+      emit("delete-library-resource", {
+        type: "图片",
+        name: thumb.name,
+        exactOnly: true,
+        id: thumb.id,
+      });
+      ElMessage.success("已删除界面缩略图");
+    })
+    .catch(() => {});
 };
 
 // 供外部（图片点击）调用的添加颜色方法
@@ -2794,6 +2922,13 @@ defineExpose({
   color: var(--cfg-accent);
   background: var(--cfg-accent-soft);
   border: 1px solid var(--cfg-accent-border);
+  overflow: hidden;
+}
+
+.cfg-root-thumb-image {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .cfg-root-info {
@@ -3191,6 +3326,43 @@ defineExpose({
 
 .proto-field-group {
   margin-bottom: 8px;
+}
+
+.proto-screen-thumb-wrap {
+  border: 1px dashed var(--cfg-border-soft);
+  border-radius: var(--cfg-radius-sm);
+  background: var(--cfg-panel-muted);
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.proto-screen-thumb-box {
+  position: relative;
+}
+
+.proto-screen-thumb-image {
+  height: 96px;
+  border: 1px solid var(--cfg-border-soft);
+  border-radius: var(--cfg-radius-sm);
+  background: var(--cfg-panel);
+  display: block;
+  object-fit: contain;
+}
+
+.proto-screen-thumb-delete-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 !important;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .proto-field-group:last-child {
