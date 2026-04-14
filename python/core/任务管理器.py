@@ -316,7 +316,7 @@ class 任务管理器类:
         return self.字库缓存
 
     def 加载图片库文件(self, 图片库文件路径):
-        """加载图片库文件（.npz 格式），键为基础图片名，值为模板图像数组列表。"""
+        """加载图片库文件（.npz 格式），键为基础图片名，值为模板配置列表。"""
         self.图片库缓存 = {}
         if not 图片库文件路径 or not os.path.isfile(图片库文件路径):
             self.更新数据("日志", "图片库文件不存在，跳过加载")
@@ -324,10 +324,43 @@ class 任务管理器类:
         try:
             data = np.load(图片库文件路径, allow_pickle=False)
             for 名称 in data.files:
-                基础名称 = re.sub(r"_\d+$", "", 名称)
+                当前图片数据 = np.asarray(data[名称])
+                模板高, 模板宽 = 当前图片数据.shape[:2]
+
+                # 支持命名：基名、基名_数字、基名_数字_x,y,w,h、基名_x,y,w,h
+                基础名称 = 名称
+                目标偏移x = 0
+                目标偏移y = 0
+                目标偏移宽 = 0
+                目标偏移高 = 0
+
+                匹配结果 = re.match(
+                    r"^(?P<base>.+?)(?:_(?P<index>\d+))?(?:_(?P<offset>-?\d+,-?\d+,-?\d+,-?\d+))?$",
+                    名称,
+                )
+                if 匹配结果:
+                    基础名称 = 匹配结果.group("base")
+                    偏移区域 = 匹配结果.group("offset")
+                    if 偏移区域:
+                        try:
+                            偏移部分 = [int(v.strip()) for v in 偏移区域.split(",")]
+                            if len(偏移部分) == 4:
+                                目标偏移x, 目标偏移y, 目标偏移宽, 目标偏移高 = 偏移部分
+                        except ValueError:
+                            pass
+
                 if 基础名称 not in self.图片库缓存:
                     self.图片库缓存[基础名称] = []
-                self.图片库缓存[基础名称].append(np.asarray(data[名称]))
+                self.图片库缓存[基础名称].append(
+                    {
+                        "当前图片数据": 当前图片数据,
+                        "目标偏移x": int(目标偏移x),
+                        "目标偏移y": int(目标偏移y),
+                        "目标偏移宽": int(目标偏移宽),
+                        "目标偏移高": int(目标偏移高),
+                        "原始名称": 名称,
+                    }
+                )
             data.close()
             模板总数 = sum(len(v) for v in self.图片库缓存.values())
             self.更新数据(
