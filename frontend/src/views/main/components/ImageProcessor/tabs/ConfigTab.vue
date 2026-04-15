@@ -1938,7 +1938,6 @@ const handleAddItem = (node) => {
           itemNode[key] = {
             类型: type.value,
             查找区域: "",
-            偏移点击区域: "",
             相似度: 0.9,
           };
         }
