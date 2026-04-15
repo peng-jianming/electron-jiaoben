@@ -627,83 +627,22 @@
       @stop-code-generator-selection="emit('stop-code-generator-selection')"
     />
 
-    <transition name="config-drawer-slide">
-      <div v-if="drawer && isImageDrawerMode" class="config-drawer-wrapper">
-        <div class="config-drawer-mask" @click="closeConfigDrawer"></div>
-        <div class="config-drawer">
-          <div class="config-drawer-header">
-            <div class="config-drawer-title-wrap">
-              <div class="config-drawer-title-main">
-                <span class="config-drawer-title">添加图片配置</span>
-              </div>
-              <div class="config-drawer-subtitle">
-                基于当前圈选图片添加图片配置并设置偏移点击区域
-              </div>
-            </div>
-            <el-button
-              class="cfg-toolbar-btn cfg-toolbar-btn--outline"
-              size="small"
-              @click="closeConfigDrawer"
-            >
-              关闭
-            </el-button>
-          </div>
-          <div class="config-drawer-body">
-            <div class="font-config-section">
-              <div class="result-section">
-                <el-image
-                  v-if="drawerSelectedImageUrl"
-                  :src="drawerSelectedImageUrl"
-                  :preview-src-list="[drawerSelectedImageUrl]"
-                  fit="contain"
-                  preview-teleported
-                  style="height: 100%; width: 100%"
-                />
-                <div v-else class="result-placeholder">
-                  <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px">
-                    <Picture />
-                  </el-icon>
-                  当前圈选图片预览
-                </div>
-              </div>
-              <div class="font-row">
-                <span class="font-label">偏移点击区域</span>
-                <div class="font-field">
-                  <el-input
-                    v-model="fontClickOffsetAreaInput"
-                    placeholder="偏移点击区域 x,y,w,h（可选）"
-                    size="small"
-                    clearable
-                  >
-                    <template #append>
-                      <el-button
-                        :type="
-                          isDrawerFontClickOffsetAreaSelectionActive
-                            ? 'warning'
-                            : 'primary'
-                        "
-                        :disabled="!hasSelectionRect"
-                        size="small"
-                        @click="toggleFontClickOffsetAreaSelection"
-                      >
-                        {{
-                          isDrawerFontClickOffsetAreaSelectionActive ? "取消" : "圈选"
-                        }}
-                      </el-button>
-                    </template>
-                  </el-input>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="config-drawer-footer">
-            <el-button type="primary" size="small" @click="handleConfirmAddConfig" :disabled="!drawerSelectedImageUrl">
-              确认添加
-            </el-button>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <ImageSelectionDrawer
+      ref="imageSelectionDrawerRef"
+      v-model="drawer"
+      v-if="drawer && isImageDrawerMode"
+      :current-image="currentImage"
+      :selection-rect="selectionRect"
+      :initial-name="currentName"
+      title="添加图片配置"
+      subtitle="基于当前圈选图片添加图片配置并设置偏移点击区域"
+      selection-type="configImageClickOffsetArea"
+      :on-confirm="handleConfirmAddImageByDrawer"
+      @start-code-generator-selection="
+        (type) => emit('start-code-generator-selection', type)
+      "
+      @stop-code-generator-selection="emit('stop-code-generator-selection')"
+    />
   </div>
 </template>
 
@@ -730,6 +669,7 @@ import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
 import FontMatrixDrawer from "./FontMatrixDrawer.vue";
+import ImageSelectionDrawer from "./ImageSelectionDrawer.vue";
 const props = defineProps({
   currentImage: {
     type: Object,
@@ -1739,8 +1679,8 @@ watch(cascaderOptionsKey, () => {
 
 // ========== 独立的颜色管理 ==========
 const fontMatrixDrawerRef = ref(null);
+const imageSelectionDrawerRef = ref(null);
 const fontClickOffsetAreaInput = ref("");
-const drawerSelectedImageUrl = ref("");
 
 // 偏移点击区域圈选状态
 const fontClickOffsetAreaSelectionEnabled = ref(false);
@@ -1760,89 +1700,12 @@ const hasSelectionRect = computed(() => {
 });
 
 
-const parseClickOffsetAreaInput = () => {
-  let clickOffsetArea = "0,0,0,0";
-  if (fontClickOffsetAreaInput.value && fontClickOffsetAreaInput.value.trim()) {
-    const raw = fontClickOffsetAreaInput.value.trim();
-    const parts = raw.split(",").map((s) => s.trim());
-    if (
-      parts.length !== 4 ||
-      parts.some((p) => p === "" || Number.isNaN(parseInt(p, 10)))
-    ) {
-      throw new Error("偏移点击区域格式不正确，应为：x,y,w,h");
-    }
-    const [x, y, w, h] = parts.map((p) => parseInt(p, 10));
-    if (w < 0 || h < 0) {
-      throw new Error("偏移点击区域宽高必须为非负整数");
-    }
-    clickOffsetArea = `${x},${y},${w},${h}`;
-  }
-  return clickOffsetArea;
-};
-
 const closeConfigDrawer = () => {
   drawer.value = false;
   fontClickOffsetAreaSelectionEnabled.value = false;
   offsetAreaSelectionTargetMode.value = "drawer";
   offsetAreaSelectionTargetNodePath.value = "";
   emit("stop-code-generator-selection");
-};
-
-const buildSelectionPreviewUrl = async () => {
-  if (!props.currentImage?.url) return "";
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  return await new Promise((resolve, reject) => {
-    img.onload = () => {
-      try {
-        let startX = 0;
-        let startY = 0;
-        let width = img.width;
-        let height = img.height;
-        if (props.selectionRect?.w > 0 && props.selectionRect?.h > 0) {
-          startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
-          startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
-          width = Math.min(props.selectionRect.w, img.width - startX);
-          height = Math.min(props.selectionRect.h, img.height - startY);
-        }
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/png"));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    img.onerror = () => reject(new Error("加载图片失败"));
-    img.src = props.currentImage.url;
-  });
-};
-
-const handleConfirmAddImageConfig = async () => {
-  if (!props.currentImage?.url) {
-    ElMessage.warning("当前没有图片，无法添加到图片库");
-    return;
-  }
-  const baseName = (currentName.value || "").trim();
-  if (!baseName) {
-    ElMessage.warning("图片名称为空，无法添加");
-    return;
-  }
-  let clickOffsetArea = "0,0,0,0";
-  try {
-    clickOffsetArea = parseClickOffsetAreaInput();
-  } catch (error) {
-    ElMessage.warning(error.message || "偏移点击区域格式不正确");
-    return;
-  }
-  emit("add-image-to-library", {
-    name: `${baseName}_1_${clickOffsetArea}`,
-    selectionRect: props.selectionRect || null,
-    currentImageUrl: props.currentImage.url,
-  });
-  closeConfigDrawer();
 };
 
 const handleAddCurrentScreenThumbnail = () => {
@@ -2109,17 +1972,11 @@ const handleAddConfig = (node) => {
       ElMessage.warning("当前没有图片，无法添加到图片库");
       return;
     }
-    fontClickOffsetAreaInput.value = "";
     drawerMode.value = "image";
-    buildSelectionPreviewUrl()
-      .then((url) => {
-        drawerSelectedImageUrl.value = url;
-        drawer.value = true;
-      })
-      .catch((error) => {
-        console.error("生成圈选预览失败:", error);
-        ElMessage.error("生成圈选预览失败: " + (error.message || "未知错误"));
-      });
+    imageSelectionDrawerRef.value?.resetForOpen?.({
+      resetName: true,
+    });
+    drawer.value = true;
     return;
   }
   if (typ === "点阵") {
@@ -2129,39 +1986,6 @@ const handleAddConfig = (node) => {
       resetName: true,
     });
     drawer.value = true;
-  }
-};
-
-// 切换偏移点击区域圈选模式
-const toggleFontClickOffsetAreaSelection = () => {
-  if (!hasSelectionRect.value) {
-    ElMessage.warning("请先在左侧进行圈选，才能使用偏移点击区域功能");
-    return;
-  }
-
-  // 当前选择目标就是抽屉输入框：取消
-  if (isDrawerFontClickOffsetAreaSelectionActive.value) {
-    fontClickOffsetAreaSelectionEnabled.value = false;
-    offsetAreaSelectionTargetMode.value = "drawer";
-    offsetAreaSelectionTargetNodePath.value = "";
-    emit("stop-code-generator-selection");
-    ElMessage.info("已取消圈选模式");
-  } else {
-    // 若已开启但目标在配置字段：切换为抽屉目标（继续圈选）
-    if (fontClickOffsetAreaSelectionEnabled.value) {
-      offsetAreaSelectionTargetMode.value = "drawer";
-      offsetAreaSelectionTargetNodePath.value = "";
-      ElMessage.info("已切换偏移点击区域圈选目标");
-      return;
-    }
-
-    // 未开启：开始圈选
-    fontClickOffsetAreaSelectionEnabled.value = true;
-    offsetAreaSelectionTargetMode.value = "drawer";
-    offsetAreaSelectionTargetNodePath.value = "";
-    // 使用单独的类型标识，区分与颜色 Tab 的偏移点击区域
-    emit("start-code-generator-selection", "configFontClickOffsetArea");
-    ElMessage.info("请在图片上圈选偏移点击区域");
   }
 };
 
@@ -2204,8 +2028,19 @@ const toggleFontClickOffsetAreaSelectionForNode = (node) => {
   ElMessage.info("请在图片上圈选偏移点击区域");
 };
 
-const handleConfirmAddConfig = async () => {
-  await handleConfirmAddImageConfig();
+const handleConfirmAddImageByDrawer = async (payload) => {
+  const baseName = (currentName.value || "").trim();
+  const clickOffsetArea = payload?.clickOffsetArea || "0,0,0,0";
+  if (!baseName) {
+    ElMessage.warning("图片名称为空，无法添加");
+    return false;
+  }
+  emit("add-image-to-library", {
+    name: `${baseName}_1_${clickOffsetArea}`,
+    selectionRect: props.selectionRect || null,
+    currentImageUrl: props.currentImage?.url || "",
+  });
+  return true;
 };
 
 const handleConfirmAddConfigByDrawer = async (fontResult) => {
@@ -2236,6 +2071,10 @@ const setFontClickOffsetAreaFromSelection = (rect) => {
 
   if (drawer.value && isFontDrawerMode.value) {
     fontMatrixDrawerRef.value?.setFontClickOffsetAreaFromSelection?.(rect);
+    return;
+  }
+  if (drawer.value && isImageDrawerMode.value) {
+    imageSelectionDrawerRef.value?.setClickOffsetAreaFromSelection?.(rect);
     return;
   }
 

@@ -1076,6 +1076,24 @@ function handleMouseUp(event) {
             fontLibraryTabRef.setFontClickOffsetAreaFromSelection(rect);
           }
         }
+        else if (codeGeneratorSelectionType.value === "configImageClickOffsetArea") {
+          const configTabRef = rightPanelRef.value.getConfigTabRef?.();
+          if (
+            configTabRef &&
+            typeof configTabRef.setFontClickOffsetAreaFromSelection === "function"
+          ) {
+            configTabRef.setFontClickOffsetAreaFromSelection(rect);
+          }
+        }
+        else if (codeGeneratorSelectionType.value === "imageLibraryClickOffsetArea") {
+          const imageLibraryTabRef = rightPanelRef.value.getImageLibraryTabRef?.();
+          if (
+            imageLibraryTabRef &&
+            typeof imageLibraryTabRef.setImageClickOffsetAreaFromSelection === "function"
+          ) {
+            imageLibraryTabRef.setImageClickOffsetAreaFromSelection(rect);
+          }
+        }
       }
       // 代码生成器/偏移点击区域圈选拖动结束后抑制click事件，防止误触发颜色选取
       suppressNextClick.value = true;

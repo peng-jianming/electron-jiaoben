@@ -90,6 +90,14 @@
       </el-table-column> -->
 
       <el-table-column label="操作" width="200">
+        <template #header>
+          <div class="action-header">
+            <span>操作</span>
+            <el-button type="primary" size="small" link @click="handleOpenAddDrawer">
+              新增
+            </el-button>
+          </div>
+        </template>
         <template #default="scope">
           <el-button type="primary" size="small" link @click.stop="handleTest(scope.row)">
             测试
@@ -215,6 +223,20 @@
         </div>
       </div>
     </el-dialog>
+
+    <ImageSelectionDrawer
+      ref="imageSelectionDrawerRef"
+      v-model="addDrawerVisible"
+      :current-image="currentImage"
+      :selection-rect="selectionRect"
+      :require-name="true"
+      title="新增图片资源"
+      subtitle="基于当前圈选图片新增图片资源，并按命名保存"
+      selection-type="imageLibraryClickOffsetArea"
+      :on-confirm="handleConfirmAddByDrawer"
+      @start-code-generator-selection="(type) => emit('start-code-generator-selection', type)"
+      @stop-code-generator-selection="emit('stop-code-generator-selection')"
+    />
   </div>
 </template>
 
@@ -224,13 +246,23 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { io } from "socket.io-client";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
+import ImageSelectionDrawer from "./ImageSelectionDrawer.vue";
 
 const props = defineProps({
   currentDeviceId: {
     type: String,
     default: "",
   },
+  currentImage: {
+    type: Object,
+    default: null,
+  },
+  selectionRect: {
+    type: Object,
+    default: null,
+  },
 });
+const emit = defineEmits(["start-code-generator-selection", "stop-code-generator-selection"]);
 
 const npzPath = ref("");
 const fileLoading = ref(false);
@@ -246,6 +278,8 @@ let loadLibraryTimeoutId = null;
 
 // 测试相关状态
 const testDialogVisible = ref(false);
+const addDrawerVisible = ref(false);
+const imageSelectionDrawerRef = ref(null);
 const currentTestRow = ref(null);
 const largeImageInputRef = ref(null);
 const largeImageUrl = ref(null);
@@ -927,6 +961,119 @@ function deleteByExactName(name) {
   return true;
 }
 
+const handleOpenAddDrawer = () => {
+  if (!npzPath.value) {
+    ElMessage.warning("请先选择图片库 .npz 文件");
+    return;
+  }
+  if (!props.currentImage?.url) {
+    ElMessage.warning("当前没有图片，无法新增");
+    return;
+  }
+  imageSelectionDrawerRef.value?.resetForOpen?.({
+    resetName: true,
+  });
+  addDrawerVisible.value = true;
+};
+
+const handleConfirmAddByDrawer = async (payload) => {
+  const name = String(payload?.name || "").trim();
+  const clickOffsetArea = payload?.clickOffsetArea || "0,0,0,0";
+  const previewDataUrl = payload?.previewDataUrl || "";
+  if (!name) {
+    ElMessage.warning("请输入命名");
+    return false;
+  }
+  if (!previewDataUrl) {
+    ElMessage.warning("当前没有可添加图片");
+    return false;
+  }
+
+  const base64 =
+    previewDataUrl.indexOf(",") >= 0 ? previewDataUrl.split(",")[1] : previewDataUrl;
+  if (!base64) {
+    ElMessage.warning("图片数据无效，无法保存");
+    return false;
+  }
+
+  let width = 0;
+  let height = 0;
+  if (props.selectionRect?.w > 0 && props.selectionRect?.h > 0) {
+    width = props.selectionRect.w;
+    height = props.selectionRect.h;
+  }
+
+  const added = await addImageItemFromConfig({
+    name: `${name}_1_${clickOffsetArea}`,
+    width,
+    height,
+    base64,
+  });
+
+  if (added) {
+    ElMessage.success("图片添加成功");
+    return true;
+  }
+  ElMessage.error("图片添加失败");
+  return false;
+};
+
+const addImageItemFromConfig = async (payload) => {
+  const { name, width, height, base64 } = payload || {};
+  if (!base64) return false;
+  const baseName = (name || `图片${imageList.value.length + 1}`).trim();
+  const existingNames = new Set(
+    imageList.value.map((item) => (item.name || "").trim())
+  );
+  let displayName = baseName;
+  // 统一命名：若包含偏移坐标，使用「基础名_序号_坐标」，且序号在同一基础名下全局唯一
+  const offsetWithSeqMatch = baseName.match(
+    /^(.*?)(?:_(\d+))?_(-?\d+,-?\d+,\d+,\d+)$/
+  );
+  if (offsetWithSeqMatch) {
+    const plainBase = (offsetWithSeqMatch[1] || "").trim();
+    const offsetPart = offsetWithSeqMatch[3];
+    const usedSeq = new Set();
+    const seqReg = new RegExp(
+      `^${plainBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_(\\d+)(?:_|$)`
+    );
+    existingNames.forEach((n) => {
+      const m = String(n || "").match(seqReg);
+      if (!m) return;
+      const seq = Number(m[1]);
+      if (Number.isFinite(seq) && seq > 0) usedSeq.add(seq);
+    });
+    let counter = Number(offsetWithSeqMatch[2] || 1);
+    if (!Number.isFinite(counter) || counter < 1) counter = 1;
+    while (usedSeq.has(counter)) {
+      counter++;
+    }
+    displayName = `${plainBase}_${counter}_${offsetPart}`;
+  } else if (existingNames.has(displayName)) {
+    let counter = 1;
+    while (existingNames.has(`${baseName}_${counter}`)) {
+      counter++;
+    }
+    displayName = `${baseName}_${counter}`;
+  }
+  const fullUrl = `data:image/png;base64,${base64}`;
+  const newItem = {
+    id: Date.now() + Math.random(),
+    name: displayName,
+    originalName: null,
+    editing: false,
+    inputRef: null,
+    width: width || 0,
+    height: height || 0,
+    channels: 3,
+    fullUrl,
+    thumbUrl: fullUrl,
+    rawBase64: base64,
+  };
+  imageList.value.push(newItem);
+  return true;
+};
+
 // 暴露给父组件的方法
 defineExpose({
   /** 供配置页特征列表等订阅，保持与列表变更同步 */
@@ -939,61 +1086,10 @@ defineExpose({
   openTestByImageName,
   // 从外部显式触发一次同步（例如 ConfigTab 制作点阵/添加图片完成后）
   syncNow: () => syncImageLibraryToNpz(imageList.value),
-  addImageItemFromConfig: async (payload) => {
-    const { name, width, height, base64 } = payload || {};
-    if (!base64) return false;
-    const baseName = (name || `图片${imageList.value.length + 1}`).trim();
-    const existingNames = new Set(
-      imageList.value.map((item) => (item.name || "").trim())
-    );
-    let displayName = baseName;
-    // 统一命名：若包含偏移坐标，使用「基础名_序号_坐标」，且序号在同一基础名下全局唯一
-    const offsetWithSeqMatch = baseName.match(
-      /^(.*?)(?:_(\d+))?_(-?\d+,-?\d+,\d+,\d+)$/
-    );
-    if (offsetWithSeqMatch) {
-      const plainBase = (offsetWithSeqMatch[1] || "").trim();
-      const offsetPart = offsetWithSeqMatch[3];
-      const usedSeq = new Set();
-      const seqReg = new RegExp(
-        `^${plainBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_(\\d+)(?:_|$)`
-      );
-      existingNames.forEach((n) => {
-        const m = String(n || "").match(seqReg);
-        if (!m) return;
-        const seq = Number(m[1]);
-        if (Number.isFinite(seq) && seq > 0) usedSeq.add(seq);
-      });
-      let counter = Number(offsetWithSeqMatch[2] || 1);
-      if (!Number.isFinite(counter) || counter < 1) counter = 1;
-      while (usedSeq.has(counter)) {
-        counter++;
-      }
-      displayName = `${plainBase}_${counter}_${offsetPart}`;
-    } else if (existingNames.has(displayName)) {
-      let counter = 1;
-      while (existingNames.has(`${baseName}_${counter}`)) {
-        counter++;
-      }
-      displayName = `${baseName}_${counter}`;
-    }
-    const fullUrl = `data:image/png;base64,${base64}`;
-    const newItem = {
-      id: Date.now() + Math.random(),
-      name: displayName,
-      originalName: null,
-      editing: false,
-      inputRef: null,
-      width: width || 0,
-      height: height || 0,
-      channels: 3,
-      fullUrl,
-      thumbUrl: fullUrl,
-      rawBase64: base64,
-    };
-    imageList.value.push(newItem);
-    return true;
-  },
+  addImageItemFromConfig,
+  isDrawerOpen: () => imageSelectionDrawerRef.value?.isDrawerOpen?.() || false,
+  setImageClickOffsetAreaFromSelection: (rect) =>
+    imageSelectionDrawerRef.value?.setClickOffsetAreaFromSelection?.(rect),
 });
 </script>
 
@@ -1002,6 +1098,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .file-input {
@@ -1072,6 +1170,12 @@ defineExpose({
 
 .name-filter-input :deep(.el-input__wrapper) {
   padding: 0 8px;
+}
+
+.action-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .size-cell {
