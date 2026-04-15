@@ -122,10 +122,16 @@ def 保存图片库(data):
             return _发送图片库结果(error="保存图片库失败: 未提供图片库文件路径")
 
         arrays = {}
+        seen_names = set()
         for idx, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
-            name = str(item.get("name") or f"image_{idx + 1}")
+            name = str(item.get("name") or f"image_{idx + 1}").strip()
+            if not name:
+                name = f"image_{idx + 1}"
+            if name in seen_names:
+                return _发送图片库结果(error="存在命名相同，不允许修改")
+            seen_names.add(name)
             image_b64 = item.get("image")
             if not image_b64:
                 continue
@@ -179,6 +185,61 @@ def 保存图片库(data):
     except Exception as e:
         traceback.print_exc()
         return _发送图片库结果(error=f"保存图片库出现异常: {e}")
+
+
+def 重命名图片库项(data):
+    """
+    重命名 .npz 图片库中的单个键名。
+    规则：
+    - 新旧名称为空、未变化、目标名称已存在时直接返回失败
+    - 目标名称已存在时返回：存在命名相同，不允许修改
+    """
+    try:
+        npz_path = data.get("npzPath") or data.get("path")
+        old_name = str(data.get("oldName") or "").strip()
+        new_name = str(data.get("newName") or "").strip()
+
+        if not npz_path:
+            return _发送图片库结果(error="重命名失败: 未提供图片库文件路径")
+        if not os.path.isfile(npz_path):
+            return _发送图片库结果(error=f"重命名失败: 图片库文件不存在: {npz_path}")
+        if not old_name or not new_name:
+            return _发送图片库结果(error="重命名失败: 名称不能为空")
+        if old_name == new_name:
+            return _构造事件结果(
+                "image-library-saved",
+                {"success": True, "path": npz_path, "oldName": old_name, "newName": new_name},
+            )
+
+        try:
+            archive = np.load(npz_path, allow_pickle=True)
+        except Exception as e:
+            return _发送图片库结果(error=f"重命名失败: 加载图片库失败: {e}")
+
+        names = list(archive.files)
+        if old_name not in names:
+            return _发送图片库结果(error=f"重命名失败: 未找到名称「{old_name}」")
+        if new_name in names:
+            return _发送图片库结果(error="存在命名相同，不允许修改")
+
+        arrays = {}
+        for key in names:
+            target_key = new_name if key == old_name else key
+            arrays[target_key] = archive[key]
+
+        try:
+            np.savez_compressed(npz_path, **arrays)
+            print(f"重命名图片库项成功: {old_name} -> {new_name}")
+            return _构造事件结果(
+                "image-library-saved",
+                {"success": True, "path": npz_path, "oldName": old_name, "newName": new_name},
+            )
+        except Exception as e:
+            return _发送图片库结果(error=f"重命名失败: 写入 npz 失败: {e}")
+
+    except Exception as e:
+        traceback.print_exc()
+        return _发送图片库结果(error=f"重命名出现异常: {e}")
 
 
 def 保存图片到图片库(data):

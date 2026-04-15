@@ -2,6 +2,7 @@ from 通信管理器 import 通信管理器类
 from ImageProcessorTab import (
     加载图片库,
     图片库模板匹配,
+    重命名图片库项,
     保存图片到图片库,
     保存图片库,
     字库匹配,
@@ -29,6 +30,7 @@ class 主程序:
             "image_library_match": 图片库模板匹配,
             "save_image_to_library": 保存图片到图片库,
             "save_image_library": 保存图片库,
+            "rename_image_library_item": 重命名图片库项,
             "font_library_match": 字库匹配,
         }
 

@@ -60,8 +60,22 @@
           </div>
         </template>
         <template #default="scope">
-          <div class="name-cell" :title="scope.row.name">
-            {{ scope.row.name || '-' }}
+          <div v-if="scope.row.editing" class="name-edit-cell">
+            <el-input
+              v-model="scope.row.name"
+              size="small"
+              @blur="handleNameBlur(scope.row)"
+              @keyup.enter="handleNameBlur(scope.row)"
+              :ref="(el) => { if (el) scope.row.inputRef = el; }"
+            />
+          </div>
+          <div
+            v-else
+            class="name-cell"
+            :title="scope.row.name"
+            @click="handleNameClick(scope.row)"
+          >
+            {{ scope.row.name || "-" }}
           </div>
         </template>
       </el-table-column>
@@ -205,7 +219,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { io } from "socket.io-client";
 import { ipc } from "@/utils/ipcRenderer";
@@ -430,6 +444,9 @@ function handleImageLibraryResult(data) {
     return {
       id: index,
       name: item.name || `图片${index + 1}`,
+      originalName: null,
+      editing: false,
+      inputRef: null,
       width: item.width || 0,
       height: item.height || 0,
       channels: item.channels || 0,
@@ -449,6 +466,60 @@ function handleImageLibraryResult(data) {
   setTimeout(() => {
     isSyncingFromFile.value = false;
   }, 800);
+}
+
+async function handleNameClick(row) {
+  if (!row) return;
+  if (!row.originalName) {
+    row.originalName = row.name || "";
+  }
+  row.editing = true;
+  await nextTick();
+  if (row.inputRef) {
+    const inputEl = row.inputRef.$el?.querySelector("input") || row.inputRef.$el || row.inputRef;
+    if (inputEl) {
+      inputEl.focus();
+      if (inputEl.select) {
+        inputEl.select();
+      }
+    }
+  }
+}
+
+function hasDuplicateName(targetRow, name) {
+  const normalized = String(name || "").trim();
+  return imageList.value.some(
+    (row) => row !== targetRow && String(row?.name || "").trim() === normalized
+  );
+}
+
+function handleNameBlur(row) {
+  if (!row) return;
+  row.editing = false;
+  const oldName = String(row.originalName || row.name || "").trim();
+  const newName = String(row.name || "").trim();
+
+  if (!newName) {
+    row.name = oldName;
+    row.originalName = null;
+    ElMessage.warning("名称不能为空");
+    return;
+  }
+  if (newName === oldName) {
+    row.name = newName;
+    row.originalName = null;
+    return;
+  }
+  if (hasDuplicateName(row, newName)) {
+    row.name = oldName;
+    row.originalName = null;
+    ElMessage.error("存在命名相同，不允许修改");
+    return;
+  }
+
+  row.name = newName;
+  row.originalName = null;
+  ElMessage.success("名称已修改");
 }
 
 async function handleDelete(row) {
@@ -747,6 +818,7 @@ onUnmounted(() => {
 async function syncImageLibraryToNpz(val) {
   if (!npzPath.value) return;
   if (isSyncingFromFile.value) return;
+  if (imageList.value.some((row) => row && row.editing)) return;
 
   const source = val || imageList.value;
   try {
@@ -764,7 +836,7 @@ async function syncImageLibraryToNpz(val) {
       return;
     }
 
-    // 检查同名：存在同名时提示是否覆盖，取消则不保存
+    // 检查同名：存在同名时直接阻止保存
     const nameCount = {};
     items.forEach((item) => {
       const n = (item.name || "").trim();
@@ -772,16 +844,8 @@ async function syncImageLibraryToNpz(val) {
     });
     const duplicateNames = Object.keys(nameCount).filter((n) => nameCount[n] > 1);
     if (duplicateNames.length > 0) {
-      try {
-        await ElMessageBox.confirm(
-          `存在同名图片「${duplicateNames.join("」「")}」，保存时将只保留每名的最后一项（覆盖前面的）。是否继续？`,
-          "同名覆盖确认",
-          { confirmButtonText: "覆盖并保存", cancelButtonText: "取消", type: "warning" }
-        );
-      } catch {
-        ElMessage.info("已取消保存，请修改同名后再保存");
-        return;
-      }
+      ElMessage.error(`存在命名相同（${duplicateNames.join("、")}），不允许保存`);
+      return;
     }
 
     await ipc.invoke(ipcApiRoute.sendToPython, {
@@ -801,6 +865,7 @@ watch(
   (val) => {
     if (!npzPath.value) return;
     if (isSyncingFromFile.value) return;
+    if (imageList.value.some((row) => row && row.editing)) return;
     // 空列表不自动同步，防止竞态条件清空 npz（显式删除最后一项会单独处理）
     if (!val || val.length === 0) return;
 
@@ -916,6 +981,9 @@ defineExpose({
     const newItem = {
       id: Date.now() + Math.random(),
       name: displayName,
+      originalName: null,
+      editing: false,
+      inputRef: null,
       width: width || 0,
       height: height || 0,
       channels: 3,
@@ -977,6 +1045,7 @@ defineExpose({
 .name-cell {
   padding: 4px 6px;
   border-radius: 4px;
+  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -984,6 +1053,11 @@ defineExpose({
 
 .name-cell:hover {
   background: #f1f5f9;
+}
+
+.name-edit-cell {
+  display: flex;
+  align-items: center;
 }
 
 .name-header-with-filter {
