@@ -14,7 +14,7 @@
         <!-- 字库列表表格 -->
         <el-table
             :data="filteredFontLibraryList"
-            height="100"
+            height="100%"
             size="small"
             empty-text="请先选择字库文件或制作字库"
             class="font-table"
@@ -22,6 +22,21 @@
             :cell-style="{ fontSize: '12px', padding: '4px 0' }"
         >
             <el-table-column type="index" label="#" width="36" />
+
+            <el-table-column label="预览" width="72">
+                <template #default="scope">
+                    <div class="thumb-cell">
+                        <el-image
+                            v-if="scope.row.previewUrl"
+                            :src="scope.row.previewUrl"
+                            :preview-src-list="scope.row.previewUrl ? [scope.row.previewUrl] : []"
+                            preview-teleported
+                            fit="contain"
+                            class="thumb-image"
+                        />
+                    </div>
+                </template>
+            </el-table-column>
 
             <!-- 命名列（可编辑）+ 表头筛选 -->
             <el-table-column min-width="120">
@@ -60,9 +75,6 @@
             <el-table-column label="操作" width="160">
                 <template #default="scope">
                     <div class="action-btns">
-                        <el-button type="primary" size="small" link @click="handleShow(scope.row)">
-                            展示
-                        </el-button>
                         <el-button type="primary" size="small" link @click="handleTest(scope.row)">
                             测试
                         </el-button>
@@ -94,15 +106,6 @@
            </div>
         </el-dialog>
 
-        <!-- 点阵图展示区域 -->
-        <div class="result-section">
-            <el-image :src="matrixImageUrl" :preview-src-list="[matrixImageUrl]" fit="contain" preview-teleported
-                class="result-image">
-                <template #placeholder>
-                    <div class="result-placeholder">点阵图预览</div>
-                </template>
-            </el-image>
-        </div>
     </div>
 </template>
 
@@ -130,7 +133,6 @@ const formData = ref({
 const selectedFilePath = ref(""); // 保存当前选择的文件路径（用于内部逻辑）
 const fontLibraryList = ref([]);
 const fileLoading = ref(false);
-const matrixImageUrl = ref(null); // 点阵图图片URL
 
 // 命名列表头筛选
 const nameFilter = ref("");
@@ -257,7 +259,8 @@ const parseFontLibraryJson = (text) => {
             name,
             editing: false,
             clickOffsetArea,
-            binaryData: pixels
+            binaryData: pixels,
+            previewUrl: createMatrixPreviewUrl(parseInt(width), parseInt(height), pixels)
         });
     }
 
@@ -411,26 +414,10 @@ const handleTest = (row) => {
     testDialogVisible.value = true;
 };
 
-// 处理展示按钮
-const handleShow = (row) => {
-    // 更新点阵图显示
-    if (row.binaryData) {
-        generateMatrixImage(row.width, row.height, row.binaryData);
-    } else if (row.matrix) {
-        // 从matrix还原binaryData
-        const binaryData = [];
-        for (let i = 0; i < row.matrix.length; i++) {
-            const hexChar = row.matrix[i];
-            const bits = parseInt(hexChar, 16).toString(2).padStart(4, '0');
-            binaryData.push(...bits.split(''));
-        }
-        const totalPixels = row.width * row.height;
-        generateMatrixImage(row.width, row.height, binaryData.slice(0, totalPixels));
+const createMatrixPreviewUrl = (width, height, pixels) => {
+    if (!width || !height || !pixels || pixels.length === 0) {
+        return null;
     }
-};
-
-// 生成点阵图
-const generateMatrixImage = (width, height, pixels) => {
     // 创建canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -462,7 +449,7 @@ const generateMatrixImage = (width, height, pixels) => {
     }
 
     // 转换为图片URL
-    matrixImageUrl.value = canvas.toDataURL('image/png');
+    return canvas.toDataURL('image/png');
 };
 
 // 处理打开字库文件
@@ -485,36 +472,6 @@ const handleOpenFile = async () => {
     } catch (error) {
         console.error("打开文件失败:", error);
         ElMessage.error("打开文件失败: " + (error.message || "未知错误"));
-    }
-};
-
-// 处理复制偏色
-const handleCopyDeviation = async (row) => {
-    if (!row.deviation) {
-        ElMessage.warning("该字库没有偏色信息");
-        return;
-    }
-
-    try {
-        // 使用 Clipboard API 复制到剪贴板
-        await navigator.clipboard.writeText(row.deviation);
-        ElMessage.success("偏色已复制到剪贴板");
-    } catch (error) {
-        console.error("复制失败:", error);
-        // 如果 Clipboard API 不可用，使用备用方法
-        try {
-            const textArea = document.createElement('textarea');
-            textArea.value = row.deviation;
-            textArea.style.position = 'fixed';
-            textArea.style.opacity = '0';
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            ElMessage.success("偏色已复制到剪贴板");
-        } catch (fallbackError) {
-            ElMessage.error("复制失败: " + (fallbackError.message || "未知错误"));
-        }
     }
 };
 
@@ -593,12 +550,6 @@ const handleDelete = async (row) => {
 
     // 从列表中删除
     fontLibraryList.value.splice(index, 1);
-
-    // 如果删除的是当前展示的点阵图，清空展示
-    if (matrixImageUrl.value && itemToDelete.matrix) {
-        // 可以在这里添加逻辑来判断是否是当前展示的项
-        // 暂时先不清空，让用户手动点击展示其他项
-    }
 
     ElMessage.success("已删除");
 };
@@ -763,7 +714,6 @@ const handleClearList = () => {
     fontLibraryList.value = [];
     formData.value.fontLibraryPath = "";
     selectedFilePath.value = "";
-    matrixImageUrl.value = null;
     ElMessage.success("已清空列表");
 };
 
@@ -823,15 +773,17 @@ const addFontLibraryItem = async (fontItem) => {
     }
 
     try {
+        const normalizedItem = {
+            ...fontItem,
+            previewUrl: fontItem.previewUrl || createMatrixPreviewUrl(fontItem.width, fontItem.height, fontItem.binaryData)
+        };
+
         // 添加到列表
-        fontLibraryList.value.push(fontItem);
+        fontLibraryList.value.push(normalizedItem);
         // 按名称首字母排序
         sortFontLibraryByName();
         // 将排序后的完整列表写回文件
         await saveFullListToFile();
-
-        // 生成点阵图并显示
-        generateMatrixImage(fontItem.width, fontItem.height, fontItem.binaryData);
 
         // 只有在成功保存后才显示成功消息
         ElMessage.success("字库添加成功并已保存到文件");
@@ -1007,6 +959,7 @@ const isLightColor = (hex) => {
 
 .font-table {
     flex: 1;
+    min-height: 0;
 }
 
 /* 去除表格外边框 */
@@ -1057,6 +1010,20 @@ const isLightColor = (hex) => {
     padding: 0 8px;
 }
 
+.thumb-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.thumb-image {
+    width: 56px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
+}
+
 .size-cell {
     font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
     font-size: 11px;
@@ -1077,39 +1044,4 @@ const isLightColor = (hex) => {
     margin-left: 0;
 }
 
-.result-section {
-    margin-top: 6px;
-    flex: 1;
-    min-height: 80px;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: 8px;
-    background: #0f172a;
-    background-image:
-        linear-gradient(45deg, #1e293b 25%, transparent 25%),
-        linear-gradient(-45deg, #1e293b 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #1e293b 75%),
-        linear-gradient(-45deg, transparent 75%, #1e293b 75%);
-    background-size: 12px 12px;
-    background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
-    color: #64748b;
-    font-size: 12px;
-}
-
-.result-image {
-    height: 100%;
-    width: 100%;
-}
-
-.result-placeholder {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    width: 100%;
-    color: #475569;
-    font-size: 11px;
-}
 </style>

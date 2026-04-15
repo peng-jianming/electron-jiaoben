@@ -15,8 +15,8 @@
 
     <!-- 图片列表 -->
     <el-table
-      :data="imageList"
-      height="160"
+      :data="filteredImageList"
+      height="100%"
       size="small"
       empty-text="请先选择图片库 .npz 文件"
       class="image-table"
@@ -28,7 +28,6 @@
         borderBottom: '1px solid #e2e8f0'
       }"
       :cell-style="{ fontSize: '12px', padding: '4px 0' }"
-      @row-click="handleRowClick"
     >
       <el-table-column type="index" label="#" width="36" />
 
@@ -38,14 +37,28 @@
             <el-image
               v-if="scope.row.thumbUrl"
               :src="scope.row.thumbUrl"
-              fit="cover"
+              :preview-src-list="scope.row.fullUrl ? [scope.row.fullUrl] : []"
+              preview-teleported
+              fit="contain"
               class="thumb-image"
             />
           </div>
         </template>
       </el-table-column>
 
-      <el-table-column prop="name" label="名称" min-width="120">
+      <el-table-column prop="name" min-width="120">
+        <template #header>
+          <div class="name-header-with-filter">
+            <span>名称</span>
+            <el-input
+              v-model="nameFilter"
+              placeholder="筛选"
+              size="small"
+              clearable
+              class="name-filter-input"
+            />
+          </div>
+        </template>
         <template #default="scope">
           <div class="name-cell" :title="scope.row.name">
             {{ scope.row.name || '-' }}
@@ -64,9 +77,6 @@
 
       <el-table-column label="操作" width="200">
         <template #default="scope">
-          <el-button type="primary" size="small" link @click.stop="handleShow(scope.row)">
-            预览
-          </el-button>
           <el-button type="primary" size="small" link @click.stop="handleTest(scope.row)">
             测试
           </el-button>
@@ -76,23 +86,6 @@
         </template>
       </el-table-column>
     </el-table>
-
-    <!-- 大图预览 -->
-    <div class="preview-section">
-      <el-image
-        :src="previewUrl"
-        :preview-src-list="previewUrl ? [previewUrl] : []"
-        fit="contain"
-        preview-teleported
-        class="preview-image"
-      >
-        <template #placeholder>
-          <div class="preview-placeholder">
-            图片库预览
-          </div>
-        </template>
-      </el-image>
-    </div>
 
     <!-- 模板匹配测试弹窗 -->
     <el-dialog
@@ -228,7 +221,7 @@ const props = defineProps({
 const npzPath = ref("");
 const fileLoading = ref(false);
 const imageList = ref([]);
-const previewUrl = ref(null);
+const nameFilter = ref("");
 let imageSocket = null;
 const isSyncingFromFile = ref(false);
 let syncTimer = null;
@@ -257,6 +250,13 @@ const screenshotLoading = ref(false);
 const isScreenshotPending = ref(false);
 const currentTemplateBase64 = ref("");
 const currentTemplateCandidates = ref([]);
+const filteredImageList = computed(() => {
+  const keyword = (nameFilter.value || "").trim().toLowerCase();
+  if (!keyword) return imageList.value;
+  return imageList.value.filter((row) =>
+    (row.name || "").toLowerCase().includes(keyword)
+  );
+});
 
 function initImageSocket() {
   if (imageSocket) {
@@ -317,7 +317,6 @@ async function handleSelectNpz() {
     isSyncingFromFile.value = true;
     npzPath.value = dialogResult.filePath;
     imageList.value = [];
-    previewUrl.value = null;
 
     await loadImageLibrary();
     await saveImageLibraryPathToDB();
@@ -411,7 +410,6 @@ function handleImageLibraryResult(data) {
       ElMessage.error(data?.error || "加载图片库失败");
     }
     imageList.value = [];
-    previewUrl.value = null;
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
     setTimeout(() => { isSyncingFromFile.value = false; }, 800);
     return;
@@ -422,7 +420,6 @@ function handleImageLibraryResult(data) {
   const items = Array.isArray(data.items) ? data.items : [];
   if (!items.length) {
     imageList.value = [];
-    previewUrl.value = null;
     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
     setTimeout(() => { isSyncingFromFile.value = false; }, 800);
     return;
@@ -442,11 +439,6 @@ function handleImageLibraryResult(data) {
     };
   });
 
-  // 默认选中第一张
-  if (imageList.value.length > 0) {
-    previewUrl.value = imageList.value[0].fullUrl;
-  }
-
   // 初始化从配置加载时不提示，仅用户手动选择图片库时提示
   if (!isSyncingFromFile.value) {
     ElMessage.success(`已加载 ${imageList.value.length} 张图片`);
@@ -457,15 +449,6 @@ function handleImageLibraryResult(data) {
   setTimeout(() => {
     isSyncingFromFile.value = false;
   }, 800);
-}
-
-function handleShow(row) {
-  if (!row || !row.fullUrl) return;
-  previewUrl.value = row.fullUrl;
-}
-
-function handleRowClick(row) {
-  handleShow(row);
 }
 
 async function handleDelete(row) {
@@ -484,9 +467,6 @@ async function handleDelete(row) {
   if (index !== -1) {
     imageList.value.splice(index, 1);
     ElMessage.success("已删除");
-    if (previewUrl.value === row.fullUrl) {
-      previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
-    }
     // watcher 不会自动同步空列表，所以删除最后一项时需要显式同步
     if (imageList.value.length === 0) {
       syncImageLibraryToNpz();
@@ -858,9 +838,6 @@ function deleteByName(name) {
   if (indices.length === 0) return false;
   const removedUrls = new Set(indices.map((i) => imageList.value[i]?.fullUrl).filter(Boolean));
   indices.forEach((i) => imageList.value.splice(i, 1));
-  if (removedUrls.has(previewUrl.value)) {
-    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
-  }
   return true;
 }
 
@@ -871,9 +848,6 @@ function deleteById(id) {
   if (i < 0) return false;
   const removedUrl = imageList.value[i]?.fullUrl;
   imageList.value.splice(i, 1);
-  if (previewUrl.value && previewUrl.value === removedUrl) {
-    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
-  }
   return true;
 }
 
@@ -885,9 +859,6 @@ function deleteByExactName(name) {
   if (i < 0) return false;
   const removedUrl = imageList.value[i]?.fullUrl;
   imageList.value.splice(i, 1);
-  if (previewUrl.value && previewUrl.value === removedUrl) {
-    previewUrl.value = imageList.value.length > 0 ? imageList.value[0].fullUrl : null;
-  }
   return true;
 }
 
@@ -971,7 +942,8 @@ defineExpose({
 }
 
 .image-table {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
 }
 
 .image-table :deep(.el-table--border::after),
@@ -1014,46 +986,24 @@ defineExpose({
   background: #f1f5f9;
 }
 
+.name-header-with-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.name-filter-input {
+  width: 80px;
+}
+
+.name-filter-input :deep(.el-input__wrapper) {
+  padding: 0 8px;
+}
+
 .size-cell {
   font-family: "JetBrains Mono", "Cascadia Code", "Courier New", monospace;
   font-size: 11px;
   color: #64748b;
-}
-
-.preview-section {
-  margin-top: 6px;
-  flex: 1;
-  min-height: 80px;
-  overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 8px;
-  background: #0f172a;
-  background-image:
-    linear-gradient(45deg, #1e293b 25%, transparent 25%),
-    linear-gradient(-45deg, #1e293b 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #1e293b 75%),
-    linear-gradient(-45deg, transparent 75%, #1e293b 75%);
-  background-size: 12px 12px;
-  background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.preview-image {
-  height: 100%;
-  width: 100%;
-}
-
-.preview-placeholder {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  width: 100%;
-  color: #475569;
-  font-size: 11px;
 }
 
 .test-dialog-body {
