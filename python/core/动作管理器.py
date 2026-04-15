@@ -44,9 +44,6 @@ class 动作管理器类:
         self.上次点击时间 = 0
         self.点击间隔 = None
 
-    def _识别日志(self, 消息: str) -> None:
-        self.更新数据("日志", 消息)
-
     def 查找(self, 新截图=False):
         """执行查找"""
         if not self.查找字符串:
@@ -67,7 +64,6 @@ class 动作管理器类:
                     self.图片库集合,
                     self.相似度,
                     self.查找区域,
-                    self._识别日志,
                 )
                 if 结果:
                     self.x = 结果["x"]
@@ -82,7 +78,6 @@ class 动作管理器类:
                     self.图片库集合,
                     self.相似度,
                     self.查找区域,
-                    self._识别日志,
                 )
                 if 结果:
                     self.x = 结果["x"]
@@ -97,27 +92,26 @@ class 动作管理器类:
                     self.字库集合,
                     self.相似度,
                     self.查找区域,
-                    self._识别日志,
                 )
                 if 结果:
                     self.x = 结果["目标x"]
                     self.y = 结果["目标y"]
                     self.w = 结果["目标宽"]
                     self.h = 结果["目标高"]
-            elif self.类型 == "yolo":
-                if self.模型 is None:
-                    self.更新数据("日志", "未加载模型")
-                结果 = 图色工具.yolo检测(截图, self.模型, self.相似度)
-                if len(结果):
-                    区域值 = [int(v) for v in self.查找区域.split(",")] if self.查找区域 else [0, 0, 0, 0]
-                    rx, ry = 区域值[0], 区域值[1]
-                    for r in 结果:
-                        if r["分类名"] == self.分类名:
-                            self.x = rx + math.ceil(r["x"])
-                            self.y = ry + math.ceil(r["y"])
-                            self.w = math.floor(r["w"])
-                            self.h = math.floor(r["h"])
-                            break
+            # elif self.类型 == "yolo":
+            #     if self.模型 is None:
+            #         self.更新数据("日志", "未加载模型")
+            #     结果 = 图色工具.yolo检测(截图, self.模型, self.相似度)
+            #     if len(结果):
+            #         区域值 = [int(v) for v in self.查找区域.split(",")] if self.查找区域 else [0, 0, 0, 0]
+            #         rx, ry = 区域值[0], 区域值[1]
+            #         for r in 结果:
+            #             if r["分类名"] == self.分类名:
+            #                 self.x = rx + math.ceil(r["x"])
+            #                 self.y = ry + math.ceil(r["y"])
+            #                 self.w = math.floor(r["w"])
+            #                 self.h = math.floor(r["h"])
+            #                 break
         return self
 
     def 点击(self, 日志=None, 延时=(1, 3)):
