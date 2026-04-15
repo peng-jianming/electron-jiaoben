@@ -297,6 +297,10 @@ class ADB控制器类:
         if not x or not y:
             return False
 
+        # 百分50的概率直接调用点击
+        if random.random() < 0.5:
+            return self.点击(x, y)
+
         # 按下
         成功1, 输出1 = self._执行命令(
             f"{self._命令前缀} shell input motionevent DOWN {x} {y}"
@@ -306,6 +310,7 @@ class ADB控制器类:
             return False
 
         # 随机延时
+            return True
         if isinstance(按压时长, (tuple, list)) and len(按压时长) == 2:
             self.随机延时(按压时长[0], 按压时长[1])
         else:

@@ -39,12 +39,12 @@ class 任务管理器类:
         self.控制器 = 设备控制器类(self.设备ID)
 
         # 截图
-        self._截图上下文 = 截图管理器类(self.控制器)
+        self.截图上下文 = 截图管理器类(self.控制器)
 
         # 资源配置
         self.字库缓存 = self.加载字库文件(字库文件路径)
         self.图片库缓存 = self.加载图片库文件(图片库文件路径)
-        self._模型 = None
+        self.模型 = None
         self.界面集合 = self.加载界面配置(界面配置文件路径)
 
         self.运行()
@@ -332,10 +332,10 @@ class 任务管理器类:
                 界面名称,
                 原始配置,
                 self.控制器,
-                self._截图上下文,
+                self.截图上下文,
                 self.字库缓存,
                 self.图片库缓存,
-                self._模型,
+                self.模型,
                 self.更新数据,
             )
         return 配置
@@ -350,7 +350,7 @@ class 任务界面状态机类:
         self.注册界面集合 = {}
         self.任务未完成 = True
         self.上下文 = {}
-        self._任务超时时间 = float(超时时间)
+        self._任务超时时间 = 超时时间
         self._轮流键 = self.任务管理器.账号信息.get("id") if 启用轮流单执行 else None
 
     def _轮流等待(self):
@@ -484,7 +484,6 @@ class 任务界面状态机类:
 
     def 开始(self):
         当前界面名 = None
-        上一界面名 = None
         未知开始时间 = None
         未知超时时间 = 2 * 60
         任务开始时间 = time.time()
@@ -496,19 +495,12 @@ class 任务界面状态机类:
                 self.任务管理器.截图上下文.新轮次()
                 截图 = self.任务管理器.截图上下文.获取截图()
                 已找到 = False
-                # 优先检测当前/上一个界面
-                优先列表 = []
-                if 当前界面名:
-                    优先列表.append(当前界面名)
-                if 上一界面名 and 上一界面名 != 当前界面名:
-                    优先列表.append(上一界面名)
                 for 界面名称 in (
-                    优先列表
-                    + [k for k in self.注册界面集合.keys() if k not in 优先列表]
+                    list(self.注册界面集合.keys())
                     + [
                         k
                         for k in self._全局界面公共处理器集合.keys()
-                        if (k not in 优先列表 and k not in self.注册界面集合.keys())
+                        if k not in self.注册界面集合.keys()
                     ]
                 ):
 
