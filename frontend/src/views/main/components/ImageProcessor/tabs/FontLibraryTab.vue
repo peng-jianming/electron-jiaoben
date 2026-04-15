@@ -73,6 +73,14 @@
 
             <!-- 操作列 -->
             <el-table-column label="操作" width="160">
+                <template #header>
+                    <div class="action-header">
+                        <span>操作</span>
+                        <el-button type="primary" size="small" link @click="handleOpenAddDrawer">
+                            新增
+                        </el-button>
+                    </div>
+                </template>
                 <template #default="scope">
                     <div class="action-btns">
                         <el-button type="primary" size="small" link @click="handleTest(scope.row)">
@@ -106,6 +114,20 @@
            </div>
         </el-dialog>
 
+        <FontMatrixDrawer
+            ref="fontMatrixDrawerRef"
+            v-model="addDrawerVisible"
+            :current-image="currentImage"
+            :selection-rect="selectionRect"
+            :require-name="true"
+            title="新增字库点阵"
+            subtitle="基于当前图片与圈选区域生成字库点阵，并按命名保存"
+            selection-type="fontLibraryFontClickOffsetArea"
+            :on-confirm="handleConfirmAddByDrawer"
+            @start-code-generator-selection="(type) => emit('start-code-generator-selection', type)"
+            @stop-code-generator-selection="emit('stop-code-generator-selection')"
+        />
+
     </div>
 </template>
 
@@ -115,16 +137,28 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
+import FontMatrixDrawer from "./FontMatrixDrawer.vue";
 
 const props = defineProps({
     currentDeviceId: {
         type: String,
         default: "",
     },
+    currentImage: {
+        type: Object,
+        default: null,
+    },
+    selectionRect: {
+        type: Object,
+        default: null,
+    },
 });
+const emit = defineEmits(["start-code-generator-selection", "stop-code-generator-selection"]);
 
 const testDialogVisible = ref(false);
 const currentTestRow = ref(null);
+const addDrawerVisible = ref(false);
+const fontMatrixDrawerRef = ref(null);
 
 const formData = ref({
     fontLibraryPath: "", // 字库文件路径
@@ -757,6 +791,27 @@ const saveToFile = async (fontItem) => {
     }
 };
 
+const handleOpenAddDrawer = () => {
+    if (!selectedFilePath.value) {
+        ElMessage.warning("请先在字库制作标签页中选择字库文件");
+        return;
+    }
+    if (!props.currentImage?.url) {
+        ElMessage.warning("当前没有图片，无法制作点阵");
+        return;
+    }
+    fontMatrixDrawerRef.value?.resetForOpen?.({
+        keepColors: true,
+        resetName: true,
+    });
+    addDrawerVisible.value = true;
+};
+
+const handleConfirmAddByDrawer = async (fontItem) => {
+    const saved = await addFontLibraryItem(fontItem);
+    return saved === true;
+};
+
 // 处理从 ColorSelectionTab 添加的字库项
 const addFontLibraryItem = async (fontItem) => {
     // 检查是否已选择字库文件
@@ -899,6 +954,10 @@ defineExpose({
     deleteByName,
     deleteById,
     deleteByExactName,
+    addColor: (colorInfo) => fontMatrixDrawerRef.value?.addColor?.(colorInfo),
+    isDrawerOpen: () => fontMatrixDrawerRef.value?.isDrawerOpen?.() || false,
+    setFontClickOffsetAreaFromSelection: (rect) =>
+        fontMatrixDrawerRef.value?.setFontClickOffsetAreaFromSelection?.(rect),
 });
 
 // 组件挂载时加载保存的字库路径
@@ -950,6 +1009,8 @@ const isLightColor = (hex) => {
     display: flex;
     flex-direction: column;
     height: 100%;
+    position: relative;
+    overflow: hidden;
 }
 
 .file-input {
@@ -1000,6 +1061,12 @@ const isLightColor = (hex) => {
     display: flex;
     align-items: center;
     gap: 6px;
+}
+
+.action-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .name-filter-input {

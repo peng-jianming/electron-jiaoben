@@ -610,23 +610,34 @@
       />
     </el-dialog>
 
+    <FontMatrixDrawer
+      ref="fontMatrixDrawerRef"
+      v-model="drawer"
+      v-if="drawer && isFontDrawerMode"
+      :current-image="currentImage"
+      :selection-rect="selectionRect"
+      :initial-name="currentName"
+      title="添加字库配置"
+      subtitle="基于当前图片与圈选区域生成字库点阵配置"
+      selection-type="configFontClickOffsetArea"
+      :on-confirm="handleConfirmAddConfigByDrawer"
+      @start-code-generator-selection="
+        (type) => emit('start-code-generator-selection', type)
+      "
+      @stop-code-generator-selection="emit('stop-code-generator-selection')"
+    />
+
     <transition name="config-drawer-slide">
-      <div v-if="drawer" class="config-drawer-wrapper">
+      <div v-if="drawer && isImageDrawerMode" class="config-drawer-wrapper">
         <div class="config-drawer-mask" @click="closeConfigDrawer"></div>
         <div class="config-drawer">
           <div class="config-drawer-header">
             <div class="config-drawer-title-wrap">
               <div class="config-drawer-title-main">
-                <span class="config-drawer-title">{{
-                  isImageDrawerMode ? "添加图片配置" : "添加字库配置"
-                }}</span>
+                <span class="config-drawer-title">添加图片配置</span>
               </div>
               <div class="config-drawer-subtitle">
-                {{
-                  isImageDrawerMode
-                    ? "基于当前圈选图片添加图片配置并设置偏移点击区域"
-                    : "基于当前图片与圈选区域生成字库点阵配置"
-                }}
+                基于当前圈选图片添加图片配置并设置偏移点击区域
               </div>
             </div>
             <el-button
@@ -638,108 +649,8 @@
             </el-button>
           </div>
           <div class="config-drawer-body">
-            <!-- 颜色表格 -->
-            <div v-if="isFontDrawerMode" class="color-table-wrap">
-              <el-table
-                :data="selectedColors"
-                height="150"
-                size="small"
-                empty-text="请在图片上点击选取颜色"
-                :header-cell-style="{
-                  background: '#f8fafc',
-                  color: '#64748b',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  borderBottom: '1px solid #e2e8f0',
-                }"
-                :cell-style="{ fontSize: '12px', padding: '4px 0' }"
-                :row-style="{ transition: 'background 0.15s' }"
-              >
-                <el-table-column label="HEX" width="84">
-                  <template #default="scope">
-                    <div
-                      class="hex-cell"
-                      :style="{
-                        backgroundColor:
-                          '#' + String(scope.row.hex || '').replace(/^#/, ''),
-                        color: isLightColor(scope.row.hex) ? '#1e293b' : '#f8fafc',
-                      }"
-                    >
-                      {{ scope.row.hex }}
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="偏色" min-width="120">
-                  <template #default="scope">
-                    <div class="slider-cell">
-                      <el-slider
-                        :model-value="getRowDeviation(scope.$index)"
-                        :min="0"
-                        :max="100"
-                        :show-tooltip="true"
-                        @update:model-value="(v) => setRowDeviation(scope.$index, v)"
-                      />
-                      <span class="slider-value">{{
-                        getRowDeviation(scope.$index)
-                      }}</span>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="" width="40" fixed="right">
-                  <template #default="scope">
-                    <el-button
-                      type="danger"
-                      link
-                      size="small"
-                      @click="handleRemoveColor(scope.$index)"
-                      class="delete-btn"
-                    >
-                      <el-icon>
-                        <Close />
-                      </el-icon>
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <div class="table-footer">
-                <span class="table-count">{{ selectedColors.length }} 个颜色</span>
-                <el-button
-                  type="danger"
-                  size="small"
-                  text
-                  @click="handleClearAllColors"
-                  :disabled="!selectedColors.length"
-                  >清空</el-button
-                >
-              </div>
-            </div>
-
-            <!-- 二值化预览 -->
-            <div v-if="isFontDrawerMode" class="result-section">
-              <el-image
-                v-if="processedImageUrl"
-                :src="processedImageUrl"
-                :preview-src-list="[processedImageUrl]"
-                fit="contain"
-                preview-teleported
-                style="height: 100%; width: 100%"
-              />
-              <div v-else class="result-placeholder">
-                <el-icon :size="20" style="opacity: 0.3; margin-bottom: 4px">
-                  <Picture />
-                </el-icon>
-                偏色二值化预览
-              </div>
-            </div>
-
             <div class="font-config-section">
-              <div v-if="isFontDrawerMode" class="font-row">
-                <span class="font-label">是否裁剪</span>
-                <div class="font-field">
-                  <el-checkbox v-model="enableAutoCrop" size="small" />
-                </div>
-              </div>
-              <div v-if="isImageDrawerMode" class="result-section">
+              <div class="result-section">
                 <el-image
                   v-if="drawerSelectedImageUrl"
                   :src="drawerSelectedImageUrl"
@@ -786,12 +697,7 @@
             </div>
           </div>
           <div class="config-drawer-footer">
-            <el-button
-              type="primary"
-              size="small"
-              @click="handleConfirmAddConfig"
-              :disabled="isFontDrawerMode ? !processedImageUrl : !drawerSelectedImageUrl"
-            >
+            <el-button type="primary" size="small" @click="handleConfirmAddConfig" :disabled="!drawerSelectedImageUrl">
               确认添加
             </el-button>
           </div>
@@ -807,7 +713,6 @@ import {
   ElMessage,
   ElMessageBox,
   ElInput,
-  ElCheckbox,
   ElRadio,
   ElRadioGroup,
   ElSelect,
@@ -824,6 +729,7 @@ import {
 import { ipc } from "@/utils/ipcRenderer";
 import { ipcApiRoute } from "@/api";
 import FontLibraryMatchDebug from "./FontLibraryMatchDebug.vue";
+import FontMatrixDrawer from "./FontMatrixDrawer.vue";
 const props = defineProps({
   currentImage: {
     type: Object,
@@ -1832,11 +1738,7 @@ watch(cascaderOptionsKey, () => {
 });
 
 // ========== 独立的颜色管理 ==========
-const selectedColors = ref([]); // 自己维护的颜色列表 [{ hex: 'D61E24' }, ...]
-const rowDeviations = ref([]); // 每行偏色值 0–100
-
-const processedImageUrl = ref(null);
-const enableAutoCrop = ref(true);
+const fontMatrixDrawerRef = ref(null);
 const fontClickOffsetAreaInput = ref("");
 const drawerSelectedImageUrl = ref("");
 
@@ -1849,12 +1751,6 @@ const fontClickOffsetAreaSelectionEnabled = ref(false);
 const offsetAreaSelectionTargetMode = ref("drawer"); // "drawer" | "json"
 const offsetAreaSelectionTargetNodePath = ref("");
 
-const isDrawerFontClickOffsetAreaSelectionActive = computed(() => {
-  return (
-    fontClickOffsetAreaSelectionEnabled.value &&
-    offsetAreaSelectionTargetMode.value === "drawer"
-  );
-});
 const isFontDrawerMode = computed(() => drawerMode.value === "font");
 const isImageDrawerMode = computed(() => drawerMode.value === "image");
 
@@ -2005,36 +1901,7 @@ const handleDeleteCurrentScreenThumbnail = () => {
 
 // 供外部（图片点击）调用的添加颜色方法
 const addColor = (colorInfo) => {
-  if (!colorInfo || !colorInfo.hex) return;
-  const hex = colorInfo.hex.replace(/^#/, "").toUpperCase();
-  // 检查是否已存在相同颜色
-  if (selectedColors.value.some((c) => c.hex === hex)) {
-    ElMessage.warning("已存在相同颜色");
-    return;
-  }
-  selectedColors.value.push({ hex });
-  rowDeviations.value.push(0);
-  // 重新计算二值化
-  if (props.currentImage?.url) runBinarizationFromTable();
-};
-
-// 删除颜色
-const handleRemoveColor = (index) => {
-  selectedColors.value.splice(index, 1);
-  rowDeviations.value.splice(index, 1);
-  if (selectedColors.value.length > 0 && props.currentImage?.url) {
-    runBinarizationFromTable();
-  } else {
-    processedImageUrl.value = null;
-  }
-};
-
-// 清空所有颜色
-const handleClearAllColors = () => {
-  selectedColors.value = [];
-  rowDeviations.value = [];
-  processedImageUrl.value = null;
-  ElMessage.success("已清空全部颜色");
+  fontMatrixDrawerRef.value?.addColor?.(colorInfo);
 };
 
 const handleAddSliderArea = (node) => {
@@ -2256,10 +2123,11 @@ const handleAddConfig = (node) => {
     return;
   }
   if (typ === "点阵") {
-    fontClickOffsetAreaInput.value = "";
-    // 重置 drawer 状态（保留已有的颜色列表，方便连续操作）
-    enableAutoCrop.value = true;
     drawerMode.value = "font";
+    fontMatrixDrawerRef.value?.resetForOpen?.({
+      keepColors: true,
+      resetName: true,
+    });
     drawer.value = true;
   }
 };
@@ -2336,308 +2204,38 @@ const toggleFontClickOffsetAreaSelectionForNode = (node) => {
   ElMessage.info("请在图片上圈选偏移点击区域");
 };
 
-// ========== 偏色管理 ==========
-const getRowDeviation = (index) => rowDeviations.value[index] ?? 0;
-const setRowDeviation = (index, value) => {
-  const arr = [...rowDeviations.value];
-  arr[index] = Math.max(0, Math.min(100, value));
-  rowDeviations.value = arr;
-  runBinarizationFromTable();
-};
-
-// ========== 工具函数 ==========
-const isLightColor = (hex) => {
-  hex = String(hex).replace("#", "");
-  if (hex.length === 3)
-    hex = hex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 186;
-};
-
-const hexToRgb = (hex) => {
-  hex = hex.replace("#", "");
-  if (hex.length === 3)
-    hex = hex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  return {
-    r: parseInt(hex.substring(0, 2), 16),
-    g: parseInt(hex.substring(2, 4), 16),
-    b: parseInt(hex.substring(4, 6), 16),
-  };
-};
-
-const numToHex = (num) => {
-  const hex = Math.max(0, Math.min(255, Math.floor(num)))
-    .toString(16)
-    .toUpperCase();
-  return hex.length === 1 ? "0" + hex : hex;
-};
-
-// ========== 偏色计算 ==========
-const buildDeviationListFromTable = () => {
-  const list = [];
-  for (let i = 0; i < selectedColors.value.length; i++) {
-    const d = rowDeviations.value[i] ?? 0;
-    const baseRgb = hexToRgb(selectedColors.value[i].hex);
-    const baseHex = numToHex(baseRgb.r) + numToHex(baseRgb.g) + numToHex(baseRgb.b);
-    const deviationHex = numToHex(d) + numToHex(d) + numToHex(d);
-    list.push(`${baseHex}-${deviationHex}`);
-  }
-  return list;
-};
-
-const parseDeviation = (deviationStr) => {
-  const [baseHex, deviationHex] = deviationStr.split("-");
-  if (!baseHex || !deviationHex || baseHex.length !== 6 || deviationHex.length !== 6)
-    return null;
-  return {
-    base: {
-      r: parseInt(baseHex.substring(0, 2), 16),
-      g: parseInt(baseHex.substring(2, 4), 16),
-      b: parseInt(baseHex.substring(4, 6), 16),
-    },
-    deviation: {
-      r: parseInt(deviationHex.substring(0, 2), 16),
-      g: parseInt(deviationHex.substring(2, 4), 16),
-      b: parseInt(deviationHex.substring(4, 6), 16),
-    },
-  };
-};
-
-const isColorInDeviationRange = (r, g, b, deviationData) => {
-  const { base, deviation } = deviationData;
-  return (
-    r >= Math.max(0, base.r - deviation.r) &&
-    r <= Math.min(255, base.r + deviation.r) &&
-    g >= Math.max(0, base.g - deviation.g) &&
-    g <= Math.min(255, base.g + deviation.g) &&
-    b >= Math.max(0, base.b - deviation.b) &&
-    b <= Math.min(255, base.b + deviation.b)
-  );
-};
-
-// ========== 二值化处理 ==========
-const runBinarizationFromTable = () => {
-  if (!props.currentImage?.url) return;
-  const deviationList = buildDeviationListFromTable();
-  if (deviationList.length === 0) return;
-  const deviationDataList = deviationList.map(parseDeviation).filter(Boolean);
-  if (deviationDataList.length === 0) return;
-
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    try {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      let startX = 0,
-        startY = 0,
-        width = img.width,
-        height = img.height;
-      if (props.selectionRect?.w > 0 && props.selectionRect?.h > 0) {
-        startX = Math.max(0, Math.min(props.selectionRect.x, img.width - 1));
-        startY = Math.max(0, Math.min(props.selectionRect.y, img.height - 1));
-        width = Math.min(props.selectionRect.w, img.width - startX);
-        height = Math.min(props.selectionRect.h, img.height - startY);
-      }
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, startX, startY, width, height, 0, 0, width, height);
-      const imageData = ctx.getImageData(0, 0, width, height);
-      const pixelData = imageData.data;
-
-      for (let i = 0; i < pixelData.length; i += 4) {
-        const r = pixelData[i],
-          g = pixelData[i + 1],
-          b = pixelData[i + 2];
-        let inRange = false;
-        for (const dd of deviationDataList) {
-          if (isColorInDeviationRange(r, g, b, dd)) {
-            inRange = true;
-            break;
-          }
-        }
-        pixelData[i] = pixelData[i + 1] = pixelData[i + 2] = inRange ? 255 : 0;
-        pixelData[i + 3] = 255;
-      }
-      ctx.putImageData(imageData, 0, 0);
-      processedImageUrl.value = canvas.toDataURL("image/png");
-    } catch (e) {
-      console.error("二值化出错:", e);
-    }
-  };
-  img.src = props.currentImage.url;
-};
-
-// ========== 确认添加配置 ==========
 const handleConfirmAddConfig = async () => {
-  if (isImageDrawerMode.value) {
-    await handleConfirmAddImageConfig();
-    return;
+  await handleConfirmAddImageConfig();
+};
+
+const handleConfirmAddConfigByDrawer = async (fontResult) => {
+  const name = (currentName.value || "").trim();
+  if (!name) {
+    ElMessage.warning("点阵名称为空，未加入字库，仅更新配置");
+    return true;
   }
-  if (!processedImageUrl.value) {
-    ElMessage.warning("请先生成点阵");
-    return;
-  }
-
-  const deviationList = buildDeviationListFromTable();
-  if (!deviationList.length) {
-    ElMessage.warning("请先添加颜色");
-    return;
-  }
-
-  try {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-
-    await new Promise((resolve, reject) => {
-      img.onload = async () => {
-        try {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          const pixelData = imageData.data;
-
-          // 找到白色像素的最小边界框
-          let minX = img.width,
-            minY = img.height,
-            maxX = 0,
-            maxY = 0;
-          let whitePixelCount = 0;
-
-          for (let y = 0; y < img.height; y++) {
-            for (let x = 0; x < img.width; x++) {
-              const idx = (y * img.width + x) * 4;
-              if (
-                pixelData[idx] > 200 &&
-                pixelData[idx + 1] > 200 &&
-                pixelData[idx + 2] > 200
-              ) {
-                whitePixelCount++;
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
-              }
-            }
-          }
-
-          if (whitePixelCount === 0) {
-            ElMessage.warning("二值化图片中没有白色像素");
-            reject(new Error("没有白色像素"));
-            return;
-          }
-
-          // 根据是否裁剪决定范围
-          let cropMinX, cropMinY, cropMaxX, cropMaxY;
-          if (enableAutoCrop.value) {
-            cropMinX = minX;
-            cropMinY = minY;
-            cropMaxX = maxX;
-            cropMaxY = maxY;
-          } else {
-            cropMinX = 0;
-            cropMinY = 0;
-            cropMaxX = img.width - 1;
-            cropMaxY = img.height - 1;
-          }
-
-          const width = cropMaxX - cropMinX + 1;
-          const height = cropMaxY - cropMinY + 1;
-
-          // 提取二值数据
-          const binaryData = [];
-          for (let y = cropMinY; y <= cropMaxY; y++) {
-            for (let x = cropMinX; x <= cropMaxX; x++) {
-              const idx = (y * img.width + x) * 4;
-              const isWhite =
-                pixelData[idx] > 200 &&
-                pixelData[idx + 1] > 200 &&
-                pixelData[idx + 2] > 200;
-              binaryData.push(isWhite ? "1" : "0");
-            }
-          }
-
-          // 转为十六进制点阵字符串
-          let matrixHex = "";
-          for (let i = 0; i < binaryData.length; i += 4) {
-            const bits = binaryData.slice(i, i + 4).join("");
-            const paddedBits = bits.padEnd(4, "0");
-            matrixHex += parseInt(paddedBits, 2).toString(16).toUpperCase();
-          }
-
-          // 偏色列表以 "|" 组合
-          const deviationStr = deviationList.join("|");
-          // 点阵 = hex&width,height,count
-          const matrixStr = `${matrixHex}&${width},${height},${whitePixelCount}`;
-          
-          let clickOffsetArea = "0,0,0,0";
-          try {
-            clickOffsetArea = parseClickOffsetAreaInput();
-          } catch (error) {
-            ElMessage.warning(error.message || "偏移点击区域格式不正确");
-            reject(error);
-            return;
-          }
-
-          // 使用 currentName 作为字库名称
-          const name = (currentName.value || "").trim();
-
-          if (name) {
-            const fontItem = {
-              id: Date.now(),
-              matrix: matrixHex,
-              width,
-              height,
-              totalCount: whitePixelCount,
-              sizeInfo: `${width}×${height} (${whitePixelCount})`,
-              deviation: deviationStr,
-              name,
-              clickOffsetArea,
-              editing: false,
-              binaryData,
-            };
-
-            const addPromise = new Promise((resolveAdd) => {
-              emit("add-font-library", fontItem, resolveAdd);
-            });
-
-            await addPromise;
-          } else {
-            ElMessage.warning("点阵名称为空，未加入字库，仅更新配置");
-          }
-
-          // ElMessage.success(`配置 添加成功`);
-          closeConfigDrawer();
-          resolve();
-        } catch (error) {
-          console.error("处理点阵时出错:", error);
-          reject(error);
-        }
-      };
-      img.onerror = () => reject(new Error("加载图片失败"));
-      img.src = processedImageUrl.value;
-    });
-  } catch (error) {
-    console.error("添加配置失败:", error);
-    ElMessage.error("添加配置失败: " + (error.message || "未知错误"));
-  }
+  const addPromise = new Promise((resolveAdd) => {
+    emit(
+      "add-font-library",
+      {
+        ...fontResult,
+        name,
+      },
+      resolveAdd
+    );
+  });
+  await addPromise;
+  return true;
 };
 
 // 通过圈选结果设置偏移点击区域（由父组件调用）
 const setFontClickOffsetAreaFromSelection = (rect) => {
   if (!rect || !rect.w || !rect.h) {
+    return;
+  }
+
+  if (drawer.value && isFontDrawerMode.value) {
+    fontMatrixDrawerRef.value?.setFontClickOffsetAreaFromSelection?.(rect);
     return;
   }
 

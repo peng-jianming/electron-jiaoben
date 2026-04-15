@@ -1067,6 +1067,15 @@ function handleMouseUp(event) {
             configTabRef.setFontClickOffsetAreaFromSelection(rect);
           }
         }
+        else if (codeGeneratorSelectionType.value === "fontLibraryFontClickOffsetArea") {
+          const fontLibraryTabRef = rightPanelRef.value.getFontLibraryTabRef?.();
+          if (
+            fontLibraryTabRef &&
+            typeof fontLibraryTabRef.setFontClickOffsetAreaFromSelection === "function"
+          ) {
+            fontLibraryTabRef.setFontClickOffsetAreaFromSelection(rect);
+          }
+        }
       }
       // 代码生成器/偏移点击区域圈选拖动结束后抑制click事件，防止误触发颜色选取
       suppressNextClick.value = true;
@@ -1735,6 +1744,11 @@ function handleImageClick(event) {
           if (configTabRef?.addColor) {
             configTabRef.addColor(currentColor.value);
           }
+        } else if (activeRightTab.value === "font-library") {
+          const fontLibraryTabRef = rightPanelRef.value?.getFontLibraryTabRef?.();
+          if (fontLibraryTabRef?.addColor) {
+            fontLibraryTabRef.addColor(currentColor.value);
+          }
         } else {
           // 默认记录到颜色记录 tab，记录坐标
           // 检查是否相同坐标点，避免重复记录
@@ -1819,6 +1833,11 @@ function handleImageClick(event) {
           if (configTabRef?.addColor) {
             configTabRef.addColor(currentColor.value);
           }
+        } else if (activeRightTab.value === "font-library") {
+          const fontLibraryTabRef = rightPanelRef.value?.getFontLibraryTabRef?.();
+          if (fontLibraryTabRef?.addColor) {
+            fontLibraryTabRef.addColor(currentColor.value);
+          }
         } else {
           // 默认记录到颜色记录 tab，记录坐标
           // 检查是否相同坐标点，避免重复记录
@@ -1838,7 +1857,7 @@ function handleImageClick(event) {
     return;
   }
 
-  // 当在配置 tab 且「添加字库配置」抽屉打开时，允许直接点击图片选取颜色（无需开启圈选）
+  // 当在配置/字库 tab 且点阵抽屉打开时，允许直接点击图片选取颜色（无需开启圈选）
   if (activeRightTab.value === "config") {
     const configTabRef = rightPanelRef.value?.getConfigTabRef?.();
     if (typeof configTabRef?.isDrawerOpen === "function" && configTabRef.isDrawerOpen()) {
@@ -1860,6 +1879,35 @@ function handleImageClick(event) {
         updateCurrentColor(naturalX, naturalY);
         if (currentColor.value && configTabRef.addColor) {
           configTabRef.addColor(currentColor.value);
+        }
+      }
+      return;
+    }
+  }
+  if (activeRightTab.value === "font-library") {
+    const fontLibraryTabRef = rightPanelRef.value?.getFontLibraryTabRef?.();
+    if (
+      typeof fontLibraryTabRef?.isDrawerOpen === "function" &&
+      fontLibraryTabRef.isDrawerOpen()
+    ) {
+      const containerRect = imageContainerRef.value.getBoundingClientRect();
+      const containerX = event.clientX - containerRect.left;
+      const containerY = event.clientY - containerRect.top;
+      const imageX = containerX - imageTranslateX.value;
+      const imageY = containerY - imageTranslateY.value;
+      const imgDisplayWidth = imageRef.value.naturalWidth * imageScale.value;
+      const imgDisplayHeight = imageRef.value.naturalHeight * imageScale.value;
+      if (
+        imageX >= 0 &&
+        imageX < imgDisplayWidth &&
+        imageY >= 0 &&
+        imageY < imgDisplayHeight
+      ) {
+        const naturalX = Math.floor(imageX / imageScale.value);
+        const naturalY = Math.floor(imageY / imageScale.value);
+        updateCurrentColor(naturalX, naturalY);
+        if (currentColor.value && fontLibraryTabRef.addColor) {
+          fontLibraryTabRef.addColor(currentColor.value);
         }
       }
       return;

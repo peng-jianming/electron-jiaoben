@@ -25,8 +25,17 @@
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
         />
       </el-tab-pane>
-      <el-tab-pane label="字库" :lazy="false">
-        <FontLibraryTab ref="fontLibraryTabRef" :current-device-id="currentDeviceId" />
+      <el-tab-pane label="字库" name="font-library" :lazy="false">
+        <FontLibraryTab
+          ref="fontLibraryTabRef"
+          :current-device-id="currentDeviceId"
+          :current-image="currentImage"
+          :selection-rect="selectionRect"
+          @start-code-generator-selection="
+            (type) => $emit('start-code-generator-selection', type)
+          "
+          @stop-code-generator-selection="$emit('stop-code-generator-selection')"
+        />
       </el-tab-pane>
       <el-tab-pane label="图片库" name="image-library" :lazy="false">
         <ImageLibraryTab :current-device-id="currentDeviceId" ref="imageLibraryTabRef" />
@@ -406,6 +415,7 @@ defineExpose({
   getCodeGeneratorTabRef: () => codeGeneratorTabRef.value,
   getColorSelectionTabRef: () => colorSelectionTabRef.value,
   getConfigTabRef: () => configTabRef.value,
+  getFontLibraryTabRef: () => fontLibraryTabRef.value,
   getImageLibraryTabRef: () => imageLibraryTabRef.value,
 });
 
