@@ -853,11 +853,11 @@ const emit = defineEmits([
 
 const data = ref(undefined);
 
-/** 左侧列表：配置 JSON 顶层键（排序展示，无缩略图） */
+/** 左侧列表：配置 JSON 顶层键（按配置原始顺序展示，无缩略图） */
 const rootKeys = computed(() => {
   const d = data.value;
   if (d == null || typeof d !== "object" || Array.isArray(d)) return [];
-  return Object.keys(d).sort();
+  return Object.keys(d);
 });
 
 const selectedRootKey = ref(null);
@@ -945,7 +945,6 @@ const elementEntriesForScreen = computed(() => {
   const elements = s?.元素;
   if (!elements || typeof elements !== "object" || Array.isArray(elements)) return [];
   return Object.keys(elements)
-    .sort()
     .map((k) => [k, elements[k]])
     .filter(
       ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
@@ -1363,6 +1362,17 @@ const emitDeleteLibraryPayloads = (payloads) => {
 const collectCascadeDeletePayloadsForScreen = (screenKey, screenObj) => {
   if (!screenKey || !screenObj || typeof screenObj !== "object") return [];
   const allPayloads = [];
+  const screenThumb = getScreenThumbnailByName(screenKey);
+  if (screenThumb?.name) {
+    allPayloads.push(
+      buildDeleteLibraryPayload({
+        kind: "image",
+        nodeType: "图片",
+        name: screenThumb.name,
+        id: screenThumb.id,
+      })
+    );
+  }
   const screenType = screenObj?.类型;
   const screenMode = resolveFeatureModeByType(screenType);
   allPayloads.push(
@@ -1632,7 +1642,7 @@ const handleDeleteRootScreen = (key) => {
       ElMessage.success(
         payloads.length ? `已删除，并清理 ${payloads.length} 个关联资源` : "已删除"
       );
-      const remaining = Object.keys(data.value || {}).sort();
+      const remaining = Object.keys(data.value || {});
       selectedRootKey.value = remaining.length ? remaining[0] : null;
     })
     .catch(() => {});
