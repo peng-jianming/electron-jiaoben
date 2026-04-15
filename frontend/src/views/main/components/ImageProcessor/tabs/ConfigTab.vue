@@ -404,13 +404,22 @@
                 </el-button>
               </div>
               <template v-if="elementEntriesForScreen.length">
+                <div class="proto-element-list">
                 <div
-                  v-for="[elementName, element] in elementEntriesForScreen"
+                  v-for="([elementName, element], elementIndex) in elementEntriesForScreen"
                   :key="elementName"
-                  class="proto-button-card"
+                  class="proto-button-card proto-button-card--element"
                 >
                   <div class="proto-button-header">
-                    <span class="proto-button-name">{{ elementName }}</span>
+                    <div class="proto-element-title-wrap">
+                      <span class="proto-element-order">{{ elementIndex + 1 }}</span>
+                      <span class="proto-button-name proto-element-name" :title="elementName">
+                        {{ elementName }}
+                      </span>
+                      <span class="proto-element-type-chip">
+                        {{ element?.类型 ?? "-" }}
+                      </span>
+                    </div>
                     <div class="proto-button-actions">
                       <el-button
                         v-if="!isFixedAreaType(element?.类型)"
@@ -560,6 +569,7 @@
                       </div>
                     </div>
                   </template>
+                </div>
                 </div>
               </template>
               <div v-else class="proto-empty-hint">暂无元素，点击「添加元素」</div>
@@ -3472,6 +3482,12 @@ defineExpose({
   margin-bottom: 0;
 }
 
+.proto-element-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .proto-button-header {
   display: flex;
   justify-content: space-between;
@@ -3487,6 +3503,124 @@ defineExpose({
   font-weight: 600;
   font-size: 13px;
   color: var(--cfg-text);
+}
+
+.proto-element-name {
+  max-width: min(44vw, 320px);
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 0 0 2px rgba(124, 58, 237, 0.2),
+    0 6px 14px rgba(124, 58, 237, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proto-element-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proto-element-order {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--cfg-accent);
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.proto-element-type-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(30, 41, 59, 0.88);
+  border: 1px solid rgba(100, 116, 139, 0.28);
+  background: rgba(241, 245, 249, 0.8);
+}
+
+.proto-button-card--element {
+  position: relative;
+  margin-bottom: 0;
+  border-left: 4px solid transparent;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 8px 18px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.proto-button-card--element::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.44) 0%,
+    rgba(255, 255, 255, 0.14) 36%,
+    transparent 100%
+  );
+}
+
+.proto-button-card--element:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 3px 10px rgba(15, 23, 42, 0.08),
+    0 12px 22px rgba(15, 23, 42, 0.07);
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n + 1) {
+  background: linear-gradient(135deg, rgba(224, 242, 254, 0.56), rgba(255, 255, 255, 0.94));
+  border-left-color: #0ea5e9;
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n + 2) {
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.62), rgba(255, 255, 255, 0.94));
+  border-left-color: #10b981;
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n + 3) {
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.72), rgba(255, 255, 255, 0.94));
+  border-left-color: #f59e0b;
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n + 4) {
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.7), rgba(255, 255, 255, 0.94));
+  border-left-color: #6366f1;
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n + 5) {
+  background: linear-gradient(135deg, rgba(250, 245, 255, 0.72), rgba(255, 255, 255, 0.94));
+  border-left-color: #a855f7;
+}
+
+.proto-element-list .proto-button-card--element:nth-child(6n) {
+  background: linear-gradient(135deg, rgba(255, 241, 242, 0.72), rgba(255, 255, 255, 0.94));
+  border-left-color: #f43f5e;
 }
 
 .proto-button-actions {
