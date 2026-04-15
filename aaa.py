@@ -1,112 +1,112 @@
 import ctypes
-from ctypes import wintypes
+from ctypes import wintypes as 窗口类型
 import time
 
-import cv2
-import numpy as np
-import win32gui
+import cv2 as 视觉库
+import numpy as 数组库
+import win32gui as 窗口图形
 
-user32 = ctypes.WinDLL("user32", use_last_error=True)
-gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+用户库 = ctypes.WinDLL("user32", use_last_error=True)
+图形库 = ctypes.WinDLL("gdi32", use_last_error=True)
 
-SRCCOPY = 0x00CC0020
-BI_RGB = 0
-DIB_RGB_COLORS = 0
-INPUT_MOUSE = 0
-MOUSEEVENTF_MOVE = 0x0001
-PW_CLIENTONLY = 0x00000001
-PW_RENDERFULLCONTENT = 0x00000002
+位块复制 = 0x00CC0020
+位图红绿蓝 = 0
+彩色位图 = 0
+输入类型鼠标 = 0
+鼠标事件移动 = 0x0001
+仅客户端 = 0x00000001
+完整渲染内容 = 0x00000002
 
 
-class BITMAPINFOHEADER(ctypes.Structure):
+class 位图信息头(ctypes.Structure):
     _fields_ = [
-        ("biSize", wintypes.DWORD),
-        ("biWidth", wintypes.LONG),
-        ("biHeight", wintypes.LONG),
-        ("biPlanes", wintypes.WORD),
-        ("biBitCount", wintypes.WORD),
-        ("biCompression", wintypes.DWORD),
-        ("biSizeImage", wintypes.DWORD),
-        ("biXPelsPerMeter", wintypes.LONG),
-        ("biYPelsPerMeter", wintypes.LONG),
-        ("biClrUsed", wintypes.DWORD),
-        ("biClrImportant", wintypes.DWORD),
+        ("位图大小", 窗口类型.DWORD),
+        ("位图宽度", 窗口类型.LONG),
+        ("位图高度", 窗口类型.LONG),
+        ("颜色平面数", 窗口类型.WORD),
+        ("位深", 窗口类型.WORD),
+        ("压缩方式", 窗口类型.DWORD),
+        ("图像字节大小", 窗口类型.DWORD),
+        ("每米水平像素", 窗口类型.LONG),
+        ("每米垂直像素", 窗口类型.LONG),
+        ("使用颜色数", 窗口类型.DWORD),
+        ("重要颜色数", 窗口类型.DWORD),
     ]
 
 
-class BITMAPINFO(ctypes.Structure):
+class 位图信息(ctypes.Structure):
     _fields_ = [
-        ("bmiHeader", BITMAPINFOHEADER),
-        ("bmiColors", wintypes.DWORD * 3),
+        ("位图头", 位图信息头),
+        ("位图颜色", 窗口类型.DWORD * 3),
     ]
 
 
-class MOUSEINPUT(ctypes.Structure):
+class 鼠标输入(ctypes.Structure):
     _fields_ = [
-        ("dx", wintypes.LONG),
-        ("dy", wintypes.LONG),
-        ("mouseData", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.c_size_t),
+        ("位移x", 窗口类型.LONG),
+        ("位移y", 窗口类型.LONG),
+        ("鼠标数据", 窗口类型.DWORD),
+        ("标志位", 窗口类型.DWORD),
+        ("时间戳", 窗口类型.DWORD),
+        ("附加信息", ctypes.c_size_t),
     ]
 
 
-class _INPUTUNION(ctypes.Union):
-    _fields_ = [("mi", MOUSEINPUT)]
+class _输入联合(ctypes.Union):
+    _fields_ = [("鼠标输入结构", 鼠标输入)]
 
 
-class INPUT(ctypes.Structure):
-    _anonymous_ = ("u",)
-    _fields_ = [("type", wintypes.DWORD), ("u", _INPUTUNION)]
+class 输入(ctypes.Structure):
+    _anonymous_ = ("联合体",)
+    _fields_ = [("输入类型", 窗口类型.DWORD), ("联合体", _输入联合)]
 
 
-class POINT(ctypes.Structure):
-    _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
+class 点坐标(ctypes.Structure):
+    _fields_ = [("横坐标", 窗口类型.LONG), ("纵坐标", 窗口类型.LONG)]
 
 
-SendInput = user32.SendInput
-SendInput.argtypes = (wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int)
-SendInput.restype = wintypes.UINT
-GetCursorPos = user32.GetCursorPos
-GetCursorPos.argtypes = (ctypes.POINTER(POINT),)
-GetCursorPos.restype = wintypes.BOOL
-PrintWindow = user32.PrintWindow
-PrintWindow.argtypes = (wintypes.HWND, wintypes.HDC, wintypes.UINT)
-PrintWindow.restype = wintypes.BOOL
+发送输入 = 用户库.SendInput
+发送输入.argtypes = (窗口类型.UINT, ctypes.POINTER(输入), ctypes.c_int)
+发送输入.restype = 窗口类型.UINT
+获取光标位置 = 用户库.GetCursorPos
+获取光标位置.argtypes = (ctypes.POINTER(点坐标),)
+获取光标位置.restype = 窗口类型.BOOL
+打印窗口 = 用户库.PrintWindow
+打印窗口.argtypes = (窗口类型.HWND, 窗口类型.HDC, 窗口类型.UINT)
+打印窗口.restype = 窗口类型.BOOL
 
 
-class WindowTool:
-    def __init__(self, hwnd: int):
-        if not win32gui.IsWindow(hwnd):
-            raise ValueError(f"无效窗口句柄: {hwnd}")
-        self.hwnd = hwnd
+class 窗口工具类:
+    def __init__(self, 窗口句柄: int):
+        if not 窗口图形.IsWindow(窗口句柄):
+            raise ValueError(f"无效窗口句柄: {窗口句柄}")
+        self.窗口句柄 = 窗口句柄
 
-    def _normalize_rect(self, x1, y1, x2, y2):
-        left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
-        client_w, client_h = right - left, bottom - top
-        if client_w <= 0 or client_h <= 0:
+    def _规范化区域(self, 左上x, 左上y, 右下x, 右下y):
+        左边, 上边, 右边, 下边 = 窗口图形.GetClientRect(self.窗口句柄)
+        客户区宽, 客户区高 = 右边 - 左边, 下边 - 上边
+        if 客户区宽 <= 0 or 客户区高 <= 0:
             raise RuntimeError("窗口客户区尺寸无效，无法截图")
 
-        if x1 is None or y1 is None or x2 is None or y2 is None:
-            x1, y1, x2, y2 = 0, 0, client_w, client_h
+        if 左上x is None or 左上y is None or 右下x is None or 右下y is None:
+            左上x, 左上y, 右下x, 右下y = 0, 0, 客户区宽, 客户区高
 
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(client_w, x2)
-        y2 = min(client_h, y2)
+        左上x = max(0, 左上x)
+        左上y = max(0, 左上y)
+        右下x = min(客户区宽, 右下x)
+        右下y = min(客户区高, 右下y)
 
-        width = x2 - x1
-        height = y2 - y1
-        if width <= 0 or height <= 0:
-            raise ValueError("截图区域无效，请检查 x1/y1/x2/y2")
+        宽度 = 右下x - 左上x
+        高度 = 右下y - 左上y
+        if 宽度 <= 0 or 高度 <= 0:
+            raise ValueError("截图区域无效，请检查 左上x/左上y/右下x/右下y")
 
-        return x1, y1, width, height
+        return 左上x, 左上y, 宽度, 高度
 
     @staticmethod
-    def _get_mouse_path(current_x, current_y, target_x, target_y, min_n=10):
-        trajectory = []
-        dct = {
+    def _获取鼠标路径(当前x, 当前y, 目标x, 目标y, 最小阈值=10):
+        轨迹 = []
+        距离系数表 = {
             550: 1,
             300: 2.1,
             200: 2.2,
@@ -116,287 +116,290 @@ class WindowTool:
             25: 2.58,
             0: 2.6,
         }
-        step_v = 2
+        速度步进系数 = 2
         while True:
-            distance = ((target_x - current_x) ** 2 + (target_y - current_y) ** 2) ** 0.5
-            if distance <= min_n:
+            距离 = ((目标x - 当前x) ** 2 + (目标y - 当前y) ** 2) ** 0.5
+            if 距离 <= 最小阈值:
                 break
-            for k, v in dct.items():
-                if distance > k:
-                    move_distance = distance / (v + step_v)
+            for 阈值, 系数 in 距离系数表.items():
+                if 距离 > 阈值:
+                    移动距离 = 距离 / (系数 + 速度步进系数)
                     break
             else:
-                move_distance = 1
+                移动距离 = 1
 
-            direction_x = (target_x - current_x) / distance
-            direction_y = (target_y - current_y) / distance
-            step_x = round(direction_x * move_distance)
-            step_y = round(direction_y * move_distance)
-            current_x += step_x
-            current_y += step_y
-            trajectory.append([step_x, step_y])
+            方向x = (目标x - 当前x) / 距离
+            方向y = (目标y - 当前y) / 距离
+            步进x = round(方向x * 移动距离)
+            步进y = round(方向y * 移动距离)
+            当前x += 步进x
+            当前y += 步进y
+            轨迹.append([步进x, 步进y])
 
-        trajectory.append((target_x - current_x, target_y - current_y))
-        return trajectory
+        轨迹.append((目标x - 当前x, 目标y - 当前y))
+        return 轨迹
 
     @staticmethod
-    def _mouse_move_relative(dx: int, dy: int):
-        event = INPUT(type=INPUT_MOUSE, mi=MOUSEINPUT(dx=dx, dy=dy, dwFlags=MOUSEEVENTF_MOVE))
-        sent = SendInput(1, ctypes.byref(event), ctypes.sizeof(INPUT))
-        if sent != 1:
+    def _鼠标相对移动(位移x: int, 位移y: int):
+        输入事件 = 输入(
+            输入类型=输入类型鼠标,
+            鼠标输入结构=鼠标输入(位移x=位移x, 位移y=位移y, 标志位=鼠标事件移动),
+        )
+        已发送 = 发送输入(1, ctypes.byref(输入事件), ctypes.sizeof(输入))
+        if 已发送 != 1:
             raise ctypes.WinError(ctypes.get_last_error())
 
-    def move_mouse_relative(self, dx: int, dy: int, min_n: int = 10, interval: float = 0.002):
+    def 鼠标相对平滑移动(self, 位移x: int, 位移y: int, 最小阈值: int = 10, 间隔秒: float = 0.002):
         """
-        参考 get_mouse_path + MouseMoveRELATIVE 的平滑相对移动。
-        dx/dy 为总相对位移（屏幕坐标系）。
+        参考鼠标路径算法 + 鼠标相对移动接口的平滑相对移动。
+        位移x/位移y 为总相对位移（屏幕坐标系）。
         """
-        total_dx = int(dx)
-        total_dy = int(dy)
-        threshold = max(1, int(min_n))
-        delay = max(0.0, float(interval))
+        总位移x = int(位移x)
+        总位移y = int(位移y)
+        阈值 = max(1, int(最小阈值))
+        延时 = max(0.0, float(间隔秒))
 
-        path = self._get_mouse_path(0, 0, total_dx, total_dy, threshold)
-        for step_x, step_y in path:
-            self._mouse_move_relative(int(step_x), int(step_y))
-            if delay > 0:
-                time.sleep(delay)
-        return path
+        路径 = self._获取鼠标路径(0, 0, 总位移x, 总位移y, 阈值)
+        for 步进x, 步进y in 路径:
+            self._鼠标相对移动(int(步进x), int(步进y))
+            if 延时 > 0:
+                time.sleep(延时)
+        return 路径
 
-    def move_mouse_to_screen(self, x: int, y: int, min_n: int = 10, interval: float = 0.002):
+    def 鼠标移动到屏幕坐标(self, 目标x: int, 目标y: int, 最小阈值: int = 10, 间隔秒: float = 0.002):
         """
         从当前鼠标位置平滑移动到屏幕绝对坐标 (x, y)。
         """
-        pt = POINT()
-        ok = GetCursorPos(ctypes.byref(pt))
-        if not ok:
+        光标点 = 点坐标()
+        是否成功 = 获取光标位置(ctypes.byref(光标点))
+        if not 是否成功:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        target_x = int(x)
-        target_y = int(y)
-        dx = target_x - int(pt.x)
-        dy = target_y - int(pt.y)
-        return self.move_mouse_relative(dx, dy, min_n=min_n, interval=interval)
+        目标x = int(目标x)
+        目标y = int(目标y)
+        位移x = 目标x - int(光标点.横坐标)
+        位移y = 目标y - int(光标点.纵坐标)
+        return self.鼠标相对平滑移动(位移x, 位移y, 最小阈值=最小阈值, 间隔秒=间隔秒)
 
     @staticmethod
-    def _bitmap_to_bgr(h_dc, h_bitmap, width, height) -> np.ndarray:
-        padding = (4 - (width * 3) % 4) % 4
-        line_size = width * 3 + padding
-        image_size = height * line_size
+    def _位图转蓝绿红(设备上下文句柄, 位图句柄, 宽度, 高度) -> 数组库.ndarray:
+        行填充 = (4 - (宽度 * 3) % 4) % 4
+        行字节数 = 宽度 * 3 + 行填充
+        图像字节数 = 高度 * 行字节数
 
-        bmi = BITMAPINFO()
-        bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-        bmi.bmiHeader.biWidth = width
-        bmi.bmiHeader.biHeight = -height
-        bmi.bmiHeader.biPlanes = 1
-        bmi.bmiHeader.biBitCount = 24
-        bmi.bmiHeader.biCompression = BI_RGB
-        bmi.bmiHeader.biSizeImage = image_size
+        位图信息实例 = 位图信息()
+        位图信息实例.位图头.位图大小 = ctypes.sizeof(位图信息头)
+        位图信息实例.位图头.位图宽度 = 宽度
+        位图信息实例.位图头.位图高度 = -高度
+        位图信息实例.位图头.颜色平面数 = 1
+        位图信息实例.位图头.位深 = 24
+        位图信息实例.位图头.压缩方式 = 位图红绿蓝
+        位图信息实例.位图头.图像字节大小 = 图像字节数
 
-        buffer = ctypes.create_string_buffer(image_size)
-        scan_lines = gdi32.GetDIBits(
-            h_dc, h_bitmap, 0, height, buffer, ctypes.byref(bmi), DIB_RGB_COLORS
+        缓冲区 = ctypes.create_string_buffer(图像字节数)
+        扫描行数 = 图形库.GetDIBits(
+            设备上下文句柄, 位图句柄, 0, 高度, 缓冲区, ctypes.byref(位图信息实例), 彩色位图
         )
-        if scan_lines == 0:
+        if 扫描行数 == 0:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, line_size))
-        img_bgr = arr[:, : width * 3].reshape((height, width, 3))
-        return img_bgr.copy()
+        像素数组 = 数组库.frombuffer(缓冲区, dtype=数组库.uint8).reshape((高度, 行字节数))
+        图像蓝绿红 = 像素数组[:, : 宽度 * 3].reshape((高度, 宽度, 3))
+        return 图像蓝绿红.copy()
 
-    def move_window(self, x: int, y: int, repaint: bool = True):
+    def 移动窗口(self, 目标x: int, 目标y: int, 需要重绘: bool = True):
         """
         移动窗口到指定屏幕坐标，保持窗口当前尺寸不变。
         """
-        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
-        width = right - left
-        height = bottom - top
-        if width <= 0 or height <= 0:
+        左边, 上边, 右边, 下边 = 窗口图形.GetWindowRect(self.窗口句柄)
+        宽度 = 右边 - 左边
+        高度 = 下边 - 上边
+        if 宽度 <= 0 or 高度 <= 0:
             raise RuntimeError("窗口尺寸无效，无法移动")
 
         try:
-            win32gui.MoveWindow(self.hwnd, int(x), int(y), width, height, repaint)
-        except win32gui.error as e:
-            raise RuntimeError(f"移动窗口失败: {e}") from e
-        return win32gui.GetWindowRect(self.hwnd)
+            窗口图形.MoveWindow(self.窗口句柄, int(目标x), int(目标y), 宽度, 高度, 需要重绘)
+        except 窗口图形.error as 错误:
+            raise RuntimeError(f"移动窗口失败: {错误}") from 错误
+        return 窗口图形.GetWindowRect(self.窗口句柄)
 
-    def resize_client_area(self, client_width: int, client_height: int, repaint: bool = True):
+    def 调整客户区大小(self, 目标客户区宽: int, 目标客户区高: int, 需要重绘: bool = True):
         """
         调整窗口客户区（工作区）尺寸，不改变当前窗口左上角位置。
         """
-        client_width = int(client_width)
-        client_height = int(client_height)
-        if client_width <= 0 or client_height <= 0:
+        目标客户区宽 = int(目标客户区宽)
+        目标客户区高 = int(目标客户区高)
+        if 目标客户区宽 <= 0 or 目标客户区高 <= 0:
             raise ValueError("客户区尺寸必须大于 0")
 
-        win_left, win_top, win_right, win_bottom = win32gui.GetWindowRect(self.hwnd)
-        cur_client_left, cur_client_top, cur_client_right, cur_client_bottom = win32gui.GetClientRect(
-            self.hwnd
+        窗口左, 窗口上, 窗口右, 窗口下 = 窗口图形.GetWindowRect(self.窗口句柄)
+        当前客户左, 当前客户上, 当前客户右, 当前客户下 = 窗口图形.GetClientRect(
+            self.窗口句柄
         )
-        cur_client_width = cur_client_right - cur_client_left
-        cur_client_height = cur_client_bottom - cur_client_top
-        if cur_client_width <= 0 or cur_client_height <= 0:
+        当前客户区宽 = 当前客户右 - 当前客户左
+        当前客户区高 = 当前客户下 - 当前客户上
+        if 当前客户区宽 <= 0 or 当前客户区高 <= 0:
             raise RuntimeError("当前客户区尺寸无效，无法调整")
 
-        frame_w = (win_right - win_left) - cur_client_width
-        frame_h = (win_bottom - win_top) - cur_client_height
-        target_window_w = client_width + frame_w
-        target_window_h = client_height + frame_h
-        if target_window_w <= 0 or target_window_h <= 0:
+        边框宽 = (窗口右 - 窗口左) - 当前客户区宽
+        边框高 = (窗口下 - 窗口上) - 当前客户区高
+        目标窗口宽 = 目标客户区宽 + 边框宽
+        目标窗口高 = 目标客户区高 + 边框高
+        if 目标窗口宽 <= 0 or 目标窗口高 <= 0:
             raise RuntimeError("计算后的窗口尺寸无效，请检查参数")
 
         try:
-            win32gui.MoveWindow(
-                self.hwnd, win_left, win_top, target_window_w, target_window_h, repaint
+            窗口图形.MoveWindow(
+                self.窗口句柄, 窗口左, 窗口上, 目标窗口宽, 目标窗口高, 需要重绘
             )
-        except win32gui.error as e:
-            raise RuntimeError(f"调整客户区尺寸失败: {e}") from e
-        return win32gui.GetClientRect(self.hwnd)
+        except 窗口图形.error as 错误:
+            raise RuntimeError(f"调整客户区尺寸失败: {错误}") from 错误
+        return 窗口图形.GetClientRect(self.窗口句柄)
 
-    def capture_background(self, x1=None, y1=None, x2=None, y2=None) -> np.ndarray:
-        x1, y1, width, height = self._normalize_rect(x1, y1, x2, y2)
+    def 后台截图(self, 左上x=None, 左上y=None, 右下x=None, 右下y=None) -> 数组库.ndarray:
+        左上x, 左上y, 宽度, 高度 = self._规范化区域(左上x, 左上y, 右下x, 右下y)
 
-        h_wnd_dc = user32.GetDC(self.hwnd)
-        if not h_wnd_dc:
+        窗口设备上下文 = 用户库.GetDC(self.窗口句柄)
+        if not 窗口设备上下文:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_mem_dc = gdi32.CreateCompatibleDC(h_wnd_dc)
-        if not h_mem_dc:
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        内存设备上下文 = 图形库.CreateCompatibleDC(窗口设备上下文)
+        if not 内存设备上下文:
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_bitmap = gdi32.CreateCompatibleBitmap(h_wnd_dc, width, height)
-        if not h_bitmap:
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        位图句柄 = 图形库.CreateCompatibleBitmap(窗口设备上下文, 宽度, 高度)
+        if not 位图句柄:
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
-        if not old_obj:
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        旧对象句柄 = 图形库.SelectObject(内存设备上下文, 位图句柄)
+        if not 旧对象句柄:
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
         try:
-            ok = gdi32.BitBlt(h_mem_dc, 0, 0, width, height, h_wnd_dc, x1, y1, SRCCOPY)
-            if not ok:
+            是否成功 = 图形库.BitBlt(内存设备上下文, 0, 0, 宽度, 高度, 窗口设备上下文, 左上x, 左上y, 位块复制)
+            if not 是否成功:
                 raise ctypes.WinError(ctypes.get_last_error())
-            return self._bitmap_to_bgr(h_mem_dc, h_bitmap, width, height)
+            return self._位图转蓝绿红(内存设备上下文, 位图句柄, 宽度, 高度)
         finally:
-            gdi32.SelectObject(h_mem_dc, old_obj)
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            图形库.SelectObject(内存设备上下文, 旧对象句柄)
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
 
-    def capture_foreground(self, x1=None, y1=None, x2=None, y2=None) -> np.ndarray:
-        x1, y1, width, height = self._normalize_rect(x1, y1, x2, y2)
-        screen_x, screen_y = win32gui.ClientToScreen(self.hwnd, (0, 0))
-        src_x = screen_x + x1
-        src_y = screen_y + y1
+    def 前台截图(self, 左上x=None, 左上y=None, 右下x=None, 右下y=None) -> 数组库.ndarray:
+        左上x, 左上y, 宽度, 高度 = self._规范化区域(左上x, 左上y, 右下x, 右下y)
+        屏幕x, 屏幕y = 窗口图形.ClientToScreen(self.窗口句柄, (0, 0))
+        源x = 屏幕x + 左上x
+        源y = 屏幕y + 左上y
 
-        screen_w = user32.GetSystemMetrics(0)
-        screen_h = user32.GetSystemMetrics(1)
-        if src_x >= screen_w:
-            raise ValueError(f"起始坐标超过屏幕横轴 {src_x} >= {screen_w}")
-        if src_y >= screen_h:
-            raise ValueError(f"起始坐标超过屏幕纵轴 {src_y} >= {screen_h}")
+        屏幕宽 = 用户库.GetSystemMetrics(0)
+        屏幕高 = 用户库.GetSystemMetrics(1)
+        if 源x >= 屏幕宽:
+            raise ValueError(f"起始坐标超过屏幕横轴 {源x} >= {屏幕宽}")
+        if 源y >= 屏幕高:
+            raise ValueError(f"起始坐标超过屏幕纵轴 {源y} >= {屏幕高}")
 
-        h_screen_dc = user32.GetDC(0)
-        if not h_screen_dc:
+        屏幕设备上下文 = 用户库.GetDC(0)
+        if not 屏幕设备上下文:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_mem_dc = gdi32.CreateCompatibleDC(h_screen_dc)
-        if not h_mem_dc:
-            user32.ReleaseDC(0, h_screen_dc)
+        内存设备上下文 = 图形库.CreateCompatibleDC(屏幕设备上下文)
+        if not 内存设备上下文:
+            用户库.ReleaseDC(0, 屏幕设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_bitmap = gdi32.CreateCompatibleBitmap(h_screen_dc, width, height)
-        if not h_bitmap:
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(0, h_screen_dc)
+        位图句柄 = 图形库.CreateCompatibleBitmap(屏幕设备上下文, 宽度, 高度)
+        if not 位图句柄:
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(0, 屏幕设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
-        if not old_obj:
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(0, h_screen_dc)
+        旧对象句柄 = 图形库.SelectObject(内存设备上下文, 位图句柄)
+        if not 旧对象句柄:
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(0, 屏幕设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
         try:
-            ok = gdi32.BitBlt(h_mem_dc, 0, 0, width, height, h_screen_dc, src_x, src_y, SRCCOPY)
-            if not ok:
+            是否成功 = 图形库.BitBlt(内存设备上下文, 0, 0, 宽度, 高度, 屏幕设备上下文, 源x, 源y, 位块复制)
+            if not 是否成功:
                 raise ctypes.WinError(ctypes.get_last_error())
-            return self._bitmap_to_bgr(h_mem_dc, h_bitmap, width, height)
+            return self._位图转蓝绿红(内存设备上下文, 位图句柄, 宽度, 高度)
         finally:
-            gdi32.SelectObject(h_mem_dc, old_obj)
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(0, h_screen_dc)
+            图形库.SelectObject(内存设备上下文, 旧对象句柄)
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(0, 屏幕设备上下文)
 
-    def capture_printwindow(self, x1=None, y1=None, x2=None, y2=None, render_full: bool = True) -> np.ndarray:
+    def 打印窗口截图(self, 左上x=None, 左上y=None, 右下x=None, 右下y=None, 完整渲染: bool = True) -> 数组库.ndarray:
         """
-        使用 PrintWindow 进行后台截图（尽量获取遮挡/最小化窗口内容）。
-        坐标参数使用客户区坐标系，行为与 capture_background 保持一致。
+        使用打印窗口接口进行后台截图（尽量获取遮挡/最小化窗口内容）。
+        坐标参数使用客户区坐标系，行为与后台截图保持一致。
         """
-        crop_x, crop_y, crop_w, crop_h = self._normalize_rect(x1, y1, x2, y2)
-        _, _, client_w, client_h = self._normalize_rect(0, 0, None, None)
+        裁剪x, 裁剪y, 裁剪宽, 裁剪高 = self._规范化区域(左上x, 左上y, 右下x, 右下y)
+        _, _, 客户区宽, 客户区高 = self._规范化区域(0, 0, None, None)
 
-        h_wnd_dc = user32.GetDC(self.hwnd)
-        if not h_wnd_dc:
+        窗口设备上下文 = 用户库.GetDC(self.窗口句柄)
+        if not 窗口设备上下文:
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_mem_dc = gdi32.CreateCompatibleDC(h_wnd_dc)
-        if not h_mem_dc:
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        内存设备上下文 = 图形库.CreateCompatibleDC(窗口设备上下文)
+        if not 内存设备上下文:
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        h_bitmap = gdi32.CreateCompatibleBitmap(h_wnd_dc, client_w, client_h)
-        if not h_bitmap:
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        位图句柄 = 图形库.CreateCompatibleBitmap(窗口设备上下文, 客户区宽, 客户区高)
+        if not 位图句柄:
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
-        old_obj = gdi32.SelectObject(h_mem_dc, h_bitmap)
-        if not old_obj:
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+        旧对象句柄 = 图形库.SelectObject(内存设备上下文, 位图句柄)
+        if not 旧对象句柄:
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
             raise ctypes.WinError(ctypes.get_last_error())
 
         try:
-            flags = PW_CLIENTONLY | (PW_RENDERFULLCONTENT if render_full else 0)
-            ok = PrintWindow(self.hwnd, h_mem_dc, flags)
-            if not ok:
-                raise RuntimeError("PrintWindow 截图失败，目标窗口可能不支持该方式")
+            标志位 = 仅客户端 | (完整渲染内容 if 完整渲染 else 0)
+            是否成功 = 打印窗口(self.窗口句柄, 内存设备上下文, 标志位)
+            if not 是否成功:
+                raise RuntimeError("打印窗口接口截图失败，目标窗口可能不支持该方式")
 
-            full_img = self._bitmap_to_bgr(h_mem_dc, h_bitmap, client_w, client_h)
-            return full_img[crop_y : crop_y + crop_h, crop_x : crop_x + crop_w].copy()
+            完整图像 = self._位图转蓝绿红(内存设备上下文, 位图句柄, 客户区宽, 客户区高)
+            return 完整图像[裁剪y : 裁剪y + 裁剪高, 裁剪x : 裁剪x + 裁剪宽].copy()
         finally:
-            gdi32.SelectObject(h_mem_dc, old_obj)
-            gdi32.DeleteObject(h_bitmap)
-            gdi32.DeleteDC(h_mem_dc)
-            user32.ReleaseDC(self.hwnd, h_wnd_dc)
+            图形库.SelectObject(内存设备上下文, 旧对象句柄)
+            图形库.DeleteObject(位图句柄)
+            图形库.DeleteDC(内存设备上下文)
+            用户库.ReleaseDC(self.窗口句柄, 窗口设备上下文)
 
 
 if __name__ == "__main__":
     # 示例：把下面这个句柄替换为你自己的窗口句柄（十进制整数）
-    target_hwnd = 3739680
+    目标窗口句柄 = 3739680
 
-    if target_hwnd == 0:
-        raise SystemExit("请先把 target_hwnd 改成目标窗口句柄")
+    if 目标窗口句柄 == 0:
+        raise SystemExit("请先把 目标窗口句柄 改成目标窗口句柄")
 
-    cap = WindowTool(target_hwnd)
+    窗口工具 = 窗口工具类(目标窗口句柄)
     # 前台截图（可见内容）
-    # frame = cap.capture_foreground()
-    # 后台截图（窗口 DC）
-    # cap.move_mouse_to_screen(100, 100)
-    # frame = cap.resize_client_area(700,700)
-    frame = cap.capture_background()
-    # frame = cap.capture_printwindow()
+    # 图像帧 = 窗口工具.前台截图()
+    # 后台截图（窗口设备上下文）
+    # 窗口工具.鼠标移动到屏幕坐标(100, 100)
+    # 图像帧 = 窗口工具.调整客户区大小(700,700)
+    图像帧 = 窗口工具.后台截图()
+    # 图像帧 = 窗口工具.打印窗口截图()
 
     
-    cv2.imshow("window_capture", frame)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    视觉库.imshow("窗口截图", 图像帧)
+    视觉库.waitKey(0)
+    视觉库.destroyAllWindows()
