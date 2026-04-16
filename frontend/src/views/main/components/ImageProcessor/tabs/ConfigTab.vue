@@ -404,173 +404,181 @@
                 </el-button>
               </div>
               <template v-if="elementEntriesForScreen.length">
-                <div class="proto-element-list">
-                <div
-                  v-for="([elementName, element], elementIndex) in elementEntriesForScreen"
-                  :key="elementName"
-                  class="proto-button-card proto-button-card--element"
+                <el-collapse
+                  v-model="elementCollapseActiveNames"
+                  class="proto-element-list proto-element-collapse"
                 >
-                  <div class="proto-button-header">
-                    <div class="proto-element-title-wrap">
-                      <span class="proto-element-order">{{ elementIndex + 1 }}</span>
-                      <span class="proto-button-name proto-element-name" :title="elementName">
-                        {{ elementName }}
-                      </span>
-                      <span class="proto-element-type-chip">
-                        {{ element?.类型 ?? "-" }}
-                      </span>
-                    </div>
-                    <div class="proto-button-actions">
-                      <el-button
-                        v-if="!isFixedAreaType(element?.类型)"
-                        type="primary"
-                        size="small"
-                        link
-                        @click="handleTestByPath(buildPathKeysForElement(elementName))"
-                      >
-                        测试
-                      </el-button>
-                      <el-button
-                        type="danger"
-                        size="small"
-                        link
-                        @click="handleDeleteByPath(buildPathKeysForElement(elementName))"
-                      >
-                        删除
-                      </el-button>
-                    </div>
-                  </div>
-                  <template v-if="isFixedAreaType(element?.类型)">
-                    <div class="proto-field-group">
-                      <div class="proto-field-label">固定点击区域</div>
-                      <el-input
-                        v-model="element.固定点击区域"
-                        size="small"
-                        class="proto-input"
-                        @blur="
-                          onElementFieldBlur(
-                            elementName,
-                            '固定点击区域',
-                            element.固定点击区域
-                          )
-                        "
-                      />
-                    </div>
-                  </template>
-              <template v-else>
-                    <div class="proto-inline-group">
-                      <div class="proto-inline-field">
-                        <div class="proto-field-label">相似度</div>
-                        <el-input-number
-                          :model-value="Number(element?.相似度 ?? 0.9)"
-                          :min="0"
-                          :max="1"
-                          :step="0.01"
-                          :precision="2"
-                          size="small"
-                          class="proto-input-full"
-                          controls-position="right"
-                          @change="(v) => onElementSimilarityCommit(elementName, v)"
-                        />
-                      </div>
-                      <div class="proto-inline-field proto-inline-field--grow">
-                        <div class="proto-field-label">查询范围</div>
-                        <el-input
-                          v-model="element.查找区域"
-                          size="small"
-                          class="proto-input"
-                          @blur="
-                            onElementFieldBlur(
-                              elementName,
-                              '查找区域',
-                              element.查找区域
-                            )
-                          "
-                        />
-                      </div>
-                    </div>
-                    <div class="proto-field-group">
-                      <div class="proto-feature-header">
-                        <div class="proto-feature-header-left">
-                          <span>特征列表</span>
-                          <span class="proto-feature-type-tag">
+                  <el-collapse-item
+                    v-for="([elementName, element], elementIndex) in elementEntriesForScreen"
+                    :key="elementName"
+                    :name="elementName"
+                    class="proto-element-collapse-item proto-button-card proto-button-card--element"
+                  >
+                    <template #title>
+                      <div class="proto-element-collapse-title">
+                        <div class="proto-element-title-wrap">
+                          <span class="proto-element-order">{{ elementIndex + 1 }}</span>
+                          <span class="proto-button-name proto-element-name" :title="elementName">
+                            {{ elementName }}
+                          </span>
+                          <span class="proto-element-type-chip">
                             {{ element?.类型 ?? "-" }}
                           </span>
                         </div>
-                        <el-button
-                          type="primary"
-                          size="small"
-                          link
-                          @click="handleAddConfigByPath(buildPathKeysForElement(elementName))"
-                        >
-                          制作点阵/添加图片
-                        </el-button>
-                      </div>
-                      <template v-if="getElementFeatureItems(elementName).length">
-                        <div class="proto-feature-grid">
-                          <div
-                            v-for="item in getElementFeatureItems(elementName)"
-                            :key="item.kind + '-' + item.name"
-                            class="proto-feature-cell"
+                        <div class="proto-button-actions" @click.stop>
+                          <el-button
+                            v-if="!isFixedAreaType(element?.类型)"
+                            type="primary"
+                            size="small"
+                            link
+                            @click="handleTestByPath(buildPathKeysForElement(elementName))"
                           >
-                            <div class="proto-feature-thumb-wrap">
-                              <el-image
-                                v-if="item.previewUrl"
-                                :src="item.previewUrl"
-                                fit="contain"
-                                class="proto-feature-thumb"
-                                :preview-src-list="[item.previewUrl]"
-                                preview-teleported
-                              />
+                            测试
+                          </el-button>
+                          <el-button
+                            type="danger"
+                            size="small"
+                            link
+                            @click="handleDeleteByPath(buildPathKeysForElement(elementName))"
+                          >
+                            删除
+                          </el-button>
+                        </div>
+                      </div>
+                    </template>
+                    <div class="proto-element-collapse-body">
+                      <template v-if="isFixedAreaType(element?.类型)">
+                        <div class="proto-field-group">
+                          <div class="proto-field-label">固定点击区域</div>
+                          <el-input
+                            v-model="element.固定点击区域"
+                            size="small"
+                            class="proto-input"
+                            @blur="
+                              onElementFieldBlur(
+                                elementName,
+                                '固定点击区域',
+                                element.固定点击区域
+                              )
+                            "
+                          />
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="proto-inline-group">
+                          <div class="proto-inline-field">
+                            <div class="proto-field-label">相似度</div>
+                            <el-input-number
+                              :model-value="Number(element?.相似度 ?? 0.9)"
+                              :min="0"
+                              :max="1"
+                              :step="0.01"
+                              :precision="2"
+                              size="small"
+                              class="proto-input-full"
+                              controls-position="right"
+                              @change="(v) => onElementSimilarityCommit(elementName, v)"
+                            />
+                          </div>
+                          <div class="proto-inline-field proto-inline-field--grow">
+                            <div class="proto-field-label">查询范围</div>
+                            <el-input
+                              v-model="element.查找区域"
+                              size="small"
+                              class="proto-input"
+                              @blur="
+                                onElementFieldBlur(
+                                  elementName,
+                                  '查找区域',
+                                  element.查找区域
+                                )
+                              "
+                            />
+                          </div>
+                        </div>
+                        <div class="proto-field-group">
+                          <div class="proto-feature-header">
+                            <div class="proto-feature-header-left">
+                              <span>特征列表</span>
+                              <span class="proto-feature-type-tag">
+                                {{ element?.类型 ?? "-" }}
+                              </span>
+                            </div>
+                            <el-button
+                              type="primary"
+                              size="small"
+                              link
+                              @click="handleAddConfigByPath(buildPathKeysForElement(elementName))"
+                            >
+                              制作点阵/添加图片
+                            </el-button>
+                          </div>
+                          <template v-if="getElementFeatureItems(elementName).length">
+                            <div class="proto-feature-grid">
                               <div
-                                v-else
-                                class="proto-feature-thumb proto-feature-thumb--empty"
+                                v-for="item in getElementFeatureItems(elementName)"
+                                :key="item.kind + '-' + item.name"
+                                class="proto-feature-cell"
                               >
-                                无预览
-                              </div>
-                              <div class="proto-feature-actions">
-                                <el-button
-                                  type="primary"
-                                  link
-                                  size="small"
-                                  class="proto-feature-action-btn"
-                                  @click="handleNodeLevelFeatureTest(item, element)"
-                                >
-                                  测试
-                                </el-button>
-                                <el-button
-                                  type="danger"
-                                  link
-                                  size="small"
-                                  class="proto-feature-action-btn"
-                                  @click="handleNodeFeatureDelete(item, element)"
-                                >
-                                  删除
-                                </el-button>
+                                <div class="proto-feature-thumb-wrap">
+                                  <el-image
+                                    v-if="item.previewUrl"
+                                    :src="item.previewUrl"
+                                    fit="contain"
+                                    class="proto-feature-thumb"
+                                    :preview-src-list="[item.previewUrl]"
+                                    preview-teleported
+                                  />
+                                  <div
+                                    v-else
+                                    class="proto-feature-thumb proto-feature-thumb--empty"
+                                  >
+                                    无预览
+                                  </div>
+                                  <div class="proto-feature-actions">
+                                    <el-button
+                                      type="primary"
+                                      link
+                                      size="small"
+                                      class="proto-feature-action-btn"
+                                      @click="handleNodeLevelFeatureTest(item, element)"
+                                    >
+                                      测试
+                                    </el-button>
+                                    <el-button
+                                      type="danger"
+                                      link
+                                      size="small"
+                                      class="proto-feature-action-btn"
+                                      @click="handleNodeFeatureDelete(item, element)"
+                                    >
+                                      删除
+                                    </el-button>
+                                  </div>
+                                </div>
+                                <div class="proto-feature-name" :title="item.name">
+                                  {{ item.name }}
+                                </div>
                               </div>
                             </div>
-                            <div class="proto-feature-name" :title="item.name">
-                              {{ item.name }}
-                            </div>
+                          </template>
+                          <div v-else class="proto-empty-hint">
+                            <template v-if="resolveFeatureModeByType(element?.类型) === 'font'">
+                              暂无点阵，可点击上方「制作点阵/添加图片」后在此查看。
+                            </template>
+                            <template v-else-if="resolveFeatureModeByType(element?.类型) === 'image'">
+                              暂无图片，可点击上方「制作点阵/添加图片」后在此查看。
+                            </template>
+                            <template v-else>
+                              当前类型为「{{ element?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
+                              会在此列出特征。
+                            </template>
                           </div>
                         </div>
                       </template>
-                      <div v-else class="proto-empty-hint">
-                        <template v-if="resolveFeatureModeByType(element?.类型) === 'font'">
-                          暂无点阵，可点击上方「制作点阵/添加图片」后在此查看。
-                        </template>
-                        <template v-else-if="resolveFeatureModeByType(element?.类型) === 'image'">
-                          暂无图片，可点击上方「制作点阵/添加图片」后在此查看。
-                        </template>
-                        <template v-else>
-                          当前类型为「{{ element?.类型 ?? "-" }}」，仅 图片 / 彩图 / 点阵
-                          会在此列出特征。
-                        </template>
-                      </div>
                     </div>
-                  </template>
-                </div>
-                </div>
+                  </el-collapse-item>
+                </el-collapse>
               </template>
               <div v-else class="proto-empty-hint">暂无元素，点击「添加元素」</div>
             </div>
@@ -806,6 +814,9 @@ const elementEntriesForScreen = computed(() => {
       ([, v]) => v != null && typeof v === "object" && !Array.isArray(v)
     );
 });
+
+/** 元素列表折叠面板当前展开的 name（与 el-collapse-item :name 一致） */
+const elementCollapseActiveNames = ref([]);
 
 const screenElementCount = (screenKey) => {
   const elements = data.value?.[screenKey]?.元素;
@@ -1379,6 +1390,7 @@ const ensureScreenShape = (k) => {
 };
 
 watch(selectedRootKey, (k) => {
+  elementCollapseActiveNames.value = [];
   if (k) ensureScreenShape(k);
 });
 
@@ -2924,6 +2936,62 @@ defineExpose({
   gap: 10px;
 }
 
+.proto-element-collapse.proto-element-list {
+  gap: 0;
+  border: none;
+  --el-collapse-border-color: transparent;
+}
+
+.proto-element-collapse :deep(.el-collapse-item.proto-button-card) {
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.proto-element-collapse :deep(.el-collapse-item.proto-button-card:last-child) {
+  margin-bottom: 0;
+}
+
+.proto-element-collapse :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: 40px;
+  line-height: 1.35;
+  padding: 8px 12px 8px 14px;
+  background: transparent;
+  border: none;
+}
+
+.proto-element-collapse :deep(.el-collapse-item__arrow) {
+  margin: 0 6px 0 0;
+  order: -1;
+}
+
+.proto-element-collapse :deep(.el-collapse-item__title) {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-element-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
+}
+
+.proto-element-collapse :deep(.el-collapse-item__content) {
+  padding: 0;
+}
+
+.proto-element-collapse-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+
+.proto-element-collapse-body {
+  padding: 0 12px 10px 14px;
+}
+
 .proto-button-header {
   display: flex;
   justify-content: space-between;
@@ -3029,32 +3097,32 @@ defineExpose({
     0 12px 22px rgba(15, 23, 42, 0.07);
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n + 1) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n + 1).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(224, 242, 254, 0.56), rgba(255, 255, 255, 0.94));
   border-left-color: #0ea5e9;
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n + 2) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n + 2).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(236, 253, 245, 0.62), rgba(255, 255, 255, 0.94));
   border-left-color: #10b981;
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n + 3) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n + 3).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(255, 251, 235, 0.72), rgba(255, 255, 255, 0.94));
   border-left-color: #f59e0b;
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n + 4) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n + 4).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(238, 242, 255, 0.7), rgba(255, 255, 255, 0.94));
   border-left-color: #6366f1;
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n + 5) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n + 5).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(250, 245, 255, 0.72), rgba(255, 255, 255, 0.94));
   border-left-color: #a855f7;
 }
 
-.proto-element-list .proto-button-card--element:nth-child(6n) {
+.proto-element-collapse :deep(.proto-element-collapse-item:nth-child(6n).proto-button-card--element) {
   background: linear-gradient(135deg, rgba(255, 241, 242, 0.72), rgba(255, 255, 255, 0.94));
   border-left-color: #f43f5e;
 }
