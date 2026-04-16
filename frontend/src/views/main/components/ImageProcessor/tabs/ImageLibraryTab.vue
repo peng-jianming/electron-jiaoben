@@ -207,19 +207,34 @@
         </el-button>
 
         <div class="result-section">
-          <el-image
-            :src="resultImageUrl"
-            :preview-src-list="[resultImageUrl]"
-            fit="contain"
-            class="result-image"
-            preview-teleported
-          >
-            <template #placeholder>
-              <div class="preview-placeholder">
-                匹配结果将显示在此处
-              </div>
-            </template>
-          </el-image>
+          <div class="result-cell">
+            <div class="result-label">{{ processedResultCaption }}</div>
+            <el-image
+              :src="processedImageUrl"
+              :preview-src-list="processedPreviewList"
+              fit="contain"
+              class="result-image"
+              preview-teleported
+            >
+              <template #placeholder>
+                <div class="preview-placeholder">匹配开始后显示与算法一致的搜索区</div>
+              </template>
+            </el-image>
+          </div>
+          <div class="result-cell">
+            <div class="result-label">匹配标注（命中阈值时在原图上画框）</div>
+            <el-image
+              :src="resultImageUrl"
+              :preview-src-list="resultPreviewList"
+              fit="contain"
+              class="result-image"
+              preview-teleported
+            >
+              <template #placeholder>
+                <div class="preview-placeholder">达到相似度阈值后显示标注图</div>
+              </template>
+            </el-image>
+          </div>
         </div>
       </div>
     </el-dialog>
@@ -293,7 +308,19 @@ const matching = ref(false);
 const testDialogTitle = computed(() =>
   matchMode.value === "color" ? "模板匹配测试（彩图 · 平方差）" : "模板匹配测试"
 );
+const processedResultCaption = computed(() =>
+  matchMode.value === "color"
+    ? "处理后（搜索区彩图，与匹配一致）"
+    : "处理后（搜索区灰度，与匹配一致）"
+);
 const resultImageUrl = ref(null);
+const processedImageUrl = ref(null);
+const processedPreviewList = computed(() =>
+  processedImageUrl.value ? [processedImageUrl.value] : []
+);
+const resultPreviewList = computed(() =>
+  resultImageUrl.value ? [resultImageUrl.value] : []
+);
 const screenshotLoading = ref(false);
 const isScreenshotPending = ref(false);
 const currentTemplateBase64 = ref("");
@@ -651,6 +678,7 @@ function openTestWithRows(rows, options = {}) {
       : 0.8;
   matchMode.value = options.matchMode === "color" ? "color" : "gray";
   resultImageUrl.value = null;
+  processedImageUrl.value = null;
   matching.value = false;
   testDialogVisible.value = true;
 }
@@ -738,6 +766,7 @@ async function handleMatch() {
 
   matching.value = true;
   resultImageUrl.value = null;
+  processedImageUrl.value = null;
 
   try {
     let largeBase64 = null;
@@ -800,7 +829,14 @@ function handleMatchResult(data) {
   const wasOurRequest = matching.value;
   matching.value = false;
 
+  if (data?.processedImage) {
+    processedImageUrl.value = `data:image/png;base64,${data.processedImage}`;
+  } else {
+    processedImageUrl.value = null;
+  }
+
   if (!data || !data.success) {
+    resultImageUrl.value = null;
     if (wasOurRequest) {
       ElMessage.error(data?.error || "匹配失败");
     }
@@ -809,6 +845,8 @@ function handleMatchResult(data) {
 
   if (data.resultImage) {
     resultImageUrl.value = `data:image/png;base64,${data.resultImage}`;
+  } else {
+    resultImageUrl.value = null;
   }
 
   if (wasOurRequest) {
@@ -1290,11 +1328,13 @@ defineExpose({
 
 .result-section {
   flex: 1;
-  min-height: 80px;
+  min-height: 120px;
+  max-height: 380px;
   overflow: hidden;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: row;
+  gap: 10px;
+  padding: 8px;
   border-radius: 8px;
   background: #0f172a;
   background-image:
@@ -1306,8 +1346,26 @@ defineExpose({
   background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
 }
 
+.result-cell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-label {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  line-height: 1.35;
+}
+
 .result-image {
-  height: 100%;
+  flex: 1;
+  min-height: 140px;
   width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.6);
 }
 </style>

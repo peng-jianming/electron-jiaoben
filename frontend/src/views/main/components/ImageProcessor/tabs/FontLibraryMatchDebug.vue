@@ -61,18 +61,40 @@
       </el-button>
   
       <div class="result-section">
-        <el-image :src="resultImageUrl" :preview-src-list="[resultImageUrl]" fit="contain" preview-teleported
-          class="result-image">
-          <template #placeholder>
-            <div class="result-placeholder">匹配结果将显示在此处</div>
-          </template>
-        </el-image>
+        <div class="result-block">
+          <div class="result-caption">处理后（偏色二值化，与点阵匹配使用同一掩码）</div>
+          <el-image
+            :src="processedImageUrl"
+            :preview-src-list="processedPreviewList"
+            fit="contain"
+            preview-teleported
+            class="result-image"
+          >
+            <template #placeholder>
+              <div class="result-placeholder">匹配开始后显示二值化效果</div>
+            </template>
+          </el-image>
+        </div>
+        <div class="result-block">
+          <div class="result-caption">匹配标注（命中时在原图上画框）</div>
+          <el-image
+            :src="resultImageUrl"
+            :preview-src-list="resultPreviewList"
+            fit="contain"
+            preview-teleported
+            class="result-image"
+          >
+            <template #placeholder>
+              <div class="result-placeholder">命中匹配后显示标注图</div>
+            </template>
+          </el-image>
+        </div>
       </div>
     </div>
   </template>
   
   <script setup>
-  import { ref, watch, onMounted, onUnmounted } from "vue";
+  import { ref, watch, computed, onMounted, onUnmounted } from "vue";
   import { ElMessage } from "element-plus";
   import { Close } from "@element-plus/icons-vue";
   import { ipc } from "@/utils/ipcRenderer";
@@ -119,6 +141,14 @@
   const similarity = ref(0.8);
   const matching = ref(false);
   const resultImageUrl = ref(null);
+  /** 后端返回的偏色二值化调试图（成败均有，便于对照） */
+  const processedImageUrl = ref(null);
+  const processedPreviewList = computed(() =>
+    processedImageUrl.value ? [processedImageUrl.value] : []
+  );
+  const resultPreviewList = computed(() =>
+    resultImageUrl.value ? [resultImageUrl.value] : []
+  );
   const matchResult = ref(null);
   const screenshotLoading = ref(false);
   const isScreenshotPending = ref(false);
@@ -338,6 +368,7 @@
   
     matching.value = true;
     resultImageUrl.value = null;
+    processedImageUrl.value = null;
     matchResult.value = null;
   
     try {
@@ -400,20 +431,32 @@
   function handleMatchResult(data) {
     const wasOurRequest = matching.value;
     matching.value = false;
-  
+
+    if (data?.processedImage) {
+      processedImageUrl.value = `data:image/png;base64,${data.processedImage}`;
+    } else {
+      processedImageUrl.value = null;
+    }
+
     if (!data || !data.success) {
+      resultImageUrl.value = null;
+      matchResult.value = null;
       if (wasOurRequest) {
         ElMessage.error(data?.error || "匹配失败");
       }
       return;
     }
-  
+
     if (data.resultImage) {
       resultImageUrl.value = `data:image/png;base64,${data.resultImage}`;
+    } else {
+      resultImageUrl.value = null;
     }
-  
+
     if (data.result) {
       matchResult.value = data.result;
+    } else {
+      matchResult.value = null;
     }
     if (wasOurRequest) {
       if (data.result) {
@@ -565,11 +608,13 @@
   
   .result-section {
     flex: 1;
-    min-height: 80px;
-    overflow: hidden;
+    min-height: 120px;
+    max-height: 340px;
+    overflow-y: auto;
     display: flex;
-    justify-content: center;
-    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px;
     border-radius: 8px;
     background: #0f172a;
     background-image:
@@ -583,9 +628,25 @@
     font-size: 12px;
   }
 
+  .result-block {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .result-caption {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 4px;
+    line-height: 1.35;
+  }
+
   .result-image {
-    height: 100%;
+    height: 140px;
     width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.6);
   }
 
   .result-placeholder {

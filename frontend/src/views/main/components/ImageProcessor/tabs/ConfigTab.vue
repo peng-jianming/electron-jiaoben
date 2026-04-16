@@ -598,10 +598,10 @@
       </main>
     </div>
 
-    <!-- 测试弹框：按当前配置项名称（点阵名）查询所有同名点阵进行找字测试 -->
+    <!-- 测试弹框：按当前配置项名称（点阵名）查询所有同名点阵进行点阵测试 -->
     <el-dialog
       v-model="testDialogVisible"
-      title="找字测试"
+      title="点阵测试"
       width="420px"
       destroy-on-close
       :close-on-click-modal="false"
@@ -2158,7 +2158,7 @@ const buildResourceBaseNameFromPathKeys = (keys) => {
   return keys.join("_");
 };
 
-/** 点击测试：点阵则弹出找字测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
+/** 点击测试：点阵则弹出点阵测试弹框；图片则用图片库中同名图片打开模板匹配测试 */
 const handleTest = (node) => {
   if (!node?.path) return;
 

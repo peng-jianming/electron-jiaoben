@@ -12,6 +12,8 @@ from matchImg import (
     opencv模板匹配,
     opencv彩图模板匹配,
     opencv字库找图,
+    opencv字库取搜索二值调试图_from_path,
+    图片库匹配取搜索区调试图_bgr,
     图片库匹配结果应用偏移点击区域,
 )
 
@@ -406,6 +408,25 @@ def 图片库模板匹配(data):
                 int(region.get("h", 0)),
             )
 
+        processed_image_b64 = None
+        try:
+            dbg_roi = 图片库匹配取搜索区调试图_bgr(
+                large_img, region_tuple, match_mode
+            )
+            if dbg_roi is not None:
+                ok_p, buf_p = cv2.imencode(".png", dbg_roi)
+                if ok_p:
+                    processed_image_b64 = base64.b64encode(buf_p).decode("utf-8")
+        except Exception as e:
+            print(f"生成模板匹配搜索区调试图失败: {e}")
+        if not processed_image_b64:
+            try:
+                ok_p, buf_p = cv2.imencode(".png", large_img)
+                if ok_p:
+                    processed_image_b64 = base64.b64encode(buf_p).decode("utf-8")
+            except Exception as e:
+                print(f"生成模板匹配处理图兜底失败: {e}")
+
         # 逐个模板匹配：命中一个达到阈值即返回，不再继续
         match = None
         matched_template_name = ""
@@ -446,17 +467,17 @@ def 图片库模板匹配(data):
 
         if not match:
             if best_similarity >= 0:
-                return _构造事件结果(
-                    "image-match-result",
-                    {
-                        "success": False,
-                        "error": f"未找到满足阈值的匹配，最高相似度: {best_similarity:.4f} < 阈值 {similarity_threshold:.4f}",
-                    },
-                )
-            return _构造事件结果(
-                "image-match-result",
-                {"success": False, "error": "未找到匹配位置"},
-            )
+                fail_msg = {
+                    "success": False,
+                    "error": f"未找到满足阈值的匹配，最高相似度: {best_similarity:.4f} < 阈值 {similarity_threshold:.4f}",
+                }
+                if processed_image_b64:
+                    fail_msg["processedImage"] = processed_image_b64
+                return _构造事件结果("image-match-result", fail_msg)
+            fail_msg = {"success": False, "error": "未找到匹配位置"}
+            if processed_image_b64:
+                fail_msg["processedImage"] = processed_image_b64
+            return _构造事件结果("image-match-result", fail_msg)
 
         # 绘制结果矩形
         x = int(match["x"])
@@ -503,6 +524,8 @@ def 图片库模板匹配(data):
             "resultImage": base64.b64encode(buffer).decode("utf-8"),
             "matchedTemplateName": matched_template_name,
         }
+        if processed_image_b64:
+            message["processedImage"] = processed_image_b64
         return _构造事件结果("image-match-result", message)
 
     except Exception as e:
@@ -586,11 +609,47 @@ def 字库匹配(data):
             )
             print(f"字库匹配 - 查找结果: {result}")
 
+            processed_image_b64 = None
+            try:
+                first_line = font_library_info_array[0]
+                if isinstance(first_line, str) and large_image_path:
+                    dbg_img = opencv字库取搜索二值调试图_from_path(
+                        large_image_path, first_line, region_tuple
+                    )
+                    if dbg_img is not None:
+                        ok_dbg, dbg_buf = cv2.imencode(".png", dbg_img)
+                        if ok_dbg:
+                            processed_image_b64 = base64.b64encode(dbg_buf).decode(
+                                "utf-8"
+                            )
+            except Exception as e:
+                print(f"生成字库二值调试图失败: {e}")
+            if not processed_image_b64:
+                try:
+                    fallback_img = None
+                    if large_image_bytes:
+                        arr = np.frombuffer(large_image_bytes, np.uint8)
+                        fallback_img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                    if fallback_img is None and large_image_path:
+                        fallback_img = cv2.imread(large_image_path)
+                    if fallback_img is not None:
+                        roi_img = 图片库匹配取搜索区调试图_bgr(
+                            fallback_img, region_tuple, "gray"
+                        )
+                        encode_img = roi_img if roi_img is not None else fallback_img
+                        ok_dbg, dbg_buf = cv2.imencode(".png", encode_img)
+                        if ok_dbg:
+                            processed_image_b64 = base64.b64encode(dbg_buf).decode(
+                                "utf-8"
+                            )
+                except Exception as e:
+                    print(f"生成字库处理图兜底失败: {e}")
+
             if result is None:
-                return _构造事件结果(
-                    "font-library-match-result",
-                    {"success": False, "error": "未找到匹配位置"},
-                )
+                fail_msg = {"success": False, "error": "未找到匹配位置"}
+                if processed_image_b64:
+                    fail_msg["processedImage"] = processed_image_b64
+                return _构造事件结果("font-library-match-result", fail_msg)
 
             # 读取大图用于绘制结果：优先使用内存中的 bytes，避免路径编码问题
             large_image = None
@@ -654,6 +713,8 @@ def 字库匹配(data):
                 "result": result,
                 "resultImage": base64.b64encode(buffer).decode("utf-8"),
             }
+            if processed_image_b64:
+                message["processedImage"] = processed_image_b64
             return _构造事件结果("font-library-match-result", message)
 
         finally:

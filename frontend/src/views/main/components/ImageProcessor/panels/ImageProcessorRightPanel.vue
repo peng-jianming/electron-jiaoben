@@ -25,7 +25,7 @@
           @stop-code-generator-selection="$emit('stop-code-generator-selection')"
         />
       </el-tab-pane>
-      <el-tab-pane label="字库" name="font-library" :lazy="false">
+      <el-tab-pane label="点阵库" name="font-library" :lazy="false">
         <FontLibraryTab
           ref="fontLibraryTabRef"
           :current-device-id="currentDeviceId"

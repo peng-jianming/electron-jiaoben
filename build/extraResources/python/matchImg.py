@@ -276,6 +276,141 @@ def opencv字库找图(large_image_path, font_library_info_array, region=(0, 0, 
     return None
 
 
+def 图片库匹配取搜索区调试图_bgr(large_bgr, region=(0, 0, 0, 0), match_mode="gray"):
+    """
+    与 opencv模板匹配 / opencv彩图模板匹配 使用相同的搜索区域裁剪，供调试展示。
+    gray：返回该区域灰度图（转为三通道 BGR）；color：返回该区域 BGR 彩图。
+    """
+    if large_bgr is None:
+        return None
+    mode = str(match_mode or "gray").strip().lower()
+    if mode == "color":
+        裁剪 = _按区域裁剪(large_bgr, region)
+        if 裁剪 is None:
+            return None
+        roi, _, _ = 裁剪
+        return roi.copy()
+    if len(large_bgr.shape) == 3:
+        large_gray = cv2.cvtColor(large_bgr, cv2.COLOR_BGR2GRAY)
+    else:
+        large_gray = large_bgr
+    裁剪 = _按区域裁剪(large_gray, region)
+    if 裁剪 is None:
+        return None
+    roi, _, _ = 裁剪
+    return cv2.cvtColor(roi, cv2.COLOR_GRAY2BGR)
+
+
+def opencv字库取搜索二值调试图_from_path(large_image_path, line, region=(0, 0, 0, 0)):
+    """
+    按字库行偏色规则对大图搜索区域做二值化，与 opencv字库找图单个 中用于匹配的掩码一致；
+    返回全图尺寸的 BGR 图（非搜索区为黑），便于理解匹配成败原因。
+    """
+    line = (line or "").strip()
+    if not line or not large_image_path:
+        return None
+    parts = line.split("&")
+    if len(parts) != 5:
+        return None
+    _matrix_hex, size_info, deviation_str, _name, click_offset_area = [
+        p.strip() for p in parts
+    ]
+    size_parts = size_info.split(",")
+    if len(size_parts) != 3:
+        return None
+    try:
+        small_w = int(size_parts[0])
+        small_h = int(size_parts[1])
+        _total_count = int(size_parts[2])
+    except ValueError:
+        return None
+    target_offset_parts = click_offset_area.split(",")
+    if len(target_offset_parts) != 4:
+        return None
+    try:
+        int(target_offset_parts[0])
+        int(target_offset_parts[1])
+        int(target_offset_parts[2])
+        int(target_offset_parts[3])
+    except ValueError:
+        return None
+    try:
+        large_img = Image.open(large_image_path).convert("RGB")
+        large_array = np.array(large_img)
+    except Exception:
+        return None
+    if large_array is None:
+        return None
+    large_h, large_w = large_array.shape[:2]
+    x, y, width, height = region
+    if x == 0 and y == 0 and width == 0 and height == 0:
+        search_area = large_array
+        offset_x, offset_y = 0, 0
+    else:
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
+        if width <= 0:
+            width = large_w - x
+        if height <= 0:
+            height = large_h - y
+        crop_x = max(0, x)
+        crop_y = max(0, y)
+        crop_width = min(width, large_w - crop_x)
+        crop_height = min(height, large_h - crop_y)
+        if crop_width <= 0 or crop_height <= 0:
+            return None
+        search_area = large_array[crop_y : crop_y + crop_height, crop_x : crop_x + crop_width]
+        offset_x, offset_y = crop_x, crop_y
+    if small_h > search_area.shape[0] or small_w > search_area.shape[1]:
+        return None
+    color_tolerances = deviation_str.split("|")
+    search_binary_combined = np.zeros(
+        (search_area.shape[0], search_area.shape[1]), dtype=np.uint8
+    )
+    搜索二值化结果 = np.zeros(
+        (search_area.shape[0], search_area.shape[1]), dtype=np.uint8
+    )
+    for color_tol in color_tolerances:
+        color_tol = color_tol.strip()
+        if not color_tol:
+            continue
+        try:
+            base_color_hex, tolerance_hex = color_tol.split("-")
+            base_color = np.array(
+                [
+                    int(base_color_hex[0:2], 16),
+                    int(base_color_hex[2:4], 16),
+                    int(base_color_hex[4:6], 16),
+                ],
+                dtype=np.int16,
+            )
+            tolerance = np.array(
+                [
+                    int(tolerance_hex[0:2], 16),
+                    int(tolerance_hex[2:4], 16),
+                    int(tolerance_hex[4:6], 16),
+                ],
+                dtype=np.int16,
+            )
+        except Exception:
+            continue
+        search_int16 = search_area.astype(np.int16)
+        search_diff = np.abs(search_int16 - base_color)
+        search_mask = np.all(search_diff <= tolerance, axis=2)
+        search_binary = np.where(search_mask, 255, 0).astype(np.uint8)
+        search_binary_combined = np.bitwise_or(search_binary_combined, search_binary)
+        下限 = (base_color - tolerance).clip(0, 255).astype(np.uint8)
+        上限 = (base_color + tolerance).clip(0, 255).astype(np.uint8)
+        搜索二值化 = cv2.inRange(search_area, 下限, 上限)
+        搜索二值化结果 = np.bitwise_or(search_binary_combined, 搜索二值化)
+    full_gray = np.zeros((large_h, large_w), dtype=np.uint8)
+    sh, sw = 搜索二值化结果.shape[:2]
+    full_gray[offset_y : offset_y + sh, offset_x : offset_x + sw] = 搜索二值化结果
+    return cv2.cvtColor(full_gray, cv2.COLOR_GRAY2BGR)
+
+
 def opencv字库找图单个(large_image_path, line, region=(0, 0, 0, 0)):
     """
     根据字库行字符串进行颜色偏色找图（单个字库信息）
