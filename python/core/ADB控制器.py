@@ -298,7 +298,7 @@ class ADB控制器类:
             return False
 
         # 百分50的概率直接调用点击
-        if random.random() < 0.5:
+        if random.random() < 0.8:
             return self.点击(x, y)
 
         # 按下
