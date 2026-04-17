@@ -465,6 +465,7 @@ def 卸载(驱动路径):
 class 驱动加载器:
     def __init__(self, 驱动路径):
         self.驱动路径 = 驱动路径
+        print(self.驱动路径)
 
     def 安装(self):
         return 安装(self.驱动路径)
