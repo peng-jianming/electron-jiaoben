@@ -343,8 +343,10 @@ def 获取鼠标移动轨迹(当前x, 当前y,目标x, 目标y, 最小距离阈�
 
 class 鼠标键盘控制器:
     驱动加载器 = None
-    def __init__(self, 窗口句柄 = 0):
-        self.窗口句柄 = 窗口句柄
+    def __init__(self, 窗口句柄: int | None = None):
+        # 未传句柄或传 0 都视为“按全屏操作”
+        self.窗口句柄 = 窗口句柄 if 窗口句柄 else None
+        self.按全屏操作 = self.窗口句柄 is None
         self.键鼠驱动句柄 = self.安装驱动()
         if self.键鼠驱动句柄 is None:
             raise Exception("安装驱动失败")
@@ -534,21 +536,19 @@ class 鼠标键盘控制器:
 
     def 鼠标移动(self, x, y, 模拟真实移动=True, 最小距离阈值=10):
         当前x, 当前y = self.获取当前鼠标位置()
-        if self.窗口句柄 != 0:
-            屏幕x, 屏幕y = self.获取窗口对应屏幕坐标(x, y)
-            x = 屏幕x - 当前x
-            y = 屏幕y - 当前y   
+        # 按全屏操作时，(x,y) 即为屏幕坐标；否则将窗口坐标转为屏幕坐标
+        if self.按全屏操作:
+            目标x, 目标y = x, y
         else:
-            x = x - 当前x
-            y = y - 当前y
+            目标x, 目标y = self.获取窗口对应屏幕坐标(x, y)
 
         if 模拟真实移动:
-            轨迹列表 = 获取鼠标移动轨迹(当前x, 当前y, x, y, 最小距离阈值)
+            轨迹列表 = 获取鼠标移动轨迹(当前x, 当前y, 目标x, 目标y, 最小距离阈值)
             for 步长x, 步长y in 轨迹列表:
                 self.鼠标相对移动(步长x, 步长y)
                 time.sleep(0.002)
         else:
-            self.鼠标相对移动(x, y)
+            self.鼠标相对移动(目标x - 当前x, 目标y - 当前y)
 
     def 鼠标滑动(self, x1, y1, x2, y2, 模拟真实滑动=True, 最小距离阈值=10):
         pass
