@@ -477,7 +477,12 @@ function initDeviceSocket() {
   });
 
   deviceSocket.on("device-screenshot", (data) => {
-    console.log("收到设备截图:", data);
+    console.log("收到设备截图:", {
+      success: data?.success,
+      source: data?.source,
+      error: data?.error,
+      imageBase64Chars: typeof data?.image === "string" ? data.image.length : 0,
+    });
     handleDeviceScreenshot(data);
   });
 }
@@ -525,9 +530,9 @@ function handleDeviceScreenshot(data) {
     return;
   }
   
-  // 检查截图来源，如果是图片匹配调试组件发起的，则忽略（由图片匹配调试组件自己处理）
-  if (source === "image-match-debug") {
-    console.log("忽略图片匹配调试组件的截图，由图片匹配调试组件自己处理");
+  // 检查截图来源，如果是图片/字库匹配调试组件发起的，则忽略（由各调试组件自己处理）
+  if (source === "image-match-debug" || source === "font-library-match-debug") {
+    console.log("忽略匹配调试组件的截图，由对应组件自己处理");
     return;
   }
 

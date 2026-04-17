@@ -155,6 +155,7 @@
   let matchSocket = null;
   /** 点阵匹配：清除上一次超时定时器，避免多次点击导致误报或 matching 卡死 */
   let fontMatchRequestTimeoutId = null;
+  let fontScreenshotRequestTimeoutId = null;
   
   // 格式化相似度显示
   const formatSimilarity = (val) => {
@@ -235,17 +236,32 @@
     });
   
     matchSocket.on("font-library-match-result", (data) => {
-      console.log("收到字库匹配结果:", data);
+      console.log("收到字库匹配结果:", {
+        success: data?.success,
+        error: data?.error,
+        hasResultImage: !!data?.resultImage,
+        hasProcessedImage: !!data?.processedImage,
+      });
       handleMatchResult(data);
     });
     
     matchSocket.on("image-match-result", (data) => {
-      console.log("收到匹配结果:", data);
+      console.log("收到匹配结果:", {
+        success: data?.success,
+        error: data?.error,
+        hasResultImage: !!data?.resultImage,
+        hasProcessedImage: !!data?.processedImage,
+      });
       handleMatchResult(data);
     });
   
     matchSocket.on("device-screenshot", (data) => {
-      console.log("收到设备截图 (ImageMatchDebug):", data);
+      console.log("收到设备截图 (FontLibraryMatchDebug):", {
+        success: data?.success,
+        source: data?.source,
+        pending: isScreenshotPending.value,
+        imageBase64Chars: typeof data?.image === "string" ? data.image.length : 0,
+      });
       // 只处理自己发起的截图请求
       if (isScreenshotPending.value) {
         handleDeviceScreenshot(data);
@@ -288,23 +304,28 @@
       return;
     }
   
+    if (fontScreenshotRequestTimeoutId != null) {
+      clearTimeout(fontScreenshotRequestTimeoutId);
+      fontScreenshotRequestTimeoutId = null;
+    }
+
     screenshotLoading.value = true;
     isScreenshotPending.value = true;
   
     try {
       await ipc.invoke(ipcApiRoute.sendToPython, {
         type: "capture_screenshot",
-        source: "image-match-debug", // 添加来源标识
+        source: "font-library-match-debug",
       });
       // 截图结果会通过 socket 事件返回，在 handleDeviceScreenshot 中处理
-      // 设置超时，防止标志一直存在
-      setTimeout(() => {
+      fontScreenshotRequestTimeoutId = setTimeout(() => {
+        fontScreenshotRequestTimeoutId = null;
         if (isScreenshotPending.value) {
           isScreenshotPending.value = false;
           screenshotLoading.value = false;
           ElMessage.error("截图超时");
         }
-      }, 10000); // 10秒超时
+      }, 10000);
     } catch (error) {
       console.error("截图失败:", error);
       ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
@@ -315,6 +336,10 @@
   
   // 处理设备截图结果
   function handleDeviceScreenshot(data) {
+    if (fontScreenshotRequestTimeoutId != null) {
+      clearTimeout(fontScreenshotRequestTimeoutId);
+      fontScreenshotRequestTimeoutId = null;
+    }
     screenshotLoading.value = false;
     isScreenshotPending.value = false;
   
@@ -506,6 +531,10 @@
     if (fontMatchRequestTimeoutId != null) {
       clearTimeout(fontMatchRequestTimeoutId);
       fontMatchRequestTimeoutId = null;
+    }
+    if (fontScreenshotRequestTimeoutId != null) {
+      clearTimeout(fontScreenshotRequestTimeoutId);
+      fontScreenshotRequestTimeoutId = null;
     }
     if (matchSocket) {
       matchSocket.disconnect();

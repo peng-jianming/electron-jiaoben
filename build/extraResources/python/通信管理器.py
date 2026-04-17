@@ -1,7 +1,12 @@
 import socketio
 import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
+
+# 不进入主消息队列的类型：避免被字库匹配、图片库加载等长任务拖住导致截图长时间无响应
+_旁路消息类型 = frozenset({"capture_screenshot"})
+
 
 class 通信管理器类:
     """
@@ -17,6 +22,10 @@ class 通信管理器类:
         self._消息处理回调 = 消息处理回调
 
         self._消息队列 = Queue()
+        # 单 worker：与主队列并行的截图通道，内部再用 ADB 锁与设备命令串行
+        self._旁路线程池 = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="python-bypass"
+        )
 
         self._客户端 = socketio.Client()
         self._注册事件()
@@ -27,9 +36,14 @@ class 通信管理器类:
 
         @self._客户端.on("python-message")
         def 收到消息(数据):
-            print(f"收到来自 Electron 的消息: {数据}")
             if isinstance(数据, dict) and 数据.get("type"):
-                self._消息队列.put((数据.get("type"), 数据))
+                类型 = 数据.get("type")
+                # 避免打印整包（大图 base64 会拖慢控制台）
+                print(f"收到来自 Electron 的消息 type={类型}")
+                if 类型 in _旁路消息类型:
+                    self._旁路线程池.submit(self._执行旁路消息, 类型, 数据)
+                else:
+                    self._消息队列.put((类型, 数据))
             else:
                 print("忽略无效消息: 需为 dict 且包含 type")
 
@@ -57,6 +71,14 @@ class 通信管理器类:
                 traceback.print_exc()
             finally:
                 self._消息队列.task_done()
+
+    def _执行旁路消息(self, 类型, 数据):
+        try:
+            if self._消息处理回调:
+                self._消息处理回调(类型, 数据)
+        except Exception as e:
+            print(f"旁路消息处理异常 ({类型}): {e}")
+            traceback.print_exc()
 
     def _连接服务器(self):
         if self._客户端.connected:

@@ -352,17 +352,32 @@ function initImageSocket() {
   });
 
   imageSocket.on("image-library", (data) => {
-    console.log("收到图片库结果:", data);
+    const items = data?.items;
+    console.log("收到图片库结果:", {
+      success: data?.success,
+      error: data?.error,
+      itemCount: Array.isArray(items) ? items.length : 0,
+    });
     handleImageLibraryResult(data);
   });
 
   imageSocket.on("image-match-result", (data) => {
-    console.log("收到图片库模板匹配结果:", data);
+    console.log("收到图片库模板匹配结果:", {
+      success: data?.success,
+      error: data?.error,
+      hasResultImage: !!data?.resultImage,
+      hasProcessedImage: !!data?.processedImage,
+    });
     handleMatchResult(data);
   });
 
   imageSocket.on("device-screenshot", (data) => {
-    console.log("收到设备截图 (ImageLibraryTab):", data);
+    console.log("收到设备截图 (ImageLibraryTab):", {
+      success: data?.success,
+      source: data?.source,
+      pending: isScreenshotPending.value,
+      imageBase64Chars: typeof data?.image === "string" ? data.image.length : 0,
+    });
     if (isScreenshotPending.value) {
       handleDeviceScreenshot(data);
     }

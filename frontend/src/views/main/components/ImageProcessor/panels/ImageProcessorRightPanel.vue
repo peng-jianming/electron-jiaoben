@@ -310,7 +310,12 @@ function initDeviceSocket() {
   });
 
   deviceSocket.on("device-screenshot", (data) => {
-    console.log("收到设备截图 (RightPanel):", data);
+    console.log("收到设备截图 (RightPanel):", {
+      success: data?.success,
+      source: data?.source,
+      pending: isRightPanelScreenshotPending.value,
+      imageBase64Chars: typeof data?.image === "string" ? data.image.length : 0,
+    });
     // 只处理自己发起的截图请求
     if (isRightPanelScreenshotPending.value) {
       handleDeviceScreenshot(data);

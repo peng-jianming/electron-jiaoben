@@ -5,6 +5,10 @@ import traceback
 import tempfile
 import socket
 import subprocess
+import threading
+
+# 截图可走旁路线程，与主队列中的自动截图可能并发；同一设备 ADB 需串行
+_adb_screencap_lock = threading.Lock()
 
 import cv2
 import numpy as np
@@ -956,33 +960,33 @@ class ADBController:
         截图并直接返回 PNG 图像数据，失败返回 None。
         优先级: socket raw → subprocess raw → subprocess PNG
         """
-        try:
-            # 1) 最快: socket raw
-            raw_bytes = self.截图到内存_socket()
-            img_bytes = self._raw字节转png(raw_bytes)
-            if img_bytes:
-                print("1111111")
-                return img_bytes
+        with _adb_screencap_lock:
+            try:
+                # 1) 最快: socket raw
+                raw_bytes = self.截图到内存_socket()
+                img_bytes = self._raw字节转png(raw_bytes)
+                if img_bytes:
+                    return img_bytes
 
-            # 2) 次快: subprocess raw
-            raw_bytes = self.截图到内存_快速原始()
-            img_bytes = self._raw字节转png(raw_bytes)
-            if img_bytes:
-                return img_bytes
+                # 2) 次快: subprocess raw
+                raw_bytes = self.截图到内存_快速原始()
+                img_bytes = self._raw字节转png(raw_bytes)
+                if img_bytes:
+                    return img_bytes
 
-            # 3) 最慢: subprocess PNG（兜底）
-            result = subprocess.run(
-                f"{self._adb_prefix} exec-out screencap -p",
-                shell=True,
-                capture_output=True,
-                timeout=10,
-            )
-            if result.returncode == 0:
-                return result.stdout
-            return None
-        except Exception as e:
-            print(f"截图失败: {e}")
-            return None
+                # 3) 最慢: subprocess PNG（兜底）
+                result = subprocess.run(
+                    f"{self._adb_prefix} exec-out screencap -p",
+                    shell=True,
+                    capture_output=True,
+                    timeout=10,
+                )
+                if result.returncode == 0:
+                    return result.stdout
+                return None
+            except Exception as e:
+                print(f"截图失败: {e}")
+                return None
 
 
 def 截图当前设备(data):
