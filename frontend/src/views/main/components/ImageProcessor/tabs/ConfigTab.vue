@@ -655,7 +655,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed, h } from "vue";
+import { ref, watch, onMounted, computed, h, nextTick } from "vue";
 import {
   ElMessage,
   ElMessageBox,
@@ -1491,6 +1491,16 @@ const handleNewScreen = () => {
       };
       selectedRootKey.value = key;
       ElMessage.success("已添加界面");
+      nextTick(() => {
+        const idx = rootKeys.value.indexOf(key);
+        if (idx < 0) return;
+        const listEl = document.querySelector(".cfg-sidebar-list");
+        const items = listEl?.querySelectorAll(".cfg-root-item");
+        const target = items?.[idx];
+        if (target && typeof target.scrollIntoView === "function") {
+          target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      });
     })
     .catch(() => {});
 };
@@ -1953,6 +1963,36 @@ const handleAddItem = (node) => {
             相似度: 0.9,
           };
         }
+
+        // 若新增目标是当前界面的「元素」列表，则自动展开并滚动到新元素位置
+        try {
+          const pathKeys = node.path === "root" ? [] : getPathKeys(node.path);
+          const isElementList =
+            pathKeys.length >= 2 &&
+            pathKeys[pathKeys.length - 1] === "元素" &&
+            pathKeys[0] === selectedRootKey.value;
+          if (isElementList) {
+            if (!elementCollapseActiveNames.value.includes(key)) {
+              elementCollapseActiveNames.value = [
+                ...elementCollapseActiveNames.value,
+                key,
+              ];
+            }
+            nextTick(() => {
+              const idx = elementEntriesForScreen.value.findIndex(
+                ([n]) => n === key
+              );
+              if (idx < 0) return;
+              const items = document.querySelectorAll(
+                ".proto-element-collapse > .proto-element-collapse-item"
+              );
+              const target = items[idx];
+              if (target && typeof target.scrollIntoView === "function") {
+                target.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
+            });
+          }
+        } catch (_) {}
     })
     .catch(() => {});
 };

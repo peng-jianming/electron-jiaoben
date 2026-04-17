@@ -290,6 +290,8 @@ let syncTimer = null;
 let initialLoadFromDBDone = false;
 /** loadImageLibrary 的 15s 超时定时器 id，用于在收到结果或卸载时清除 */
 let loadLibraryTimeoutId = null;
+/** 模板匹配请求：避免多次点击叠加多个 setTimeout 导致误报超时或 matching 无法复位 */
+let imageMatchRequestTimeoutId = null;
 
 // 测试相关状态
 const testDialogVisible = ref(false);
@@ -768,6 +770,11 @@ async function handleMatch() {
   resultImageUrl.value = null;
   processedImageUrl.value = null;
 
+  if (imageMatchRequestTimeoutId != null) {
+    clearTimeout(imageMatchRequestTimeoutId);
+    imageMatchRequestTimeoutId = null;
+  }
+
   try {
     let largeBase64 = null;
     if (largeImageFile.value) {
@@ -812,7 +819,8 @@ async function handleMatch() {
       matchMode: matchMode.value,
     });
 
-    setTimeout(() => {
+    imageMatchRequestTimeoutId = setTimeout(() => {
+      imageMatchRequestTimeoutId = null;
       if (matching.value) {
         matching.value = false;
         ElMessage.error("匹配超时");
@@ -821,11 +829,19 @@ async function handleMatch() {
   } catch (error) {
     console.error("匹配失败:", error);
     ElMessage.error(`匹配失败: ${error.message || "未知错误"}`);
+    if (imageMatchRequestTimeoutId != null) {
+      clearTimeout(imageMatchRequestTimeoutId);
+      imageMatchRequestTimeoutId = null;
+    }
     matching.value = false;
   }
 }
 
 function handleMatchResult(data) {
+  if (imageMatchRequestTimeoutId != null) {
+    clearTimeout(imageMatchRequestTimeoutId);
+    imageMatchRequestTimeoutId = null;
+  }
   const wasOurRequest = matching.value;
   matching.value = false;
 
@@ -879,6 +895,10 @@ onUnmounted(() => {
   if (loadLibraryTimeoutId) {
     clearTimeout(loadLibraryTimeoutId);
     loadLibraryTimeoutId = null;
+  }
+  if (imageMatchRequestTimeoutId != null) {
+    clearTimeout(imageMatchRequestTimeoutId);
+    imageMatchRequestTimeoutId = null;
   }
   if (imageSocket) {
     imageSocket.disconnect();

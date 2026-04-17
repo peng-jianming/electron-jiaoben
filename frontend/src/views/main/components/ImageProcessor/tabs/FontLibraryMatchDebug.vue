@@ -153,6 +153,8 @@
   const screenshotLoading = ref(false);
   const isScreenshotPending = ref(false);
   let matchSocket = null;
+  /** 点阵匹配：清除上一次超时定时器，避免多次点击导致误报或 matching 卡死 */
+  let fontMatchRequestTimeoutId = null;
   
   // 格式化相似度显示
   const formatSimilarity = (val) => {
@@ -370,6 +372,11 @@
     resultImageUrl.value = null;
     processedImageUrl.value = null;
     matchResult.value = null;
+
+    if (fontMatchRequestTimeoutId != null) {
+      clearTimeout(fontMatchRequestTimeoutId);
+      fontMatchRequestTimeoutId = null;
+    }
   
     try {
       // 读取大图为 base64（如果没有大图，则不传，让后端自动截图）
@@ -413,22 +420,30 @@
         similarity: similarity.value,
       });
   
-      // 设置超时
-      setTimeout(() => {
+      fontMatchRequestTimeoutId = setTimeout(() => {
+        fontMatchRequestTimeoutId = null;
         if (matching.value) {
           matching.value = false;
           ElMessage.error("匹配超时");
         }
-      }, 30000); // 30秒超时
+      }, 30000);
     } catch (error) {
       console.error("匹配失败:", error);
       ElMessage.error(`匹配失败: ${error.message || "未知错误"}`);
+      if (fontMatchRequestTimeoutId != null) {
+        clearTimeout(fontMatchRequestTimeoutId);
+        fontMatchRequestTimeoutId = null;
+      }
       matching.value = false;
     }
   }
   
   // 处理匹配结果（仅在本组件发起的请求时提示，避免与 ImageLibraryTab 等重复弹窗）
   function handleMatchResult(data) {
+    if (fontMatchRequestTimeoutId != null) {
+      clearTimeout(fontMatchRequestTimeoutId);
+      fontMatchRequestTimeoutId = null;
+    }
     const wasOurRequest = matching.value;
     matching.value = false;
 
@@ -488,6 +503,10 @@
   
   // 组件卸载时断开 socket
   onUnmounted(() => {
+    if (fontMatchRequestTimeoutId != null) {
+      clearTimeout(fontMatchRequestTimeoutId);
+      fontMatchRequestTimeoutId = null;
+    }
     if (matchSocket) {
       matchSocket.disconnect();
       matchSocket = null;

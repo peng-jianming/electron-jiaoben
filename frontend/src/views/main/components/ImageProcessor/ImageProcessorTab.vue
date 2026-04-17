@@ -273,6 +273,10 @@ const screenshotLoading = ref(false);
 const captureWindowLoading = ref(false);
 const isRightPanelScreenshoting = ref(false); // 标记右侧面板是否正在截图
 let deviceSocket = null;
+/** 左侧设备截图：ipc 很快返回，结果走 Socket；无超时则 Socket 丢失时会一直转圈 */
+let leftPanelScreenshotWatchTimer = null;
+/** 截屏窗口区域截图：防止主进程无响应时按钮一直 loading */
+let captureWindowScreenshotWatchTimer = null;
 
 
 // 载入图片
@@ -526,11 +530,21 @@ function handleDeviceScreenshot(data) {
     console.log("忽略图片匹配调试组件的截图，由图片匹配调试组件自己处理");
     return;
   }
+
+  // 其它子面板自带 Socket 与 loading，勿动主 Tab 的截图 loading，避免竞态卡死或误清
+  if (source === "image-library-test" || source === "font-library-ocr-test") {
+    return;
+  }
   
   // 兼容旧逻辑：如果数据中没有 source，但标志已设置，也忽略
   if (isRightPanelScreenshoting.value && !source) {
     console.log("忽略右侧面板的截图（通过标志判断），由右侧面板自己处理");
     return;
+  }
+
+  if (leftPanelScreenshotWatchTimer != null) {
+    clearTimeout(leftPanelScreenshotWatchTimer);
+    leftPanelScreenshotWatchTimer = null;
   }
 
   screenshotLoading.value = false;
@@ -626,12 +640,24 @@ async function captureScreenshot() {
     return;
   }
 
+  if (leftPanelScreenshotWatchTimer != null) {
+    clearTimeout(leftPanelScreenshotWatchTimer);
+    leftPanelScreenshotWatchTimer = null;
+  }
+
   screenshotLoading.value = true;
   try {
     await ipc.invoke(ipcApiRoute.sendToPython, {
       type: "capture_screenshot",
       source: "left-panel", // 添加来源标识
     });
+    leftPanelScreenshotWatchTimer = setTimeout(() => {
+      leftPanelScreenshotWatchTimer = null;
+      if (screenshotLoading.value) {
+        screenshotLoading.value = false;
+        ElMessage.error("截图超时，请检查设备连接或 Python 队列是否阻塞，可稍后重试");
+      }
+    }, 20000);
   } catch (error) {
     console.error("截图失败:", error);
     ElMessage.error(`截图失败: ${error.message || "未知错误"}`);
@@ -660,8 +686,23 @@ async function captureWindowScreenshot() {
       ElMessage.warning("请先打开截屏窗口");
       return;
     }
+    if (captureWindowScreenshotWatchTimer != null) {
+      clearTimeout(captureWindowScreenshotWatchTimer);
+      captureWindowScreenshotWatchTimer = null;
+    }
     captureWindowLoading.value = true;
+    captureWindowScreenshotWatchTimer = setTimeout(() => {
+      captureWindowScreenshotWatchTimer = null;
+      if (captureWindowLoading.value) {
+        captureWindowLoading.value = false;
+        ElMessage.error("截屏窗口截图超时，请重试");
+      }
+    }, 20000);
     const result = await ipc.invoke(ipcApiRoute.captureScreenOnce, {});
+    if (captureWindowScreenshotWatchTimer != null) {
+      clearTimeout(captureWindowScreenshotWatchTimer);
+      captureWindowScreenshotWatchTimer = null;
+    }
     if (!result?.success || !result?.image) {
       captureWindowLoading.value = false;
       ElMessage.error(result?.message || "截图失败");
@@ -691,6 +732,10 @@ async function captureWindowScreenshot() {
     img.src = url;
   } catch (err) {
     console.error("截屏窗口截图失败:", err);
+    if (captureWindowScreenshotWatchTimer != null) {
+      clearTimeout(captureWindowScreenshotWatchTimer);
+      captureWindowScreenshotWatchTimer = null;
+    }
     captureWindowLoading.value = false;
     ElMessage.error(`截图失败: ${err?.message || "未知错误"}`);
   }
@@ -2545,6 +2590,15 @@ onUnmounted(() => {
   // 移除键盘事件监听
   document.removeEventListener("keydown", handleKeyDown);
   document.removeEventListener("keyup", handleKeyUp);
+
+  if (leftPanelScreenshotWatchTimer != null) {
+    clearTimeout(leftPanelScreenshotWatchTimer);
+    leftPanelScreenshotWatchTimer = null;
+  }
+  if (captureWindowScreenshotWatchTimer != null) {
+    clearTimeout(captureWindowScreenshotWatchTimer);
+    captureWindowScreenshotWatchTimer = null;
+  }
 
   if (deviceSocket) {
     deviceSocket.disconnect();
