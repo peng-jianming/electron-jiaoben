@@ -2,6 +2,7 @@ import ctypes
 from ctypes import wintypes as 窗口类型
 import numpy as 数组库
 import win32gui as 窗口图形
+import time
 
 用户库 = ctypes.WinDLL("user32", use_last_error=True)
 图形库 = ctypes.WinDLL("gdi32", use_last_error=True)
@@ -292,7 +293,76 @@ class 窗口控制器:
             窗口图形.MoveWindow(句柄, 安全x, 安全y, 窗口宽, 窗口高, True)
             当前x += 窗口宽 + 间距
             当前行最大高 = max(当前行最大高, 窗口高)
+    @staticmethod
+    def _获取窗口点击点(窗口句柄: int, 点击边距: int = 8) -> tuple[int, int]:
+        if not 窗口图形.IsWindow(窗口句柄):
+            raise ValueError(f"无效窗口句柄: {窗口句柄}")
+        左边, 上边, 右边, 下边 = 窗口图形.GetWindowRect(窗口句柄)
+        窗口宽 = max(1, 右边 - 左边)
+        窗口高 = max(1, 下边 - 上边)
 
+        # 错位层叠时，窗口常见可见区域是右上角，因此优先点击右上区域。
+        点x = 左边 + max(1, 窗口宽 - 点击边距)
+        点y = 上边 + min(max(1, 点击边距), max(1, 窗口高 // 2))
+        print(f"点击点: {点x}, {点y}")
+        return 点x, 点y
+
+    @staticmethod
+    def _执行点击并截图(
+        句柄序列: list[int],
+        鼠标控制器,
+        窗口名: str,
+        截图前等待秒数: float = 0.12,
+        点击边距: int = 8,
+    ):
+        import cv2 as 视觉库
+
+        有效句柄序列 = [句柄 for 句柄 in 句柄序列 if 窗口图形.IsWindow(句柄)]
+        for 序号, 句柄 in enumerate(有效句柄序列, start=1):
+            点x, 点y = 窗口控制器._获取窗口点击点(句柄, 点击边距=点击边距)
+            鼠标控制器.鼠标移动(点x, 点y, 模拟真实移动=True, 最小距离阈值=8)
+            鼠标控制器.鼠标左键点击()
+            time.sleep(max(0.0, 截图前等待秒数))
+
+            图像帧 = 窗口控制器(句柄).前台截图()
+            视觉库.imshow(f"{窗口名}-{序号}-句柄{句柄}", 图像帧)
+            视觉库.waitKey(0)
+            视觉库.destroyAllWindows()
+
+    @staticmethod
+    def 错位层叠点击截图往返(
+        窗口句柄列表: list[int],
+        点击边距: int = 8,
+        截图前等待秒数: float = 0.12,
+    ):
+        if not 窗口句柄列表:
+            return
+
+        from 鼠标键盘控制器 import 鼠标键盘控制器
+
+        鼠标控制器 = 鼠标键盘控制器()
+        有效句柄列表 = [句柄 for 句柄 in 窗口句柄列表 if 窗口图形.IsWindow(句柄)]
+        if not 有效句柄列表:
+            return
+
+        try:
+            while True:
+                窗口控制器._执行点击并截图(
+                    句柄序列=有效句柄列表,
+                    鼠标控制器=鼠标控制器,
+                    窗口名="正序",
+                    截图前等待秒数=截图前等待秒数,
+                    点击边距=点击边距,
+                )
+                窗口控制器._执行点击并截图(
+                    句柄序列=list(reversed(有效句柄列表)),
+                    鼠标控制器=鼠标控制器,
+                    窗口名="反序",
+                    截图前等待秒数=截图前等待秒数,
+                    点击边距=点击边距,
+                )
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":
@@ -303,6 +373,7 @@ if __name__ == "__main__":
     list = 窗口控制器.获取窗口句柄列表("计算器")
     print(list)
     窗口控制器.排列窗口(list,"错位层叠",20)
+    窗口控制器.错位层叠点击截图往返(list, 点击边距=10, 截图前等待秒数=0.15)
     
     # 图像帧 = 窗口工具.前台截图()
     # 后台截图（窗口设备上下文）
