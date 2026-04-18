@@ -41,7 +41,13 @@ class 通信管理器类:
                 # 避免打印整包（大图 base64 会拖慢控制台）
                 print(f"收到来自 Electron 的消息 type={类型}")
                 if 类型 in _旁路消息类型:
-                    self._旁路线程池.submit(self._执行旁路消息, 类型, 数据)
+                    try:
+                        self._旁路线程池.submit(self._执行旁路消息, 类型, 数据)
+                    except RuntimeError as e:
+                        # 解释器退出阶段线程池已关闭，忽略晚到的旁路消息
+                        if "interpreter shutdown" in str(e) or "shutdown" in str(e).lower():
+                            return
+                        raise
                 else:
                     self._消息队列.put((类型, 数据))
             else:
@@ -88,6 +94,10 @@ class 通信管理器类:
             print(f"Socket.IO 客户端已连接到: {self._服务器地址}")
         except Exception as e:
             print(f"Socket.IO 连接失败: {e}")
+
+    def 阻塞直到断开(self):
+        """阻塞主线程，避免进程初始化后立即退出导致解释器关闭、旁路线程池无法再接任务。"""
+        self._客户端.wait()
 
     def 发送原始(self, 事件名, 数据):
         """向前端发送原始 Socket.IO 消息。"""
